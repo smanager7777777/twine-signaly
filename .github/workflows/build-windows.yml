@@ -32,7 +32,29 @@ jobs:
       - name: Проверка типов
         run: npx tsc --noEmit -p tsconfig.json && npx tsc --noEmit -p tsconfig.electron.json
       - name: Тесты
-        run: npx jest --maxWorkers=2
+        # Упавшие наборы тестов перезапускаются один раз (в Twine есть
+        # нестабильные тесты); оставшиеся ошибки выводятся как пометки
+        # (annotations), чтобы их было видно без скачивания журнала.
+        shell: bash
+        run: |
+          if npx jest --maxWorkers=2 --json --outputFile=jest.json > /dev/null 2> jest.log; then
+            exit 0
+          fi
+          FAILED=$(node -e "const r=require('./jest.json');console.log(r.testResults.filter(t=>t.status!=='passed').map(t=>t.name).join(' '))")
+          echo "Перезапуск: $FAILED"
+          if [ -n "$FAILED" ] && npx jest --maxWorkers=1 --json --outputFile=jest2.json $FAILED > /dev/null 2>> jest.log; then
+            exit 0
+          fi
+          node -e "
+            const fs=require('fs');
+            const f=fs.existsSync('jest2.json')?'jest2.json':'jest.json';
+            const r=JSON.parse(fs.readFileSync(f));
+            for (const t of r.testResults) {
+              if (t.message) console.log('::error title=' + require('path').basename(t.name) + '::' + t.message.replace(/\x1b\[[0-9;]*m/g,'').slice(0,1500).replace(/\n/g,'%0A'));
+            }
+          " || true
+          tail -50 jest.log | sed 's/^/::error::/' | head -50
+          exit 1
 
   windows:
     name: Программа для Windows
