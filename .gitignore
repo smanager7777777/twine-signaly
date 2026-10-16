@@ -1,0 +1,11 @@
+*.swp
+node_modules/*
+dist/*
+*.DS_Store
+.idea
+electron-build/*
+coverage/*
+docs/en/book/*
+/test-results/
+/playwright-report/
+/playwright/.cache/
