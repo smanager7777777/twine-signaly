@@ -29,6 +29,26 @@ contextBridge.exposeInMainWorld('twineElectron', {
 	openHtmlWithScratchFile(data: string, filename: string) {
 		ipcRenderer.send('open-html-with-scratch-file', data, filename);
 	},
+	signalyChooseGameFolder(currentPath?: string) {
+		return ipcRenderer.invoke('signaly-choose-game-folder', currentPath);
+	},
+	signalyShowGameFolder(folder: string) {
+		ipcRenderer.send('signaly-show-game-folder', folder);
+	},
+	signalyWriteGameFile(
+		folder: string,
+		filename: string,
+		data: string,
+		open: boolean
+	) {
+		return ipcRenderer.invoke(
+			'signaly-write-game-file',
+			folder,
+			filename,
+			data,
+			open
+		);
+	},
 	renameStory(oldStory: Story, newStory: Story) {
 		ipcRenderer.send('rename-story', oldStory, newStory);
 	},

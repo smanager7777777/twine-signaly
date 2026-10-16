@@ -13,7 +13,8 @@ export type PrefsAction =
 				| string[]
 				| {name: string; version: string}
 				| {name: string; version: string}[]
-				| Record<string, Color>;
+				| Record<string, Color>
+				| Record<string, string>;
 	  }
 	| {type: 'repair'; allFormats: StoryFormat[]};
 
@@ -50,6 +51,10 @@ export interface PrefsState {
 	 * stylesheet).
 	 */
 	editorCursorBlinks: boolean;
+	/**
+	 * «Twine СИГНАЛЫ»: папка игры для каждой истории (ключ — id истории).
+	 */
+	gameFolders: Record<string, string>;
 	/**
 	 * Timestamp when the app was first run.
 	 */

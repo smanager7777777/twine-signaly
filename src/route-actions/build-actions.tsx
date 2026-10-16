@@ -1,6 +1,7 @@
 import {
 	IconEyeglass,
 	IconFileText,
+	IconFolder,
 	IconPlayerPlay,
 	IconTool,
 	IconX
@@ -16,6 +17,7 @@ import {storyFileName} from '../electron/shared';
 import {Story} from '../store/stories';
 import {usePublishing} from '../store/use-publishing';
 import {useStoryLaunch} from '../store/use-story-launch';
+import {useGameFolder} from '../store/use-game-folder';
 import {saveHtml, saveTwee} from '../util/save-file';
 import {storyToTwee} from '../util/twee';
 
@@ -30,6 +32,11 @@ export const BuildActions: React.FC<BuildActionsProps> = ({story}) => {
 	const [publishError, setPublishError] = React.useState<Error>();
 	const [testError, setTestError] = React.useState<Error>();
 	const {playStory, proofStory, testStory} = useStoryLaunch();
+	const gameFolders = useGameFolder();
+	const [gameFolderResult, setGameFolderResult] = React.useState<{
+		error?: Error;
+		path?: string;
+	}>();
 	const {t} = useTranslation();
 
 	function resetErrors() {
@@ -37,6 +44,7 @@ export const BuildActions: React.FC<BuildActionsProps> = ({story}) => {
 		setProofError(undefined);
 		setPublishError(undefined);
 		setTestError(undefined);
+		setGameFolderResult(undefined);
 	}
 
 	async function handlePlay() {
@@ -78,6 +86,37 @@ export const BuildActions: React.FC<BuildActionsProps> = ({story}) => {
 			saveHtml(await publishStory(story.id), storyFileName(story));
 		} catch (error) {
 			setPublishError(error as Error);
+		}
+	}
+
+	// «Twine СИГНАЛЫ»: опубликовать готовую игру в папку игры.
+
+	async function handlePublishToGameFolder() {
+		if (!story) {
+			throw new Error('No story provided to publish');
+		}
+
+		resetErrors();
+
+		try {
+			const folder =
+				gameFolders.gameFolder(story.id) ??
+				(await gameFolders.chooseGameFolder(story.id));
+
+			if (!folder) {
+				return;
+			}
+
+			const path = await gameFolders.writeGameFile(
+				folder,
+				storyFileName(story),
+				await publishStory(story.id),
+				false
+			);
+
+			setGameFolderResult({path});
+		} catch (error) {
+			setGameFolderResult({error: error as Error});
 		}
 	}
 
@@ -181,6 +220,44 @@ export const BuildActions: React.FC<BuildActionsProps> = ({story}) => {
 					/>
 				</CardContent>
 			</CardButton>
+			{gameFolders.available && (
+				<CardButton
+					ariaLabel={
+						gameFolderResult?.error?.message ?? gameFolderResult?.path ?? ''
+					}
+					disabled={!story}
+					icon={<IconFolder />}
+					label={t('routeActions.build.signalyPublishToGameFolder')}
+					onChangeOpen={() => setGameFolderResult(undefined)}
+					onClick={handlePublishToGameFolder}
+					open={!!gameFolderResult}
+				>
+					<CardContent>
+						<p>
+							{gameFolderResult?.error
+								? gameFolderResult.error.message
+								: t('routeActions.build.signalyPublished', {
+										path: gameFolderResult?.path
+									})}
+						</p>
+						<ButtonBar>
+							{story && !gameFolderResult?.error && (
+								<IconButton
+									icon={<IconFolder />}
+									label={t('routeActions.build.signalyShowGameFolder')}
+									onClick={() => gameFolders.showGameFolder(story.id)}
+								/>
+							)}
+							<IconButton
+								icon={<IconX />}
+								label={t('common.close')}
+								onClick={() => setGameFolderResult(undefined)}
+								variant="primary"
+							/>
+						</ButtonBar>
+					</CardContent>
+				</CardButton>
+			)}
 			<IconButton
 				disabled={!story}
 				icon={<IconFileTwee />}

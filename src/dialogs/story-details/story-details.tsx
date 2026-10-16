@@ -1,6 +1,9 @@
 import * as React from 'react';
 import {useTranslation} from 'react-i18next';
+import {IconFolder, IconFolderPlus} from '@tabler/icons';
 import {CheckboxButton} from '../../components/control/checkbox-button';
+import {IconButton} from '../../components/control/icon-button';
+import {useGameFolder} from '../../store/use-game-folder';
 import {ButtonBar} from '../../components/container/button-bar';
 import {CardContent} from '../../components/container/card';
 import {DialogCard} from '../../components/container/dialog-card';
@@ -25,6 +28,8 @@ export const StoryDetailsDialog: React.FC<StoryDetailsDialogProps> = props => {
 	const {formats} = useStoryFormatsContext();
 	const story = storyWithId(stories, storyId);
 	const {t} = useTranslation();
+	const gameFolders = useGameFolder();
+	const gameFolder = gameFolders.gameFolder(storyId);
 
 	function handleFormatChange(event: React.ChangeEvent<HTMLSelectElement>) {
 		const newFormat = formatWithId(formats, event.target.value);
@@ -65,6 +70,31 @@ export const StoryDetailsDialog: React.FC<StoryDetailsDialogProps> = props => {
 					{t('dialogs.storyDetails.storyFormatExplanation')}
 				</a>
 			</div>
+			{gameFolders.available && (
+				<div className="signaly-game-folder">
+					<p>
+						<strong>{t('dialogs.storyDetails.signalyGameFolder')}:</strong>{' '}
+						{gameFolder ?? t('dialogs.storyDetails.signalyGameFolderNotSet')}
+					</p>
+					<ButtonBar>
+						<IconButton
+							icon={<IconFolderPlus />}
+							label={t('dialogs.storyDetails.signalyChooseGameFolder')}
+							onClick={() => gameFolders.chooseGameFolder(storyId)}
+						/>
+						{gameFolder && (
+							<IconButton
+								icon={<IconFolder />}
+								label={t('dialogs.storyDetails.signalyShowGameFolder')}
+								onClick={() => gameFolders.showGameFolder(storyId)}
+							/>
+						)}
+					</ButtonBar>
+					<p className="signaly-game-folder-hint">
+						{t('dialogs.storyDetails.signalyGameFolderHint')}
+					</p>
+				</div>
+			)}
 			<ButtonBar>
 				<CheckboxButton
 					label={t('dialogs.storyDetails.snapToGrid')}

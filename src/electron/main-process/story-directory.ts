@@ -2,6 +2,7 @@ import {app, dialog, shell} from 'electron';
 import {copy, mkdirp, readdir, remove, stat} from 'fs-extra';
 import {join} from 'path';
 import {i18n} from './locales';
+import {signalyAppFolderName} from './signaly-app-folder';
 import {getAppPref, setAppPref} from './app-prefs';
 import {showRelaunchDialog} from './relaunch-dialog';
 
@@ -71,7 +72,7 @@ export async function initStoryDirectory() {
 
 	storyDirectoryPath = join(
 		app.getPath('documents'),
-		i18n.t('common.appName'),
+		signalyAppFolderName,
 		i18n.t('electron.storiesDirectoryName')
 	);
 	console.log(`Story library path initialized as ${storyDirectoryPath}`);
@@ -132,12 +133,12 @@ export async function backupStoryDirectory(maxBackups = 10) {
 			? prefPath
 			: join(
 					app.getPath('documents'),
-					i18n.t('common.appName'),
+					signalyAppFolderName,
 					i18n.t('electron.backupsDirectoryName')
-			  );
+				);
 
 	console.log(`Backing up story library to ${backupPath}`);
-	
+
 	const now = new Date();
 	const backupDirectoryName = join(
 		backupPath,

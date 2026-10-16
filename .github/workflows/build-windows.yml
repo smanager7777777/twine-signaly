@@ -1,0 +1,87 @@
+# «Twine СИГНАЛЫ»: проверка и сборка программы для Windows.
+# Запускается при каждом обновлении ветки main и вручную (Actions → Run workflow).
+# Результат — релиз с архивом программы:
+# https://github.com/<владелец>/<репозиторий>/releases/latest
+
+name: Сборка для Windows
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-windows
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Тесты Twine
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Установка
+        run: npm ci --ignore-scripts
+      - name: Проверка типов
+        run: npx tsc --noEmit -p tsconfig.json && npx tsc --noEmit -p tsconfig.electron.json
+      - name: Тесты
+        run: npx jest --maxWorkers=2
+
+  windows:
+    name: Программа для Windows
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Установка
+        run: npm ci --ignore-scripts
+      - name: Сборка интерфейса
+        shell: bash
+        run: |
+          npx tsc
+          npx vite build
+          mkdir -p electron-build/renderer
+          cp -r dist/web/. electron-build/renderer/
+      - name: Сборка основной части
+        run: npm run build:electron-main
+      - name: Упаковка (архив .zip)
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npx electron-builder --config electron-builder.config.js --windows --x64 --publish=never
+      - name: Файлы для релиза
+        shell: bash
+        run: |
+          mkdir -p release
+          cp dist/electron/*.zip release/
+          cp signaly/template/27_03_2025.twee release/
+          cp signaly/template/MEDIA.md release/
+          ls -la release
+      - name: Сохранить как артефакт
+        uses: actions/upload-artifact@v4
+        with:
+          name: Twine-SIGNALY-Windows
+          path: release/
+          retention-days: 30
+      - name: Опубликовать релиз
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Twine СИГНАЛЫ — сборка ${{ github.run_number }}
+          body: |
+            Программа «Twine СИГНАЛЫ» для Windows (основа — Twine 2.12.1).
+            Скачайте архив Twine-SIGNALY-…-Windows.zip, распакуйте и запустите «Twine СИГНАЛЫ.exe».
+            Исправленный шаблон — 27_03_2025.twee, список медиафайлов — MEDIA.md.
+            Коммит: ${{ github.sha }}
+          files: release/*
+          make_latest: true

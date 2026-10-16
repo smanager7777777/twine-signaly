@@ -10,7 +10,6 @@ import {
 	revealStoryDirectory
 } from './story-directory';
 import {i18n} from './locales';
-import {checkForUpdate} from './check-for-update';
 import {toggleHardwareAcceleration} from './hardware-acceleration';
 import {getAppPref} from './app-prefs';
 
@@ -20,10 +19,7 @@ export function initMenuBar() {
 			label: app.getName(),
 			submenu: [
 				{role: 'about'},
-				{
-					label: i18n.t('electron.menuBar.checkForUpdates'),
-					click: checkForUpdate
-				},
+				// «Twine СИГНАЛЫ»: проверка обновлений обычного Twine убрана.
 				{
 					label: i18n.t('electron.menuBar.setStoryLibraryFolder'),
 					click: chooseStoryDirectoryPath
@@ -94,10 +90,7 @@ export function initMenuBar() {
 	if (process.platform === 'darwin') {
 		template[0].submenu = [
 			{role: 'about'},
-			{
-				label: i18n.t('electron.menuBar.checkForUpdates'),
-				click: checkForUpdate
-			},
+			// «Twine СИГНАЛЫ»: проверка обновлений обычного Twine убрана.
 			{
 				label: i18n.t('electron.menuBar.setStoryLibraryFolder'),
 				click: chooseStoryDirectoryPath

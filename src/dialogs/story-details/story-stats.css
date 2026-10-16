@@ -31,3 +31,18 @@
 .story-stats .counts td:first-child {
 	font-weight: bold;
 }
+
+/* «Twine СИГНАЛЫ»: папка игры */
+.story-details-dialog .signaly-game-folder {
+	margin: var(--grid-size) var(--grid-size) 0 var(--grid-size);
+	overflow-wrap: anywhere;
+}
+
+.story-details-dialog .signaly-game-folder p {
+	margin: 0 0 calc(var(--grid-size) / 2) 0;
+}
+
+.story-details-dialog .signaly-game-folder-hint {
+	font-size: 90%;
+	opacity: 0.8;
+}

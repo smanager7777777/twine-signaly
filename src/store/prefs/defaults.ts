@@ -8,14 +8,12 @@ export const defaults = (): PrefsState => ({
 	disabledStoryFormatEditorExtensions: [],
 	donateShown: false,
 	editorCursorBlinks: true,
+	gameFolders: {},
 	firstRunTime: new Date().getTime(),
 	lastUpdateSeen: '',
 	lastUpdateCheckTime: new Date().getTime(),
-	locale: (window.navigator as any).userLanguage ||
-		window.navigator.language ||
-		(window.navigator as any).browserLanguage ||
-		(window.navigator as any).systemLanguage ||
-		'en-us',
+	// «Twine СИГНАЛЫ»: интерфейс по-русски по умолчанию.
+	locale: 'ru',
 	passageEditorFontFamily: 'var(--font-system)',
 	passageEditorFontScale: 1,
 	passageTagDisplay: 'color',
@@ -23,14 +21,15 @@ export const defaults = (): PrefsState => ({
 		name: 'Paperthin',
 		version: '1.0.0'
 	},
+	// «Twine СИГНАЛЫ»: терминал игры сделан на SugarCube.
 	storyFormat: {
-		name: 'Harlowe',
-		version: '3.3.9'
+		name: 'SugarCube',
+		version: '2.37.3'
 	},
 	storyFormatListFilter: 'current',
 	storyListSort: 'name',
 	storyListTagFilter: [],
 	storyTagColors: {},
 	useCodeMirror: true,
-	welcomeSeen: false,
+	welcomeSeen: false
 });

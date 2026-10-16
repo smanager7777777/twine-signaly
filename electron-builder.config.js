@@ -62,12 +62,16 @@ module.exports = {
 	// 		);
 	// 	}
 	// },
-	appId: 'org.twinery.twine',
+	// «Twine СИГНАЛЫ»: своё имя и id, чтобы не пересекаться с обычным Twine.
+	appId: 'ru.signaly.twine',
+	productName: 'Twine СИГНАЛЫ',
 	directories: {
 		output: 'dist/electron'
 	},
 	extraMetadata: {
-		main: 'electron-build/main/src/electron/main-process/index.js'
+		main: 'electron-build/main/src/electron/main-process/index.js',
+		name: 'twine-signaly',
+		productName: 'Twine СИГНАЛЫ'
 	},
 	files: ['electron-build/**/*', 'node_modules/**/*'],
 	linux: {
@@ -84,8 +88,8 @@ module.exports = {
 		allowToChangeInstallationDirectory: true
 	},
 	win: {
-		artifactName: `Twine-${pkg.version}-Windows.exe`,
+		artifactName: `Twine-SIGNALY-${pkg.version}-Windows.\${ext}`,
 		icon: `icons/app-${isPreview ? 'preview' : 'release'}-no-padding.ico`,
-		target: {arch: ['x64'], target: 'nsis'}
+		target: {arch: ['x64'], target: 'zip'}
 	}
 };

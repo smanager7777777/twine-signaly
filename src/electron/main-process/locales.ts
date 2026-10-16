@@ -71,9 +71,12 @@ export async function initLocales() {
 	try {
 		const {locale} = await loadPrefs();
 
-		console.log(`Changing i18next language to ${locale}`);
-		i18n.changeLanguage(locale);
+		// «Twine СИГНАЛЫ»: по умолчанию — русский (и до первого сохранения
+		// настроек тоже, чтобы папка библиотеки не менялась).
+		console.log(`Changing i18next language to ${locale ?? 'ru'}`);
+		i18n.changeLanguage(locale ?? 'ru');
 	} catch (error) {
 		console.warn("Preference couldn't be loaded, using default locale");
+		i18n.changeLanguage('ru');
 	}
 }

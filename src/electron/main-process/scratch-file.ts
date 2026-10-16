@@ -2,6 +2,7 @@ import {app, shell} from 'electron';
 import {mkdirp, readdir, remove, stat, writeFile} from 'fs-extra';
 import {basename, extname, join} from 'path';
 import {i18n} from './locales';
+import {signalyAppFolderName} from './signaly-app-folder';
 import {getAppPref} from './app-prefs';
 
 /**
@@ -15,9 +16,9 @@ export function scratchDirectoryPath() {
 		? folderPref
 		: join(
 				app.getPath('documents'),
-				i18n.t('common.appName'),
+				signalyAppFolderName,
 				i18n.t('electron.scratchDirectoryName')
-		  );
+			);
 }
 
 /**

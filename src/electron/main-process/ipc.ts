@@ -1,4 +1,4 @@
-import {app, dialog, ipcMain} from 'electron';
+import {BrowserWindow, app, dialog, ipcMain} from 'electron';
 import debounce from 'lodash/debounce';
 import type {DebouncedFunc} from 'lodash';
 import {i18n} from './locales';
@@ -12,6 +12,11 @@ import {
 import {loadStoryFormats} from './story-formats';
 import {loadPrefs} from './prefs';
 import {openHtmlWithScratchFile} from './scratch-file';
+import {
+	chooseGameFolder,
+	showGameFolder,
+	writeGameFile
+} from './signaly-game-folder';
 import {Story} from '../../store/stories/stories.types';
 
 export function initIpc() {
@@ -66,6 +71,22 @@ export function initIpc() {
 			return [];
 		}
 	});
+
+	// «Twine СИГНАЛЫ»: папка игры.
+
+	ipcMain.handle('signaly-choose-game-folder', (event, currentPath?: string) =>
+		chooseGameFolder(BrowserWindow.fromWebContents(event.sender), currentPath)
+	);
+
+	ipcMain.handle(
+		'signaly-write-game-file',
+		(event, folder: string, filename: string, data: string, open: boolean) =>
+			writeGameFile(folder, filename, data, open)
+	);
+
+	ipcMain.on('signaly-show-game-folder', (event, folder: string) =>
+		showGameFolder(folder)
+	);
 
 	ipcMain.on(
 		'open-html-with-scratch-file',

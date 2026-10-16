@@ -1,0 +1,84 @@
+// «Twine СИГНАЛЫ»: папка игры для истории.
+//
+// Путь хранится в настройках программы (prefs.gameFolders, ключ — id
+// истории), а не в самой истории: это место на конкретном компьютере, и
+// обычному Twine оно не нужно.
+
+import {setPref, usePrefsContext} from './prefs';
+import {isElectronRenderer} from '../util/is-electron';
+import {TwineElectronWindow} from '../electron/shared';
+
+/** Служебный файл для «Играть». */
+export const playFileName = '_играть.html';
+
+/** Служебный файл для «Тест». */
+export const testFileName = '_тест.html';
+
+function bridge() {
+	const {twineElectron} = window as TwineElectronWindow;
+
+	if (!twineElectron) {
+		throw new Error('Electron bridge is not present on window.');
+	}
+
+	return twineElectron;
+}
+
+export interface UseGameFolderProps {
+	/** Доступна ли папка игры (только в программе, не в веб-версии). */
+	available: boolean;
+	/**
+	 * Показывает выбор папки и запоминает её для истории. Возвращает путь или
+	 * undefined, если выбор отменён.
+	 */
+	chooseGameFolder: (storyId: string) => Promise<string | undefined>;
+	/** Папка игры истории или undefined, если не выбрана. */
+	gameFolder: (storyId: string) => string | undefined;
+	/** Открыть папку игры в проводнике. */
+	showGameFolder: (storyId: string) => void;
+	/** Записать HTML в папку игры; при open — открыть в Chrome. */
+	writeGameFile: (
+		folder: string,
+		filename: string,
+		data: string,
+		open: boolean
+	) => Promise<string>;
+}
+
+export function useGameFolder(): UseGameFolderProps {
+	const {dispatch, prefs} = usePrefsContext();
+	const available = isElectronRenderer();
+	const folders = prefs.gameFolders ?? {};
+
+	function gameFolder(storyId: string) {
+		const result = folders[storyId];
+
+		return typeof result === 'string' && result !== '' ? result : undefined;
+	}
+
+	return {
+		available,
+		gameFolder,
+		async chooseGameFolder(storyId) {
+			const folder = await bridge().signalyChooseGameFolder(
+				gameFolder(storyId)
+			);
+
+			if (folder) {
+				dispatch(setPref('gameFolders', {...folders, [storyId]: folder}));
+			}
+
+			return folder;
+		},
+		showGameFolder(storyId) {
+			const folder = gameFolder(storyId);
+
+			if (folder) {
+				bridge().signalyShowGameFolder(folder);
+			}
+		},
+		writeGameFile(folder, filename, data, open) {
+			return bridge().signalyWriteGameFile(folder, filename, data, open);
+		}
+	};
+}

@@ -12,7 +12,7 @@ describe('getUserCss', () => {
 		expect(await getUserCss()).toBe('mock-css');
 		expect(readFileMock.mock.calls).toEqual([
 			[
-				'mock-electron-app-path-documents/common.appName/electron.userCss.filename',
+				'mock-electron-app-path-documents/Twine СИГНАЛЫ/electron.userCss.filename',
 				'utf8'
 			]
 		]);

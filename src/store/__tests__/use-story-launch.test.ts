@@ -2,16 +2,35 @@ import {renderHook} from '@testing-library/react-hooks';
 import {useStoryLaunch} from '../use-story-launch';
 import {isElectronRenderer} from '../../util/is-electron';
 import {usePublishing} from '../use-publishing';
+import {useGameFolder} from '../use-game-folder';
 
 jest.mock('../use-publishing');
+jest.mock('../use-game-folder', () => ({
+	...jest.requireActual('../use-game-folder'),
+	useGameFolder: jest.fn()
+}));
 jest.mock('../../util/is-electron');
 
 describe('useStoryLaunch', () => {
 	const isElectronRendererMock = isElectronRenderer as jest.Mock;
 	const usePublishingMock = usePublishing as jest.Mock;
+	const useGameFolderMock = useGameFolder as jest.Mock;
+	let chooseGameFolder: jest.Mock;
+	let gameFolder: jest.Mock;
+	let writeGameFile: jest.Mock;
 	let openSpy: jest.SpyInstance;
 
 	beforeEach(() => {
+		chooseGameFolder = jest.fn().mockResolvedValue(undefined);
+		gameFolder = jest.fn().mockReturnValue(undefined);
+		writeGameFile = jest.fn().mockResolvedValue('mock-path');
+		useGameFolderMock.mockReturnValue({
+			available: true,
+			chooseGameFolder,
+			gameFolder,
+			showGameFolder: jest.fn(),
+			writeGameFile
+		});
 		usePublishingMock.mockReturnValue({
 			proofStory: (storyId: string) =>
 				Promise.resolve(`mock-proofed-story-${storyId}`),
@@ -78,6 +97,49 @@ describe('useStoryLaunch', () => {
 				[
 					'mock-published-story-mock-story-id-undefined',
 					'play-mock-story-id.html'
+				]
+			]);
+		});
+
+		it('asks for a game folder and falls back to scratch if none is chosen', async () => {
+			const {result} = renderHook(() => useStoryLaunch());
+
+			await result.current.playStory('mock-story-id');
+			expect(chooseGameFolder.mock.calls).toEqual([['mock-story-id']]);
+			expect(writeGameFile).not.toHaveBeenCalled();
+		});
+
+		it('writes the story to the game folder when playing, if one is set', async () => {
+			gameFolder.mockReturnValue('/mock/game');
+
+			const {result} = renderHook(() => useStoryLaunch());
+
+			await result.current.playStory('mock-story-id');
+			expect(chooseGameFolder).not.toHaveBeenCalled();
+			expect(openHtmlWithScratchFile).not.toHaveBeenCalled();
+			expect(writeGameFile.mock.calls).toEqual([
+				[
+					'/mock/game',
+					'_играть.html',
+					'mock-published-story-mock-story-id-undefined',
+					true
+				]
+			]);
+		});
+
+		it('writes the story to the game folder when testing, if one is set', async () => {
+			gameFolder.mockReturnValue('/mock/game');
+
+			const {result} = renderHook(() => useStoryLaunch());
+
+			await result.current.testStory('mock-story-id');
+			expect(openHtmlWithScratchFile).not.toHaveBeenCalled();
+			expect(writeGameFile.mock.calls).toEqual([
+				[
+					'/mock/game',
+					'_тест.html',
+					'mock-published-story-mock-story-id-{"formatOptions":"debug"}',
+					true
 				]
 			]);
 		});

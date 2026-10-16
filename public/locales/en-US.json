@@ -10,7 +10,7 @@
 	},
 	"common": {
 		"add": "Add",
-		"appName": "Twine",
+		"appName": "Twine СИГНАЛЫ",
 		"back": "Back",
 		"build": "Build",
 		"cancel": "Cancel",
@@ -249,7 +249,12 @@
 				"links": "Links",
 				"passages": "Passages",
 				"words": "Words"
-			}
+			},
+			"signalyGameFolder": "Game folder",
+			"signalyGameFolderNotSet": "not set",
+			"signalyChooseGameFolder": "Choose Game Folder…",
+			"signalyShowGameFolder": "Show Folder",
+			"signalyGameFolderHint": "Play, Test and Publish to Game Folder write the game here. Put images, sounds and videos next to it, in the media subfolder."
 		},
 		"storyJavaScript": {
 			"editorLabel": "Story JavaScript",
@@ -329,6 +334,12 @@
 		},
 		"userCss": {
 			"filename": "user.css"
+		},
+		"signaly": {
+			"chooseGameFolder": "Choose the game folder",
+			"errors": {
+				"noFolder": "Game folder not found. Choose it again in story details."
+			}
 		}
 	},
 	"routes": {
@@ -417,7 +428,10 @@
 			"play": "Play",
 			"proof": "Proof",
 			"publishToFile": "Publish to File",
-			"test": "Test"
+			"test": "Test",
+			"signalyPublishToGameFolder": "Publish to Game Folder",
+			"signalyPublished": "Game written to {{path}}",
+			"signalyShowGameFolder": "Show Game Folder"
 		}
 	},
 	"store": {

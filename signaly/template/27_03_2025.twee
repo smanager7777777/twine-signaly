@@ -1,0 +1,2315 @@
+:: StoryTitle
+27,03,2025
+
+
+:: StoryData
+{
+  "ifid": "30bacf45-1352-483f-8f0f-3a1ed1e2a039",
+  "format": "SugarCube",
+  "format-version": "2.37.3",
+  "start": "Start",
+  "tag-colors": {
+    "StoryInit": "red",
+    "stylesheet": "green",
+    "widget": "orange",
+    "kr2": "blue"
+  },
+  "zoom": 0.6
+}
+
+
+:: Admin {"position":"425,625","size":"100,100"}
+Admin
+
+
+:: Blackvideo {"position":"875,0","size":"100,100"}
+<div id="blackscreen">
+<video id="myVideo" autoplay width="1550" height="1550">
+    <source src="media/video/fullvideo.mp4" type="video/mp4">
+</video>
+</div>
+
+
+:: Blocktest {"position":"700,550","size":"100,100"}
+<div id="blockscreen">
+<span id="blockscreeen1"><<type 100ms none>>Вам здесь не место. Уходите.<</type>></span>
+	<<timed 5s>><<replace "#blockscreeen1">><<type 200ms none>>Времени почти не осталось<</type>><</replace>><</timed>></div>
+
+
+:: CAMERATEST {"position":"425,500","size":"100,100"}
+<div class="center-text">\
+<video id="webcam" autoplay playsinline muted width="1000" height="1000" style="border: 2px solid #00cc00;">\</video>\
+</div>\
+
+<<script>>
+$(document).one(':passagedisplay', function () {
+    var video = document.getElementById('webcam');
+    if (setup.webcamStream) {
+        video.srcObject = setup.webcamStream;
+    } else {
+        // fallback (если вдруг не успело)
+        setup.initWebcam().then(function(stream) {
+            video.srcObject = stream;
+        });
+    }
+});
+<</script>>
+
+
+:: Clocks {"position":"100,225","size":"100,100"}
+[[Проверка выполнения таймера при уходе со страницы|Clocktest5]]
+
+
+<<if $timerstarted is 1>>
+<<include "Clocktimer">>
+<</if>>
+
+
+
+
+:: Clocktest5 {"position":"75,350","size":"100,100"}
+<<silent>>
+<<set $timerstarted to 1>>
+<<set $minutes to 0>>
+<<set $seconds to 5>>
+/* СИГНАЛЫ: таймер идёт в фоне — запоминаем время окончания */
+<<set $timerEnd to Date.now() + ($minutes * 60 + $seconds) * 1000>>
+<</silent>>
+\<<include "Clocktimer">>
+
+[[Clocks]]
+
+
+:: Clocktimer {"position":"200,350","size":"100,100"}
+/* СИГНАЛЫ: отсчёт ведёт StoryScript (блок «Таймер»), здесь только табло */\
+<div id="timer-display">
+\<span id="countdown"><<print setup.timerText()>></span>
+\</div>
+
+
+:: Failure {"position":"550,625","size":"100,100"}
+Failure
+
+
+:: INPUTTEST {"position":"850,250","size":"100,100"}
+Ввод пароля без звёздочек
+Молекулярный синтезатор активирован.
+
+<<textbox "$inputCode" $inputCode>>
+<<button "Подтвердить">>
+<<script>>
+    var code = State.variables.inputCode;
+    console.log("Введённый код: " + code);
+
+    if (code === "11111") {
+        Engine.play("gotoPSG");
+    } else if (code === "22222") {
+        Dialog.create("Инфо из пассажа");
+        Dialog.wikiPassage("showPSGinfo");
+        Dialog.open();
+    } else if (code === "33333") {
+        Dialog.create("Предустановленное инфо");
+        Dialog.wiki("33333");
+        Dialog.open();
+       } else {
+        Dialog.create("Ошибка");
+        Dialog.wiki("Неверный код: " + (code || "пусто"));
+        Dialog.open();
+    }
+<</script>>
+<</button>>
+
+[[Назад|Start]]
+
+
+:: PASSWORDTEST {"position":"425,375","size":"100,100"}
+Ввод пароля<br>
+Молекулярный синтезатор активирован.
+
+<input type="password" id="passwordInput" value="">
+
+<<script>>
+    // Синхронизация значения поля с $inputCode
+    $(document).one(':passagedisplay', function() {
+        var inputField = document.getElementById('passwordInput');
+        if (inputField) {
+            console.log("Поле найдено:", inputField);
+            // Обновляем $inputCode при вводе
+            inputField.addEventListener('input', function() {
+                State.variables.inputCode = inputField.value;
+            });
+            // Устанавливаем фокус на поле
+            inputField.focus();
+        } else {
+            console.log("Поле ввода не найдено.");
+        }
+    });
+<</script>>
+
+<<button "Подтвердить">>
+    <<script>>
+        var code = State.variables.inputCode;
+        console.log("Введённый код: " + code);
+
+        if (code === "11111") {
+            Engine.play("gotoPSG");
+        } else if (code === "22222") {
+            Dialog.create("Инфо из пассажа");
+            Dialog.wikiPassage("showPSGinfo");
+            Dialog.open();
+        } else if (code === "33333") {
+            Dialog.create("Предустановленное инфо");
+            Dialog.wiki("33333");
+            Dialog.open();
+        } else {
+            Dialog.create("Ошибка");
+            Dialog.wiki("Неверный код");
+            Dialog.open();
+        }
+
+        // Очистка поля после ввода
+        var inputField = document.getElementById('passwordInput');
+        if (inputField) {
+            inputField.value = "";
+            State.variables.inputCode = "";
+        }
+    <</script>>
+<</button>>
+
+[[Назад|Start]]
+
+
+:: PRCD001 {"position":"1175,500","size":"100,100"}
+Процедура 111111
+
+
+:: PRCD002 {"position":"1150,550","size":"100,100"}
+Процедура 2222222
+
+
+:: PRCD003 {"position":"1125,600","size":"100,100"}
+Процедура 333333
+
+
+:: PRCDRESULT {"position":"975,475","size":"100,100"}
+/* СИГНАЛЫ: процедура N показывается из пассажа PRCD001…PRCD999 — одна строка вместо 99 веток */\
+<<set _prcd to "PRCD" + String($PRCD).padStart(3, "0")>>\
+<<if $PRCD and Story.has(_prcd)>>
+<<include _prcd>>
+<<else>>
+Процедура не выбрана
+<</if>>
+
+
+:: PRCDTEST {"position":"800,400","size":"100,100"}
+<<button "001">>
+<<set $PRCD to 1>>
+<<script>>
+Dialog.create('Процедура 001');
+Dialog.wikiPassage("PRCDRESULT")
+Dialog.open();
+<</script>>
+<</button>>
+
+<<button "002">>
+<<set $PRCD to 2>>
+<<script>>
+Dialog.create('Процедура 002');
+Dialog.wikiPassage("PRCDRESULT")
+Dialog.open();
+<</script>>
+<</button>>
+
+<<button "003">>
+<<set $PRCD to 3>>
+<<script>>
+Dialog.create('Процедура 003');
+Dialog.wikiPassage("PRCDRESULT")
+Dialog.open();
+<</script>>
+<</button>>
+
+
+:: Redvideo {"position":"1025,25","size":"100,100"}
+<div id="blockscreen">
+<video id="myVideo" autoplay width="1550" height="1550">
+    <source src="media/video/1awake.mp4" type="video/mp4">
+</video>
+</div>
+
+
+:: Start {"position":"625,250","size":"100,100"}
+\<<if $radioplaying is 0>>
+\<<if $ambientplaying is 0>>
+\<<set $ambientplaying to 1>>
+\<<audio ":paused:not(:RADIO)" play>>
+\<</if>>
+\<</if>>
+\<<include "audiobuttons">>
+\Разрешение экрана 1920х1080
+Панель управления бортовым компьютером:
+[[PRCDTEST]]
+[[Космические рейнджеры]]
+[[XIAOMICAM]]
+[[INPUTTEST|INPUTTEST]]
+[[CAMERATEST]]
+[[Texttests]]
+[[Videotest]]
+[[Blackvideo]]
+[[TERRAFORM_INTRO]]
+[[Redvideo]]
+[[Videotest2]]
+[[WINDOWSSHUTTERS]]
+[[WINDOWDESSERT]]
+[[radio]]
+[[Clocks]]
+[[Blocktest]]
+[[PASSWORDTEST]]
+[[Атмосфера]]
+[[Хактест]]
+
+<span class="red-big"><<button "Краснаякнопка">>
+<<script>>
+Dialog.create("Кнопка со стилем");
+Dialog.wiki("Предустановленное инфо.");
+Dialog.open();
+<</script>>
+<</button>></span>
+\ <span class="yellow-small"><<link "Желтая ссылка">>
+<<script>>
+Dialog.create("Ссылка со стилем кнопки");
+Dialog.wikiPassage("showPSGinfo");
+Dialog.open();
+<</script>>
+<</link>></span>
+
+[[ВКЛ|Start][$buttoner to 1]]
+\ [[ВЫКЛ|Start][$buttoner to 0]]
+\ <<link [[ВКЛ/ВЫКЛ|Start]]>>
+    <<if $buttoner is 1>>
+    <<unset $buttoner>>
+    <<else>>
+    <<set $buttoner to 1>>
+    <</if>>
+<</link>>
+           <<if $buttoner is 1>>
+[img[ВКЛЮЧЕНО|media/img/testimgON.jpg]]
+    <<else>>
+[img[ВЫКЛЮЧЕНО|media/img/testimgOFF.jpg]]
+    <</if>>
+
+    <<link "ВКЛ/ВЫКЛ2">>
+    <<if $buttoner is 0>>
+<<replace "#img1">>[img[ВЫКЛЮЧЕНО|media/img/testimgOFF.jpg]]<</replace>>
+    <<set $buttoner to 1>>
+    <<else>>
+    <<replace "#img1">>[img[ВКЛЮЧЕНО|media/img/testimgON.jpg]]<</replace>>
+    <<set $buttoner to 0>>
+    <</if>>
+<</link>>
+<span id="img1">[img[ВКЛЮЧЕНО|media/img/testimgON.jpg]]</span>
+
+
+:: StoryInit [StoryInit] {"position":"0,0","size":"100,100"}
+<<waitforaudio>>
+<<cacheaudio "msgsoundA" "media/audio/msgsoundA.wav">>
+<<cacheaudio "startscreentape" "media/audio/startscreentape.mp3">>
+<<cacheaudio "loopcomputer" "media/audio/loopcomputer.wav">>
+<<cacheaudio "radioMoonlight" "media/audio/radioMoonlight.wav">>
+<<cacheaudio "radioraindrop" "media/audio/radioraindrop.wav">>
+<<cacheaudio "radioRegentropfen" "media/audio/radioRegentropfen.wav">>
+<<cacheaudio "radioSchubert_serenade" "media/audio/radioSchubert_serenade.wav">>
+<<cacheaudio "radiovinyl" "media/audio/radiovinyl.wav">>
+
+<<cacheaudio "Классика1" "media/audio/musics/classic/gaal.mp3">>
+<<cacheaudio "Классика2" "media/audio/musics/classic/MALLOC.mp3">>
+<<cacheaudio "Классика3" "media/audio/musics/classic/PEOPLE.mp3">>
+<<cacheaudio "new1" "media/audio/musics/new/Gaal_Pirate.mp3">>
+<<cacheaudio "new2" "media/audio/musics/new/Human_Pirate.mp3">>
+<<cacheaudio "new3" "media/audio/musics/new/Maloc_Pirate.mp3">>
+<<cacheaudio "третья1" "media/audio/musics/третья/Beyond_reach.mp3">>
+<<cacheaudio "третья2" "media/audio/musics/третья/fight.mp3">>
+<<cacheaudio "третья3" "media/audio/musics/третья/WEAPON.mp3">>
+
+<<createaudiogroup ":TERMINAL">>
+        <<track "startscreentape">>
+           <<track "loopcomputer">>
+                          <</createaudiogroup>>
+
+<<createaudiogroup ":AMBIENT">>
+<<track "radioMoonlight">>
+        <<track "Классика1">>
+        <<track "Классика2">>
+        <<track "Классика3">>
+        <<track "new1">>
+        <<track "new2">>
+        <<track "new3">>
+        <<track "третья1">>
+        <<track "третья2">>
+        <<track "третья3">>
+<</createaudiogroup>>
+
+<<createaudiogroup ":RADIO">>
+<<track "radiovinyl">>
+<<track "radioSchubert_serenade">>
+<<track "radioRegentropfen">>
+<<track "radioraindrop">>
+<</createaudiogroup>>
+
+<<createplaylist "Классика">>
+        <<track "Классика1" volume 0.1>>
+        <<track "Классика2" volume 0.02>>
+        <<track "Классика3" volume 0.3>>
+<</createplaylist>>
+
+<<createplaylist "new">>
+        <<track "new1" volume 0.1>>
+        <<track "new2" volume 0.5>>
+        <<track "new3" volume 0.2>>
+<</createplaylist>>
+
+<<createplaylist "третья">>
+        <<track "третья1" volume 0.1>>
+        <<track "третья2" volume 0.5>>
+        <<track "третья3" volume 0.2>>
+<</createplaylist>>
+
+
+<<set $inputCode to "">>
+<<set $buttoner to 0>>
+<<set $radioplaying to 0>>
+<<set $ambientplaying to 0>>
+<<set $bigtimer to 0>>
+<<set $timerstarted to 0>>
+<<set $timerEnd to 0>>
+<<set $visitCount to 0>>
+<<set $playingtrack to "Ничего">>
+<<set $health to 100>>
+
+
+<<set $terraformrepair to 0>>
+<<set $terraformrepaired to 0>>
+
+
+/* СИГНАЛЫ: камера включается один раз; захват окна Xiaomi — кнопкой на экране XIAOMICAM */
+<<script>>
+setup.initWebcam();
+<</script>>
+
+
+
+
+
+:: Success {"position":"300,625","size":"100,100"}
+Success
+
+
+:: TERRAFORM {"position":"725,725","size":"100,100"}
+<<silent>>
+<<set $terraformrepair to 0>>
+<</silent>>\
+<div class="center-text">\
+<<link "<img src='media/img/B1_hydro_correct.png' width='490' height='490'>" "TERRAFORM_ELEC">><<set $terraformrepair to $terraformrepair + 1>><</link>><<link "<img src='media/img/B2_hydro_wrong.png' width='490' height='490'>" "TERRAFORM_ELEC">><</link>>
+<<link "<img src='media/img/B3_hydro_wrong.png' width='490' height='490'>" "TERRAFORM_ELEC">><</link>><<link "<img src='media/img/B4_hydro_wrong.png' width='490' height='490'>" "TERRAFORM_ELEC">><</link>>\
+</div>
+
+
+:: TERRAFORM_CHECK {"position":"700,975","size":"100,100"}
+<<if $terraformrepair is 4>>
+    <<set $terraformrepaired to 1>>
+    <<goto "TERRAFORM_SUCCESS">>
+<<else>>
+    <<set $terraformrepair to 0>>
+    <<goto "TERRAFORM_FAIL">>
+<</if>>
+
+
+
+:: TERRAFORM_ELEC {"position":"850,725","size":"100,100"}
+<div class="center-text">\
+<<link "<img src='media/img/C2_elec_wrong.png' width='490' height='490'>" "TERRAFORM_PNEUM">><</link>><<link "<img src='media/img/C1_elec_correct.png' width='490' height='490'>" "TERRAFORM_PNEUM">><<set $terraformrepair to $terraformrepair + 1>><</link>>
+<<link "<img src='media/img/C3_elec_wrong.png' width='490' height='490'>" "TERRAFORM_PNEUM">><</link>><<link "<img src='media/img/C4_elec_wrong.png' width='490' height='490'>" "TERRAFORM_PNEUM">><</link>>\
+</div>
+
+
+:: TERRAFORM_FAIL {"position":"725,1125","size":"100,100"}
+<div id="blockscreen">
+<span id="blockscreeen1"><<type 80ms none>>ОШИБКА ВЕРИФИКАЦИИ. СИСТЕМА ЗАБЛОКИРОВАНА.<</type>></span>
+<<timed 3s>><<replace "#blockscreeen1">><<type 120ms none>>НЕСООТВЕТСТВИЕ СХЕМ. ПЕРЕЗАПУСК ЧЕРЕЗ 30 СЕКУНД.<</type>><</replace>><</timed>>
+</div>
+
+/* СИГНАЛЫ: скрытый таймер 30 с — без общих $minutes/$seconds, чтобы не сбивать таймер Clocks */\
+<<silent>>
+<<timed 30s>><<goto "TERRAFORM">><</timed>>
+<</silent>>
+
+
+:: TERRAFORM_FRAME {"position":"850,850","size":"100,100"}
+<div class="center-text">\
+<<link "<img src='media/img/A2_frame_wrong.png' width='490' height='490'>" "TERRAFORM_CHECK">><</link>><<link "<img src='media/img/A3_frame_wrong.png' width='490' height='490'>" "TERRAFORM_CHECK">><</link>>
+<<link "<img src='media/img/A4_frame_wrong.png' width='490' height='490'>" "TERRAFORM_CHECK">><</link>><<link "<img src='media/img/A1_frame_correct.png' width='490' height='490'>" "TERRAFORM_CHECK">><<set $terraformrepair to $terraformrepair + 1>><</link>>\
+</div>
+
+
+:: TERRAFORM_INTRO {"position":"600,850","size":"100,100"}
+<div class="center-text">\
+<<timed 0s t8b>>
+БОРТОВОЙ КОМПЬЮТЕР — ТЕХНИЧЕСКИЙ МОДУЛЬ
+<<next 1.5s>>\
+────────────────────────────────────────────
+<<next 1s>>\
+ИНИЦИАЛИЗАЦИЯ ПРОЦЕДУРЫ ТЕХНИЧЕСКОГО ОБСЛУЖИВАНИЯ
+<<next 1.5s>>\
+ЦЕЛЕВАЯ СИСТЕМА: УСТАНОВКА РРУ-80
+<<next 1s>>\
+СТАТУС СИСТЕМЫ: КРИТИЧЕСКОЕ РАССОГЛАСОВАНИЕ ПОДСИСТЕМ
+<<next 1s>>\
+ПРИЧИНА: ПОВРЕЖДЕНИЕ КОНФИГУРАЦИОННЫХ ДАННЫХ
+<<next 2s>>\
+────────────────────────────────────────────
+<<next 1s>>\
+ТРЕБУЕТСЯ РУЧНАЯ ВЕРИФИКАЦИЯ СХЕМ ПОДКЛЮЧЕНИЯ
+<<next 1s>>\
+ПЕРСОНАЛУ ПРЕДПИСАНО ПОСЛЕДОВАТЕЛЬНО ИДЕНТИФИЦИРОВАТЬ КОРРЕКТНУЮ КОНФИГУРАЦИЮ КАЖДОЙ ПОДСИСТЕМЫ
+<<next 1.5s>>\
+ВНИМАНИЕ: ПРИ ОШИБКЕ ВЕРИФИКАЦИИ — БЛОКИРОВКА ТЕРМИНАЛА
+<<next 2s>>\
+────────────────────────────────────────────
+<<next 1s>>\
+[[НАЧАТЬ ВЕРИФИКАЦИЮ|TERRAFORM]]
+<</timed>>
+</div>
+
+
+:: TERRAFORM_PNEUM {"position":"725,850","size":"100,100"}
+<div class="center-text">\
+<<link "<img src='media/img/D3_pneum_wrong.png' width='490' height='490'>" "TERRAFORM_FRAME">><</link>><<link "<img src='media/img/D4_pneum_wrong.png' width='490' height='490'>" "TERRAFORM_FRAME">><</link>>
+<<link "<img src='media/img/D1_pneum_correct.png' width='490' height='490'>" "TERRAFORM_FRAME">><<set $terraformrepair to $terraformrepair + 1>><</link>><<link "<img src='media/img/D2_pneum_wrong.png' width='490' height='490'>" "TERRAFORM_FRAME">><</link>>\
+</div>
+
+
+:: TERRAFORM_SUCCESS {"position":"850,975","size":"100,100"}
+<div class="terraform-header">
+РЕМОНТ СИСТЕМЫ ВЫРАБОТКИ ТЕРРАФОРМИРУЮЩЕГО ГАЗА
+</div>
+
+<div class="terraform-success-img">
+[img[media/img/schematics/schematic_RRU-80_v3.png]]
+</div>
+
+<div class="terraform-complete">
+РЕМОНТ СИСТЕМЫ ЗАВЕРШЁН
+</div>
+
+[[← ГЛАВНОЕ МЕНЮ|Start]]
+
+
+:: Texttests {"position":"625,400","size":"100,100"}
+>><<hovertip "В меню терминала">>
+\[[Назад|Start]]<</hovertip>>
+
+
+<<set $visitCount to $visitCount + 1>>
+<<if $visitCount is 1>>
+    <div>Это первый вход (посещение #$visitCount)</div>
+<<elseif $visitCount is 2>>
+    <div>Это второй вход (посещение #$visitCount)</div>
+    <<else>>
+    <div>Это третий и более вход (посещение #$visitCount)</div>
+<</if>>
+
+
+<span class="glitchy" data-text="Это какой-то непонятный текст!">Это какой-то непонятный текст!</span>
+Только одно <span class="glitchy" data-text="глючное">глючное</span> слово.
+<span class="glitchy" data-text="КУПИ МОЛОКО!!!">Навязчивая мысль...</span>
+
+<<hovertip "И вы увидите эту подсказку1234567890 1234567890 1234567890 123456 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890 1234567890">>
+\Наведите курсор мыши на этот текст.<</hovertip>>
+
+
+
+
+Размер 1
+!!!!!Размер милипиздрический вообще пиздец
+!!!!!!Что я такое
+
+	Поменяется через <span id="text1">2 секунды</span>
+	<<timed 2s>><<replace "#text1">>ПОМЕНЯЛСЯ<</replace>><</timed>>
+
+<<type 40ms>>Второй поменяется через <span id="text2">3 секунды</span><</type>>
+	<<timed 4s>><<replace "#text2">>СМЕНА<</replace>><</timed>>
+
+    <<type 40ms>>Второй поменяется через Второй поменяется через Второй поменяется через Второй поменяется через Второй поменяется через Второй поменяется через Второй поменяется через Второй поменяется через   <span id="text3">15 секунды</span><</type>>
+	<<timed 15s>><<replace "#text3">>СМЕНА<</replace>><</timed>>
+
+Поменяется через <span id="img1">[img[ВКЛЮЧЕНО|media/img/testimgON.jpg]]</span>
+<<timed 3s>><<replace "#img1">>[img[ВЫКЛЮЧЕНО|media/img/testimgOFF.jpg]]<</replace>><</timed>>
+
+
+<div class="center-text">
+    Это текст в центре (по горизонтали).
+</div>
+
+
+<div class="side-text">
+    Это текст сбоку (по правому краю).
+</div>
+
+	<<timed 2s t8b>>
+Появлюсь через 2 секунды <<next>>
+Ещё через 2 секунды <<next 4s>>
+Через 4 секунды
+	<</timed>>
+
+<<type 40ms>>I ate an apple.<</type>>
+
+<<type 40ms start 2s none>>Oh no, I'm late...<</type>>
+
+<<type 40ms class "menu">>[[Start]]<</type>>
+
+<<type 40ms element "span" keep>>Now I'm a span!<</type>>
+
+
+
+<<link "@@#id;.class;color:red;Красная кнопка@@">>
+    <<script>>
+        Dialog.create("Сигнал");
+        Dialog.wiki("Пинг отправлен.");
+        Dialog.open();
+    <</script>>
+<</link>>
+
+<<button "@@#id;.class;color:blue;background-color:black;Синяя кнопка@@">>
+    <<script>>
+        Dialog.create("Сигнал");
+        Dialog.wiki("Пинг отправлен.");
+        Dialog.open();
+    <</script>>
+<</button>>
+
+
+
+    //Italics//
+    ''Bold''
+    __Underline__
+    ==Strikethrough==
+    ^^Superscript^^
+    ~~Subscript~~
+----
+* Item 1
+** Item a
+* Item 2
+
+>Main 1
+>>Nested 1
+>>Nested 2
+>Main 2
+
+@@#id;.class;color:red;Text@@
+
+
+:: Videotest {"position":"875,100","size":"100,100"}
+<div class="center-text">\
+<video id="myVideo" controls autoplay loop muted width="1000" height="1000">
+    <source src="media/video/fullvideo.mp4" type="video/mp4">
+</video>
+<<button "Воспроизвести">>
+    <<script>>
+        document.getElementById('myVideo').play();
+    <</script>>
+<</button>>
+<<button "Остановить">>
+    <<script>>
+        document.getElementById('myVideo').pause();
+    <</script>>
+<</button>>
+</div>
+
+
+:: Videotest2 {"position":"700,25","size":"100,100"}
+<div class="center-text">\
+<video id="vid1" loop autoplay muted width="1000" height="1000">
+    <source src="media/video/SHUTTERS.mp4" type="video/mp4">
+</video>\
+<video id="vid2" preload="auto" width="1000" height="1000" style="display:none;">
+    <source src="media/video/SHUTTERS_DESSERT_OPEN_SOUND.mp4" type="video/mp4">
+</video>\
+<video id="vid3" loop preload="auto" width="1000" height="1000" style="display:none;">
+    <source src="media/video/DESERT_RAIN.mp4" type="video/mp4">
+</video>\
+<video id="vid4" preload="auto" width="1000" height="1000" style="display:none;">
+    <source src="media/video/SHUTTERS_DESSET_CLOSE_SOUND.mp4" type="video/mp4">
+</video>
+</div>
+
+<<script>>
+$(document).one(':passagedisplay', function () {
+
+    var v1 = document.getElementById('vid1');
+    var v2 = document.getElementById('vid2');
+    var v3 = document.getElementById('vid3');
+    var v4 = document.getElementById('vid4');
+
+    v2.load();
+    v3.load();
+    v4.load();
+
+    // Клик по первому (loop) → второе
+    v1.addEventListener('click', function () {
+
+        v1.pause();
+        v1.style.display = "none";
+
+        v2.style.display = "block";
+        v2.play().catch(function(){});
+    });
+
+    // После второго → третье (loop дождя)
+    v2.addEventListener('ended', function () {
+
+        v2.style.display = "none";
+        v3.style.display = "block";
+
+        v3.play().catch(function(){});
+    });
+
+    // Клик по третьему → четвёртое
+    v3.addEventListener('click', function () {
+
+        v3.pause();
+        v3.style.display = "none";
+
+        v4.style.display = "block";
+        v4.play().catch(function(){});
+    });
+
+    // После четвёртого → переход
+    v4.addEventListener('ended', function () {
+        Engine.play("Start");
+    });
+
+});
+<</script>>
+
+
+:: WINDOWDESSERT {"position":"1375,400","size":"100,100"}
+<video id="vid1" loop autoplay muted width="1000" height="1000">
+    <source src="media/video/SHUTTERS.mp4" type="video/mp4">
+</video>\
+<video id="vid2" preload="auto" width="1000" height="1000" style="display:none;">
+    <source src="media/video/SHUTTERS_DESSERT_OPEN_SOUND.mp4" type="video/mp4">
+</video>\
+<video id="vid3" loop preload="auto" width="1000" height="1000" style="display:none;">
+    <source src="media/video/DESERT_RAIN.mp4" type="video/mp4">
+</video>\
+<video id="vid4" preload="auto" width="1000" height="1000" style="display:none;">
+    <source src="media/video/SHUTTERS_DESSET_CLOSE_SOUND.mp4" type="video/mp4">
+</video>\
+<<script>>
+$(document).one(':passagedisplay', function () {
+
+    var v1 = document.getElementById('vid1');
+    var v2 = document.getElementById('vid2');
+    var v3 = document.getElementById('vid3');
+    var v4 = document.getElementById('vid4');
+
+    v2.load();
+    v3.load();
+    v4.load();
+
+    // Клик по первому (loop) → второе
+    v1.addEventListener('click', function () {
+
+        v1.pause();
+        v1.style.display = "none";
+
+        v2.style.display = "block";
+        v2.play().catch(function(){});
+    });
+
+    // После второго → третье (loop дождя)
+    v2.addEventListener('ended', function () {
+
+        v2.style.display = "none";
+        v3.style.display = "block";
+
+        v3.play().catch(function(){});
+    });
+
+    // Клик по третьему → четвёртое
+    v3.addEventListener('click', function () {
+
+        v3.pause();
+        v3.style.display = "none";
+
+        v4.style.display = "block";
+        v4.play().catch(function(){});
+    });
+
+    // После четвёртого → переход
+    v4.addEventListener('ended', function () {
+        Engine.play("Start");
+    });
+
+});
+<</script>>
+
+
+:: WINDOWSSHUTTERS {"position":"1375,625","size":"100,100"}
+<div class="center-text">\
+<video id="vid1" loop autoplay muted width="1000" height="1000">
+    <source src="media/video/SHUTTERS.mp4" type="video/mp4">
+</video>\
+</div>
+
+<<script>>
+$(document).one(':passagedisplay', function () {
+    var v1 = document.getElementById('vid1');
+    v1.addEventListener('click', function () {
+        Engine.play("Start");
+    });
+});
+<</script>>
+
+
+:: XIAOMICAM {"position":"300,500","size":"100,100"}
+<div style="overflow: hidden; width: 1000px; height: 490px; border: 2px solid #00cc00;">\
+<video id="xiaomi" autoplay playsinline muted width="1000" height="1000" style="margin-top: -270px; margin-left: 0px;">\</video>\
+</div>\
+
+/* СИГНАЛЫ: браузер разрешает захват окна только после нажатия кнопки */\
+<<button "Подключить камеру">>
+<<run setup.initXiaomi().then(function (stream) {
+    var video = document.getElementById('xiaomi');
+    if (video && stream) {
+        video.srcObject = stream;
+    }
+})>>
+<</button>>
+
+<<script>>
+$(document).one(':passagedisplay', function () {
+    var video = document.getElementById('xiaomi');
+    if (setup.xiaomiStream) {
+        video.srcObject = setup.xiaomiStream;
+    }
+});
+<</script>>
+
+
+:: audiobuttons {"position":"200,0","size":"100,100"}
+/* СИГНАЛЫ: обе группы кнопок — в одном блоке (раньше было два одинаковых блока друг на друге) */\
+<div class="top-right-audio-buttons amber">
+<<link "РАД">>
+<<if $radioplaying is 1>>
+<<set $radioplaying to 0>>
+<<audio ":RADIO" pause>>
+<<else>>
+<<set $radioplaying to 1>>
+<<set $ambientplaying to 0>>
+<<audio ":AMBIENT" pause>>
+<<audio ":paused:not(:AMBIENT)" play>>
+<</if>>
+<</link>>
+<<link "АТМ">>
+<<if $ambientplaying is 1>>
+<<set $ambientplaying to 0>>
+<<audio ":AMBIENT" pause>>
+<<else>>
+<<set $ambientplaying to 1>>
+<<set $radioplaying to 0>>
+<<audio ":RADIO" pause>>
+<<audio ":paused:not(:RADIO)" play>>
+<</if>>
+<</link>>
+
+
+
+<<link "A">>
+<<audio ":playing:not(:TERMINAL)" fadeto 0.1>>
+<</link>>
+ <<link "B">>
+<<audio ":playing:not(:TERMINAL)" fadeto 0.2>>
+<</link>>
+ <<link "C">>
+<<audio ":playing:not(:TERMINAL)" fadeto 0.3>>
+<</link>>
+ <<link "D">>
+<<audio ":playing:not(:TERMINAL)" fadeto 0.5>>
+<</link>>
+ <<link "E">>
+<<audio ":playing:not(:TERMINAL)" fadeto 1.0>>
+<</link>>
+</div>
+\<<silent>>
+<<timed 1s>><<audio "loopcomputer" volume 0.05 loop play>><</timed>>
+<<if $radioplaying is 0>>
+<<if $ambientplaying is 0>>
+<<audio ":paused:not(:RADIO)" play>>
+<<set $ambientplaying to 1>>
+<</if>>
+<</if>>
+<<audio "startscreentape" volume 0.1 play>>
+<</silent>>
+
+
+:: drafts {"position":"100,0","size":"100,100"}
+img[ВКЛЮЧИТЬ|$imager][Проверка переменных][$imager to "CATimage1.jpg"]]
+
+[img[ВКЛЮЧИТЬ|CATimage.jpg][VARTEST][$buttoner to 1]]
+
+/* Новый стиль для текста в правом верхнем углу */
+.top-right-audio-buttons {
+    position: absolute;
+    top: 10px; /* Отступ сверху */
+    right: 10px; /* Отступ справа от края #passages */
+}
+
+
+
+
+#timer-display {
+    font-family: 'DSEG7', monospace;
+    font-size: 125px; /* Размер шрифта для читаемости */
+    color: #cc0000; /* Красный цвет */
+    background-color: #000000;
+    border: 2px solid #cc0000;
+    box-shadow: 0 0 10px #cc0000, 0 0 20px #cc0000;
+    padding: 10px 20px;
+    width: fit-content; /* Ширина подстраивается под содержимое */
+    display: inline-block; /* Делает контейнер компактным */
+    margin: 20px auto;
+    text-align: center;
+}
+
+
+:: gotoPSG {"position":"1075,275","size":"100,100"}
+Переход на пассаж в результате ввода пароля или иных действий
+
+[[Вернуться|Start]]
+
+
+:: radio {"position":"525,75","size":"100,100"}
+\<img src="media/img/radiotop.jpg" width="1000">
+<img src="media/img/radioleft.jpg" width="463" height="30">
+\<img src="media/img/radioblack.jpg" height="20" width="35">
+\<span class="amber"><<link "ВКЛ">>
+<<audio ":AMBIENT" pause>>
+<<audio "radiovinyl" volume 0.1 play>>
+<<timed 5s>><<audio ":paused:not(:AMBIENT)" play>><</timed>>
+<<set $radioplaying to 1>>
+<</link>>
+ \ <<link "ПАУЗА">>
+<<audio ":RADIO" pause>>
+<<audio "radiovinyl" stop>>
+<<audio ":AMBIENT" pause>>
+<<set $ambientplaying to 0>>
+<<set $radioplaying to 0>>
+<</link>>
+ \ <<link "ВЫКЛ">>
+<<audio ":RADIO" stop>>
+<<audio ":AMBIENT" pause>>
+<<set $ambientplaying to 0>>
+<<set $radioplaying to 0>>
+<</link>></span>
+\<img src="media/img/radioblack.jpg" height="20" width="35">
+\<img src="media/img/radioright.jpg" height="30" width="120">
+<img src="media/img/radiomiddle.jpg" width="1000">
+<img src="media/img/radiobottomleft.jpg" width="651" height="40">
+\<span class="amber"><<link "A">>
+<<audio ":playing:not(:TERMINAL)" fadeto 0.1>>
+<</link>>
+\ <<link "B">>
+<<audio ":playing:not(:TERMINAL)" fadeto 0.2>>
+<</link>>
+\ <<link "C">>
+<<audio ":playing:not(:TERMINAL)" fadeto 0.3>>
+<</link>>
+\ <<link "D">>
+<<audio ":playing:not(:TERMINAL)" fadeto 0.5>>
+<</link>>
+\ <<link "E">>
+<<audio ":playing:not(:TERMINAL)" fadeto 1.0>>
+<</link>></span>
+\<img src="media/img/radiobottomright.jpg" width="84" height="40">
+<img src="media/img/radiobottom.jpg" width="1000">
+<<link "Трек 1 radioRegentropfen">>
+<<set $ambientplaying to 0>>
+<<set $radioplaying to 1>>
+<<audio ":RADIO" stop>>
+<<audio ":AMBIENT" pause>>
+<<audio "radiovinyl" volume 0.1 play>>
+<<timed 8s>><<audio "radioRegentropfen" volume 0.1 play>><</timed>>
+<</link>>
+<<link "Трек 2 radioSchubert_serenade">>
+<<set $ambientplaying to 0>>
+<<set $radioplaying to 1>>
+<<audio ":RADIO" stop>>
+<<audio ":AMBIENT" pause>>
+<<audio "radiovinyl" volume 0.1 play>>
+<<timed 8s>><<audio "radioSchubert_serenade" volume 0.1 play>><</timed>>
+<</link>>
+<<link "Трек 3 radioraindrop">>
+<<set $ambientplaying to 0>>
+<<set $radioplaying to 1>>
+<<audio ":RADIO" stop>>
+<<audio ":AMBIENT" pause>>
+<<audio "radiovinyl" volume 0.1 play>>
+<<timed 8s>><<audio "radioraindrop" volume 0.1 play>><</timed>>
+<</link>>
+[[Назад|Start]]
+
+
+:: showPSGinfo {"position":"1075,150","size":"100,100"}
+Информация в диалоговом окне из пассажа
+
+
+:: Атмосфера {"position":"1225,75","size":"100,100"}
+Текущая атмосфера: <span id="playingtrack">$playingtrack</span>
+<span class="amber"><<link "ВКЛ">>
+<<audio ":RADIO" pause>>
+<<audio ":paused:not(:RADIO)" play>>
+<<set $ambientplaying to 1>>
+<</link>>
+\
+\ <<link "ПАУЗА">>
+<<audio ":AMBIENT" pause>>
+<<audio ":RADIO" pause>>
+<<set $ambientplaying to 0>>
+<<set $radioplaying to 0>>
+<</link>></span>
+\
+\ <<link "Далее">>
+<<audio ":playing:not(:TERMINAL)" time 999>>
+<</link>>
+\
+
+<span class="amber"><<link "A">>
+<<audio ":playing:not(:TERMINAL)" fadeto 0.1>>
+<</link>>
+\ <<link "B">>
+<<audio ":playing:not(:TERMINAL)" fadeto 0.2>>
+<</link>>
+\ <<link "C">>
+<<audio ":playing:not(:TERMINAL)" fadeto 0.3>>
+<</link>>
+\ <<link "D">>
+<<audio ":playing:not(:TERMINAL)" fadeto 0.5>>
+<</link>>
+\ <<link "E">>
+<<audio ":playing:not(:TERMINAL)" fadeto 1.0>>
+<</link>></span>
+
+<<link "Плейлист Классика">>
+<<set $ambientplaying to 1>>
+<<set $radioplaying to 0>>
+<<audio ":RADIO" pause>>
+<<audio ":AMBIENT" stop>>
+<<playlist "Классика" play>>
+<<set $playingtrack = "классическая">>
+<<replace "#playingtrack">>$playingtrack<</replace>>
+<</link>>
+\
+\ <<link "СТОП">>
+<<playlist "Классика" stop>>
+<<set $ambientplaying to 0>>
+<<set $playingtrack = "Ничего">>
+<<replace "#playingtrack">>$playingtrack<</replace>>
+<</link>>
+\
+<<link "Плейлист new">>
+<<set $ambientplaying to 1>>
+<<set $radioplaying to 0>>
+<<audio ":RADIO" pause>>
+<<audio ":AMBIENT" stop>>
+<<playlist "new" play>>
+<<set $playingtrack = "новая">>
+<<replace "#playingtrack">>$playingtrack<</replace>>
+<</link>>
+\
+\ <<link "СТОП">>
+<<playlist "new" stop>>
+<<set $ambientplaying to 0>>
+<<set $playingtrack = "Ничего">>
+<<replace "#playingtrack">>$playingtrack<</replace>>
+<</link>>
+\
+<<link "Плейлист третья">>
+<<set $ambientplaying to 1>>
+<<set $radioplaying to 0>>
+<<audio ":RADIO" pause>>
+<<audio ":AMBIENT" stop>>
+<<playlist "третья" play>>
+<<set $playingtrack = "третья">>
+<<replace "#playingtrack">>$playingtrack<</replace>>
+<</link>>
+\
+\ <<link "СТОП">>
+<<playlist "третья" stop>>
+<<set $ambientplaying to 0>>
+<<set $playingtrack = "Ничего">>
+<<replace "#playingtrack">>$playingtrack<</replace>>
+<</link>>
+
+
+[[Назад|Start]]
+
+[[Классика]]
+[[Новая]]
+[[Третья]]
+[[Назад|Start]]
+
+
+
+:: Классика {"position":"1225,200","size":"100,100"}
+
+
+
+:: Космические рейнджеры [kr2] {"position":"600,1100","size":"100,100"}
+<<kr2image "media/img/radio.jpg">>
+<<kr2vars>>Здоровье: $health<</kr2vars>>
+<<kr2main>>
+Вы вошли в комнату. Перед вами массивная дверь.
+<</kr2main>>
+
+[[Открыть дверь]]
+[[Осмотреть комнату]]
+
+
+:: Новая {"position":"1350,200","size":"100,100"}
+
+
+
+:: Осмотреть комнату {"position":"475,1225","size":"100,100"}
+
+
+
+:: Открыть дверь {"position":"350,1225","size":"100,100"}
+
+
+
+:: Третья {"position":"1475,200","size":"100,100"}
+
+
+
+:: Хактест {"position":"700,125","size":"100,100"}
+\<<set $attemptsLeft = 3>> /* Количество попыток */
+\<<set $wordList = ["ЧЕХИЯ", "ХУЙНЯ", "ПАРИЯ", "СОННЯ", "КУХНЯ"]>> /* Список слов */
+\<<set $correctPassword = "ПАРИЯ">> /* Правильный пароль */
+\<<set $usedAttempts = []>> /* Использованные попытки */
+\<<set $likenessDisplay = "">> /* Отображение совпадений */
+\<<set $rows = 10>> /* Количество строк */
+\<<set $charsPerRow = 60>> /* Символов в строке */
+\
+\<<script>>
+// Генерация случайного фона как массива символов
+function generateBackground(rows, cols, chars) {
+    return Array(rows).fill().map(() => Array(cols).fill().map(() => chars[Math.floor(Math.random() * chars.length)]));
+}
+
+// Подсчёт совпадений
+function getLikeness(guess, correct) {
+    return `${[...guess].filter((c, i) => c === correct[i]).length}/${guess.length} ВЕРНО`;
+}
+
+// Инициализация терминала
+$(document).one(':passagedisplay', function() {
+    const $display = $("#terminalDisplay");
+    const $attempts = $("#attemptsLeft");
+    const $likeness = $("#likenessDisplay");
+    const chars = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ0123456789";
+
+    // Генерация фона
+    const background = generateBackground(State.variables.rows, State.variables.charsPerRow, chars);
+    const wordPositions = [];
+
+    // Расстановка слов с проверкой пересечений
+    State.variables.wordList.forEach(word => {
+        let attempts = 0;
+        while (attempts < 10) {
+            const row = Math.floor(Math.random() * State.variables.rows);
+            const col = Math.floor(Math.random() * (State.variables.charsPerRow - word.length + 1));
+            if (!wordPositions.some(p => p.row === row && p.col <= col + word.length && p.col + p.word.length >= col)) {
+                wordPositions.push({ row, col, word });
+                // СИГНАЛЫ: слово занимает столько же клеток, сколько в нём букв, — строки остаются ровными
+                background[row].splice(col, word.length, `<span class="word" data-word="${word}" style="cursor: pointer;">${word}</span>`, ...Array(word.length - 1).fill(""));
+                break;
+            }
+            attempts++;
+        }
+    });
+
+    // Формирование отображаемого текста
+    $display.html(background.map(row => `<div>${row.join("")}</div>`).join(""));
+    $attempts.text(`Осталось попыток: ${State.variables.attemptsLeft}`);
+    $likeness.text(State.variables.likenessDisplay || "");
+
+    // Обработка клика с точным выбором слова
+    $display.on("click", ".word", function(e) {
+        if (State.variables.attemptsLeft <= 0) return;
+
+        const $wordSpan = $(e.target).closest(".word");
+        const guess = $wordSpan.data("word");
+        State.variables.usedAttempts.push(guess);
+        State.variables.attemptsLeft--;
+
+        if (guess === State.variables.correctPassword) {
+            $display.text("Доступ разрешён!\nПароль: " + State.variables.correctPassword);
+            $attempts.text("Взлом завершён успешно!");
+            $likeness.text("");
+            setTimeout(() => Engine.play("Start"), 1000);
+        } else {
+            State.variables.likenessDisplay = getLikeness(guess, State.variables.correctPassword);
+            $attempts.text(`Осталось попыток: ${State.variables.attemptsLeft}`);
+            $likeness.text(State.variables.likenessDisplay);
+
+            if (State.variables.attemptsLeft <= 0) {
+                $display.text("Доступ запрещён!\nТерминал заблокирован.");
+                $likeness.text("");
+                setTimeout(() => Engine.play("Blocktest"), 1000);
+            }
+        }
+    });
+});
+<</script>>
+\
+\<div id="terminalWindow">
+    \<div id="terminalDisplay"></div>
+    \<div id="likenessDisplay"></div>
+    \<div id="attemptsLeft"></div>
+\</div>
+\Текст под таймером
+
+
+:: StoryScript [script]
+/* ===== СИГНАЛЫ: общие настройки ===== */
+// История в один шаг: «назад» в браузере не откатывает игру.
+Config.history.maxStates = 1;
+/* ===== КОНЕЦ: общие настройки ===== */
+
+
+/* ===== Горячие клавиши мастера ===== */
+(function() {
+    var zPressed = false;
+
+
+      // Переменные для громкости звуков (диапазон от 0.0 до 1.0)
+    var soundAVolume = 1.0; // Громкость для Shift + Z + A (100%)
+    var soundBVolume = 1.0; // Громкость для Shift + Z + C (100%)
+
+    // Предварительная загрузка звуков для комбинаций клавиш
+    var soundA = new Audio("media/audio/msgsoundA.wav");
+    soundA.preload = "auto";
+    var soundB = new Audio("media/audio/click3.wav");
+    soundB.preload = "auto";
+      var soundC = new Audio("media/audio/radiovinyl.wav");
+    soundC.preload = "auto";
+
+
+
+      document.addEventListener('keydown', function(event) {
+        if (event.key.toLowerCase() === 'z') {
+            zPressed = true;
+        }
+        if (event.shiftKey && zPressed) {
+            switch (event.key.toLowerCase()) {
+                case 'a':
+                    Dialog.create("Мастерское сообщение");
+                    Dialog.wikiPassage("showPSGinfo");
+                    Dialog.open();
+                    // Воспроизведение звука для Shift + Z + A
+soundA.volume = soundAVolume;
+soundA.currentTime = 0;
+soundA.play().catch(function(error) {
+console.error("Ошибка", error);
+                    });
+                    break;
+
+
+                case 'b':
+                    Engine.play("gotoPSG");
+// Воспроизведение звука для Shift + Z + B
+soundB.volume = soundBVolume;
+soundB.currentTime = 0;
+soundB.play().catch(function(error) {
+console.error("Ошибка", error);
+});
+                    break;
+
+case 'c':
+soundC.play().catch(function(error) {
+console.error("Ошибка", error);
+});
+break;
+            }
+        }
+    });
+
+    document.addEventListener('keyup', function(event) {
+        if (event.key.toLowerCase() === 'z') {
+            zPressed = false;
+        }
+    });
+})();
+
+
+/* ===== Цвета кнопок и ссылок =====
+   СИГНАЛЫ: цвет задаётся в самом пассаже, а не поиском по надписи:
+   <span class="amber">…ссылки…</span> — янтарные,
+   <span class="red-big">…</span> — красные большие,
+   <span class="yellow-small">…</span> — жёлтые маленькие.
+   Стили — в таблице стилей. */
+
+
+/* ===== Звуки наведения и нажатия на ссылки и кнопки ===== */
+(function () {
+    var volume = 0.05;
+
+    function preload(files) {
+        return files.map(function (file) {
+            var audio = new Audio("media/audio/" + file);
+            audio.preload = "auto";
+            return audio;
+        });
+    }
+
+    // Массив звуков для наведения
+    var hoverSounds = preload([
+        "hover1.wav",
+        "hover2.wav",
+        "hover3.wav",
+        "hover4.wav",
+        "hover5.wav",
+        "hover6.wav"
+    ]);
+
+    // Массив звуков для клика по ссылкам
+    var clickSounds = preload([
+        "click1.wav",
+        "click2.wav",
+        "click3.wav"
+    ]);
+
+    var currentHoverSound = null;
+
+    function playRandom(sounds) {
+        var audio = sounds[Math.floor(Math.random() * sounds.length)];
+        audio.volume = volume;
+        audio.currentTime = 0;
+        audio.play().catch(function(error) {
+            console.error("Ошибка", error);
+        });
+        return audio;
+    }
+
+    $(document).on('mouseenter', 'a, button', function() {
+        // Новый звук наведения прерывает предыдущий
+        if (currentHoverSound) {
+            currentHoverSound.pause();
+            currentHoverSound.currentTime = 0;
+        }
+        currentHoverSound = playRandom(hoverSounds);
+    });
+
+    $(document).on('click', 'a, button', function() {
+        playRandom(clickSounds);
+    });
+})();
+
+
+UIBar.destroy();
+
+
+/* ===== Таймер (экран Clocks) =====
+   СИГНАЛЫ: таймер идёт в фоне по времени окончания $timerEnd.
+   Когда время вышло — переход на Start, где бы ни были игроки. */
+setup.timerText = function () {
+    var left = Math.max(0, Math.ceil(((State.variables.timerEnd || 0) - Date.now()) / 1000));
+    return ('0' + Math.floor(left / 60)).slice(-2) + ':' + ('0' + (left % 60)).slice(-2);
+};
+
+setInterval(function () {
+    var v = State.variables;
+    if (v.timerstarted !== 1 || !v.timerEnd) {
+        return;
+    }
+    $('#countdown').text(setup.timerText());
+    if (Date.now() >= v.timerEnd) {
+        v.timerstarted = 0;
+        v.timerEnd = 0;
+        Engine.play("Start");
+    }
+}, 250);
+
+
+/* hovertip v2.0 - Старт*/
+window.UpdateHoverTipTxt = function (container) {
+	if (Engine.isIdle()) {
+		clearInterval(HTTIntervalID);
+		if (container === undefined) {
+			container = $(document);
+		} else {
+			container = $(container);
+		}
+		var i, id, top, left, parent, elementList, element, hoverPos, boxPos, zindex;
+		elementList = container.find('span[id^="hoverTipTxt"]');
+		for (i = 0; i < elementList.length; i++) {
+			element = $(elementList[i]);
+			id = elementList[i].id.substring(11);
+			/* Найдите родительский элемент подсказки при наведении курсора мыши на страницу. */
+			parent = $(container).find("#hoverTip" + (id));
+			/* Расположите нижнюю часть hoverTipTxt чуть выше родительского элемента. */
+			top = Math.round(-element.outerHeight() - 6);
+			/* Центрируйте hoverTipTxt горизонтально над родительским текстом. */
+			left = Math.round((parent.outerWidth() - element.outerWidth()) / 2);
+			/* Посмотрите, содержится ли подсказка при наведении курсора мыши в чем-то с более высоким z-индексом. */
+			zindex = element.css("z-index");
+			if (zindex === "auto") {
+				zindex = 0;
+			} else {
+				zindex = parseInt(zindex, 10);
+			}
+			while (parent.parent()[0] !== document) {
+				if ((parent.parent().css("z-index") !== "auto") && (parseInt(parent.parent().css("z-index"), 10) > zindex)) {
+					/* Получить прямоугольник контейнера. */
+					boxPos = parent[0].getBoundingClientRect();
+					break;
+				}
+				parent = parent.parent();
+			}
+			/* Обновить позицию. */
+			element.css({ top: top, left: left });
+			hoverPos = element[0].getBoundingClientRect();
+			/* Убедитесь, что текст не выходит за пределы нижней части экрана. */
+			if (hoverPos.top > window.innerHeight - hoverPos.height - 10) {
+				top -= hoverPos.top - (window.innerHeight - hoverPos.height - 10);
+			}
+			/* Убедитесь, что текст не выходит за пределы верхней части экрана. */
+			if (hoverPos.top < 4) {
+				top -= hoverPos.top - 4;
+			}
+			/* Убедитесь, что текст находится не за пределами правой части экрана. */
+			if (hoverPos.left > window.innerWidth - hoverPos.width - 26) {
+				left -= hoverPos.left - (window.innerWidth - hoverPos.width - 26);
+			}
+			/* Убедитесь, что текст находится не за пределами левой части экрана. */
+			if (hoverPos.left < 4) {
+				left -= hoverPos.left - 4;
+			}
+			/* Обновить позицию. */
+			element.css({ top: Math.round(top), left: Math.round(left) });
+			hoverPos = element[0].getBoundingClientRect();
+			if (boxPos) {  /* Вписывается в диалоговые окна и тому подобное. */
+				/* Убедитесь, что текст не выходит за пределы нижней части поля. */
+				if (hoverPos.top > boxPos.bottom - hoverPos.height - 10) {
+					top -= hoverPos.top - (boxPos.bottom - hoverPos.height - 10);
+				}
+				/* Убедитесь, что текст не выходит за пределы верхней части поля. */
+				if (hoverPos.top < boxPos.top + 4) {
+					top -= hoverPos.top - (boxPos.top + 4);
+				}
+				/* Убедитесь, что текст не выходит за пределы правого поля. */
+				if (hoverPos.left > boxPos.right - hoverPos.width - 26) {
+					left -= hoverPos.left - (boxPos.right - hoverPos.width - 26);
+				}
+				/* Убедитесь, что текст не выходит за пределы левого поля. */
+				if (hoverPos.left < boxPos.left + 4) {
+					left -= hoverPos.left - boxPos.left - 4;
+				}
+				/* Обновить позицию. */
+				element.css({ top: Math.round(top), left: Math.round(left) });
+			}
+		}
+	} else {
+		clearInterval(HTTIntervalID);
+		HTTIntervalID = setInterval(UpdateHoverTipTxt, 300);
+	}
+};
+/*  Ожидает, пока отрывок будет полностью отрисован, прежде чем что-либо делать.  */
+var HTTIntervalID = 0;
+$(document).on(":passageend", function (ev) {
+	UpdateHoverTipTxt();
+});
+$(window).on("resize scroll", function (ev) {
+	clearInterval(HTTIntervalID);
+	HTTIntervalID = setInterval(UpdateHoverTipTxt, 300);
+});
+$("#ui-bar-toggle").on("click", function (ev) {
+	clearInterval(HTTIntervalID);
+	HTTIntervalID = setInterval(UpdateHoverTipTxt, 300);
+});
+/* <<hovertip>> макрос*/
+Macro.add("hovertip", {
+	tags	 : null,
+	handler  : function () {
+		if (this.args.length > 0) {
+			var mw = "";
+			if ((this.args.length > 1) && (!isNaN(parseInt(this.args[1], 10)))) {
+				mw = ' style="max-width: ' + parseInt(this.args[1], 10) + 'px;"';
+			}
+			if (State.temporary.HoverTipCount == undefined) {
+				State.temporary.HoverTipCount = 1;
+			} else {
+				State.temporary.HoverTipCount++;
+			}
+			while ($("#hoverTip" + State.temporary.HoverTipCount).length) {
+				/* Найден существующий hoverTip. */
+				State.temporary.HoverTipCount++;
+			}
+			var output = '<span id="hoverTip' + State.temporary.HoverTipCount +
+					'" class="hoverTipTxt hoverTip" tabindex="0" ' +
+					'onmouseenter="UpdateHoverTipTxt();">' +
+					this.payload[0].contents + '<span id="hoverTipTxt' +
+					State.temporary.HoverTipCount + '" class="hoverBox hoverTail"' +
+					mw + '>' + this.args[0] + '</span></span>';
+			$(this.output).wiki(output);
+		} else {
+			$(this.output).wiki(this.payload[0].contents);
+		}
+	}
+});
+/* hovertip v2.0 - Конец*/
+
+
+
+
+/* ===== Камера и захват окна ===== */
+setup.webcamStream = null;
+
+setup.initWebcam = function () {
+    if (setup.webcamStream) return Promise.resolve(setup.webcamStream);
+
+    return navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+        .then(function(stream) {
+            setup.webcamStream = stream;
+            return stream;
+        })
+        .catch(function(err) {
+            console.log("Ошибка доступа к камере:", err);
+        });
+};
+
+
+setup.xiaomiStream = null;
+setup.initXiaomi = function () {
+    if (setup.xiaomiStream) return Promise.resolve(setup.xiaomiStream);
+    return navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: false
+    })
+        .then(function(stream) {
+            setup.xiaomiStream = stream;
+            // Если захват остановлен — следующее нажатие кнопки запросит его заново
+            stream.getVideoTracks().forEach(function (track) {
+                track.addEventListener('ended', function () {
+                    setup.xiaomiStream = null;
+                });
+            });
+            return stream;
+        })
+        .catch(function(err) {
+            console.log("Ошибка захвата экрана:", err);
+        });
+};
+
+
+
+
+
+
+/* ===== KR2 INTERFACE ===== */
+(function() {
+
+    var kr2Data = { imageUrl: '', varsHTML: '', mainHTML: null };
+
+    Macro.add('kr2image', {
+        handler: function() {
+            kr2Data.imageUrl = this.args[0] || '';
+        }
+    });
+
+    Macro.add('kr2vars', {
+        tags: null,
+        handler: function() {
+            var $tmp = $('<div style="display:none">').appendTo(document.body);
+            $tmp.wiki(this.payload[0].contents);
+            kr2Data.varsHTML = $tmp.html();
+            $tmp.remove();
+        }
+    });
+
+    Macro.add('kr2main', {
+        tags: null,
+        handler: function() {
+            var $tmp = $('<div style="display:none">').appendTo(document.body);
+            $tmp.wiki(this.payload[0].contents);
+            kr2Data.mainHTML = $tmp.html();
+            $tmp.remove();
+        }
+    });
+
+    $(document).on(':passagestart', function() {
+        kr2Data = { imageUrl: '', varsHTML: '', mainHTML: null };
+        // Убираем оверлей при переходе между пассажами
+        $('#kr2-overlay').remove();
+    });
+
+    $(document).on(':passageend', function() {
+        var passage = Story.get(State.passage);
+
+        if (!passage.tags.includes('kr2')) {
+            $('#passages').removeClass('kr2-layout');
+            return;
+        }
+
+        var $passages = $('#passages');
+        $passages.addClass('kr2-layout');
+        var $passageEl = $passages.find('.passage');
+
+        var $main = $('<div id="kr2-main">');
+        var $nav  = $('<div id="kr2-nav">');
+        var $vars = $('<div id="kr2-vars">').html(kr2Data.varsHTML || '');
+        var $img  = $('<div id="kr2-image">');
+
+        if (kr2Data.mainHTML !== null) {
+            $main.html(kr2Data.mainHTML);
+            $passageEl.find('a, button').each(function() {
+                $nav.append($(this));
+            });
+        } else {
+            $passageEl.find('a, button').each(function() {
+                $nav.append($(this));
+            });
+            $passageEl.find('p').each(function() {
+                if ($(this).text().trim() === '' && $(this).children().length === 0) {
+                    $(this).remove();
+                }
+            });
+            $passageEl.contents().each(function() {
+                $main.append($(this).clone(true));
+            });
+        }
+
+        if (kr2Data.imageUrl) {
+            $('<img>').attr('src', kr2Data.imageUrl).attr('alt', '').appendTo($img);
+        }
+
+        // Клик на картинку — показываем оверлей поверх всего терминала
+        $img.on('click', function() {
+            if ($('#kr2-overlay').length) {
+                $('#kr2-overlay').remove();
+                return;
+            }
+            if (!kr2Data.imageUrl) return;
+
+            var $overlay = $('<div id="kr2-overlay">');
+            var $overlayImg = $('<img>').attr('src', kr2Data.imageUrl).attr('alt', '');
+            $overlay.append($overlayImg);
+            $overlay.on('click', function() {
+                $(this).remove();
+            });
+            // Вставляем прямо в #passages, не в .passage
+            $passages.append($overlay);
+        });
+
+        $passageEl.empty();
+        $passageEl.append($main, $nav, $img, $vars);
+
+        $nav.find('a[data-passage]').each(function() {
+            var dest = $(this).attr('data-passage');
+            if (dest) {
+                $(this).off('click.kr2').on('click.kr2', function(e) {
+                    e.preventDefault();
+                    Engine.play(dest);
+                });
+            }
+        });
+    });
+
+})();
+/* ===== END KR2 INTERFACE ===== */
+
+
+:: StoryStylesheet [stylesheet]
+body {
+      background-color: #000000;
+  color: #00cc00;
+    font-family: "Courier New", monospace;
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+      animation: flicker 0.1s infinite;
+    position: relative;
+     font-size: 25px;
+}
+
+a {
+    color: #00cc00;
+    text-decoration: none
+}
+
+a:hover {
+    color: #00ff00;
+    text-decoration: underline;
+}
+
+/* Зелёная кнопка по дефолту */
+button {
+    background-color: #000000;
+    color: #00cc00;
+    border: 1px solid #00cc00;
+    box-shadow: 0 0 5px #00cc00;
+    padding: 5px 10px;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+button:hover {
+    background-color: #00cc00;
+    color: #000000;
+        border: #00cc00;
+}
+
+#passages {
+      background-color: #000000;
+  border: 2px solid #00cc00;
+    box-shadow: 0 0 10px #00cc00, 0 0 20px #00cc00;
+    width: 1050px;
+    height: 1050px;
+    padding: 20px;
+    box-sizing: border-box;
+    overflow: auto;
+}
+
+.ui-dialog {
+    background-color: #000000;
+    border: 2px solid #00cc00;
+    box-shadow: 0 0 10px #00cc00, 0 0 20px #00cc00;
+    color: #00cc00;
+       font-size: 25px;
+}
+
+.ui-dialog-titlebar {
+    background-color: #000000;
+    color: #00cc00;
+    border-bottom: 1px solid #00cc00;
+     font-size: 25px;
+}
+
+.ui-dialog-body {
+    color: #00cc00;
+     font-size: 25px;
+}
+
+input, textarea {
+    background-color: #000000;
+    color: #00cc00;
+    border: 1px solid #00cc00;
+    box-shadow: 0 0 5px #00cc00;
+    padding: 5px;
+     font-size: 25px;
+}
+
+#ui-bar, #ui-bar-toggle {
+    background-color: #000000;
+    color: #00cc00;
+    border: none;
+     font-size: 25px;
+}
+
+@keyframes
+ flicker {
+    0% { opacity: 1; }
+    50% { opacity: 0.95; }
+    100% { opacity: 1; }
+}
+
+
+/* Красная большая кнопка
+   СИГНАЛЫ: в пассаже — <span class="red-big">…кнопка…</span> */
+.red-big-button,
+.red-big button {
+    background-color: #000000;
+    color: #cc0000;
+    border: 1px solid #cc0000;
+    box-shadow: 0 0 5px #cc0000;
+    padding: 10px 20px;
+    font-size: 1.2em;
+    transition: background-color 0.3s, color 0.3s;
+}
+.red-big-button:hover,
+.red-big button:hover {
+    background-color: #cc0000;
+    color: #000000;
+      border: #cc0000;
+}
+
+/* Жёлтая маленькая кнопка
+   СИГНАЛЫ: в пассаже — <span class="yellow-small">…ссылка…</span> */
+.yellow-small-button,
+.yellow-small a,
+.yellow-small button {
+    background-color: #000000;
+    color: #cccc00;
+    border: 1px solid #cccc00;
+    box-shadow: 0 0 5px #cccc00;
+    padding: 3px 6px;
+    font-size: 0.8em;
+    transition: background-color 0.3s, color 0.3s;
+}
+.yellow-small-button:hover,
+.yellow-small a:hover,
+.yellow-small button:hover {
+    background-color: #cccc00;
+    color: #000000;
+        border: #cccc00;
+}
+
+
+
+/* Янтарная кнопка
+   СИГНАЛЫ: в пассаже — <span class="amber">…ссылки…</span> */
+.amber-button,
+.amber a,
+.amber button {
+    background-color: #000000;
+    color: #FFBF00;
+    border: 2px solid #FFBF00;
+    box-shadow: 0 0 5px #FFBF00;
+    padding: 4px 9px;
+      font-size: 1.2em;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+.amber-button:hover,
+.amber a:hover,
+.amber button:hover {
+    background-color: #FFBF00;
+    color: #000000;
+        border: 2px solid #FFBF00;
+      text-decoration: none;
+}
+
+/* Существующие стили остаются без изменений */
+/* Новые стили для ссылок */
+.purple-link {
+    color: #cc00cc !important; /* Убедимся, что цвет приоритетен */
+    text-decoration: none;
+    transition: color 0.3s;
+}
+.purple-link:hover {
+    color: #ff00ff !important;
+    text-decoration: underline;
+}
+
+.red-big-link {
+    color: #cc0000 !important;
+    text-decoration: none;
+    font-size: 1.2em !important;
+    transition: color 0.3s;
+}
+.red-big-link:hover {
+    color: #ff0000 !important;
+    text-decoration: underline;
+}
+
+.yellow-small-link {
+    color: #cccc00 !important;
+    text-decoration: none;
+    font-size: 0.8em !important;
+    transition: color 0.3s;
+}
+.yellow-small-link:hover {
+    color: #ffff00 !important;
+    text-decoration: underline;
+}
+
+/* Подключаем шрифт DSEG7 Classic для сегментного дизайна */
+@font-face {
+    font-family: 'DSEG7';
+    src: url('media/fonts/DSEG7Classic-Regular.woff2') format('woff2');
+    font-weight: normal;
+    font-style: normal;
+}
+
+#timer-display {
+    font-family: 'DSEG7', monospace;
+    font-size: 125px; /* Размер шрифта для читаемости */
+    color: #cc0000; /* Красный цвет */
+    background-color: #000000;
+    border: 2px solid #cc0000;
+    box-shadow: 0 0 10px #cc0000, 0 0 20px #cc0000;
+    padding: 10px 20px;
+    width: fit-content; /* Ширина подстраивается под содержимое */
+    display: inline-block; /* Делает контейнер компактным */
+    margin: 20px auto; /* Центрирует элемент по горизонтали */
+    text-align: center; /* Центрирует текст внутри элемента */
+    display: flex; /* Используем flexbox для точного центрирования */
+    justify-content: center; /* Центрирует содержимое по горизонтали */
+    align-items: center; /* Центрирует содержимое по вертикали (если нужно) */
+}
+
+.center-text {
+    text-align: center; /* По центру по горизонтали */
+}
+
+.side-text {
+    text-align: right; /* Справа по горизонтали */
+}
+
+
+
+#blockscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #cc0000;
+    color: #000000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 70px;
+    z-index: 1002;
+}
+
+#blackscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #000000;
+    color: #000000;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 70px;
+    z-index: 1002;
+}
+
+
+
+/* Новый стиль для текста в правом верхнем углу */
+.top-right-audio-buttons {
+    position: absolute;
+    top: -26px; /* Отступ сверху */
+    right: 440px; /* Отступ справа от края #passages */
+}
+
+/* Стили для поля ввода пароля */
+.password-input {
+    background-color: #000000;
+    color: #00cc00;
+    border: 1px solid #00cc00;
+    box-shadow: 0 0 5px #00cc00;
+    padding: 5px;
+    font-size: 20px;
+    font-family: "Courier New", monospace;
+    width: 200px; /* Ширина поля ввода */
+    display: block; /* Делает поле блочным элементом */
+    margin: 20px auto; /* Центрируем поле */
+}
+
+
+
+
+
+
+#terminalDisplay {
+    width: 100%;
+    height: 70%;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+      text-align: center;
+    line-height: 1.5;
+}
+
+#likenessDisplay {
+    width: 100%;
+    height: 10%;
+    overflow: auto;
+    text-align: center;
+    margin-top: 10px;
+}
+
+#attemptsLeft {
+    width: 100%;
+    height: 10%;
+    margin-top: 10px;
+    text-align: center;
+}
+
+.word {
+    color: #00cc00; /* Зеленый текст */
+    background-color: #000000; /* Черный фон */
+}
+
+.word:hover {
+    color: #000000; /* Черный текст при наведении */
+    background-color: #00cc00; /* Зеленый фон при наведении */
+}
+
+
+
+
+/* Глючный текст - старт */
+
+/* "Clip" в ".glitch" не используется, поэтому технически вы должны использовать "clip-path", который находится в ".glitchy", однако Internet Explorer не поддерживает "clip-path", а большинство браузеров по-прежнему поддерживают "clip". */
+
+
+.glitchy {
+  color: #00cc00;
+  position: relative;
+}
+.glitchy::before {
+  content: attr(data-text);
+  width: calc(100% + 0.5em);
+  position: absolute;
+  left: -9px;
+  text-shadow: 1px 0 blue;
+  top: -5px;
+  color: #00cc00;
+  background: #111;
+  overflow: hidden;
+  clip-path: polygon(0 0);
+  animation: noise-animY-2 3s infinite linear alternate-reverse;
+  -webkit-animation: noise-animY-2 3s infinite linear alternate-reverse;
+}
+.glitchy::after {
+  content: attr(data-text);
+  width: calc(100% + 0.5em);
+  position: absolute;
+  left: -5px;
+  text-shadow: -1px 0 red;
+  top: -5px;
+  color: #00cc00;
+  background: #111;
+  overflow: hidden;
+  clip-path: polygon(0 0);
+  animation: noise-animY 2s infinite linear alternate-reverse;
+  -webkit-animation: noise-animY 2s infinite linear alternate-reverse;
+}
+@keyframes noise-animY {
+  0% {
+    clip-path: polygon(0 80px, 100% 80px, 100% 16px, 0 16px);
+  }
+  5% {
+    clip-path: polygon(0 94px, 100% 94px, 100% 17px, 0 17px);
+  }
+  10% {
+    clip-path: polygon(0 9px, 100% 9px, 100% 92px, 0 92px);
+  }
+  15.0% {
+    clip-path: polygon(0 37px, 100% 37px, 100% 4px, 0 4px);
+  }
+  20% {
+    clip-path: polygon(0 53px, 100% 53px, 100% 47px, 0 47px);
+  }
+  25% {
+    clip-path: polygon(0 99px, 100% 99px, 100% 69px, 0 69px);
+  }
+  30.0% {
+    clip-path: polygon(0 15px, 100% 15px, 100% 49px, 0 49px);
+  }
+  35% {
+    clip-path: polygon(0 83px, 100% 83px, 100% 81px, 0 81px);
+  }
+  40% {
+    clip-path: polygon(0 55px, 100% 55px, 100% 43px, 0 43px);
+  }
+  45% {
+    clip-path: polygon(0 28px, 100% 28px, 100% 27px, 0 27px);
+  }
+  50% {
+    clip-path: polygon(0 64px, 100% 64px, 100% 28px, 0 28px);
+  }
+  55.0% {
+    clip-path: polygon(0 76px, 100% 76px, 100% 91px, 0 91px);
+  }
+  60.0% {
+    clip-path: polygon(0 29px, 100% 29px, 100% 72px, 0 72px);
+  }
+  65% {
+    clip-path: polygon(0 70px, 100% 70px, 100% 10px, 0 10px);
+  }
+  70% {
+    clip-path: polygon(0 5px, 100% 5px, 100% 84px, 0 84px);
+  }
+  75% {
+    clip-path: polygon(0 46px, 100% 46px, 100% 81px, 0 81px);
+  }
+  80% {
+    clip-path: polygon(0 7px, 100% 7px, 100% 85px, 0 85px);
+  }
+  85.0% {
+    clip-path: polygon(0 17px, 100% 17px, 100% 89px, 0 89px);
+  }
+  90% {
+    clip-path: polygon(0 41px, 100% 41px, 100% 59px, 0 59px);
+  }
+  95% {
+    clip-path: polygon(0 53px, 100% 53px, 100% 90px, 0 90px);
+  }
+  100% {
+    clip-path: polygon(0 10px, 100% 10px, 100% 30px, 0 30px);
+  }
+}
+@keyframes noise-animY-2 {
+  0% {
+    clip-path: polygon(0 84px, 100% 84px, 100% 3px, 0 3px);
+  }
+  5% {
+    clip-path: polygon(0 31px, 100% 31px, 100% 69px, 0 69px);
+  }
+  10% {
+    clip-path: polygon(0 37px, 100% 37px, 100% 33px, 0 33px);
+  }
+  15.0% {
+    clip-path: polygon(0 18px, 100% 18px, 100% 6px, 0 6px);
+  }
+  20% {
+    clip-path: polygon(0 25px, 100% 25px, 100% 87px, 0 87px);
+  }
+  25% {
+    clip-path: polygon(0 100px, 100% 100px, 100% 8px, 0 8px);
+  }
+  30.0% {
+    clip-path: polygon(0 24px, 100% 24px, 100% 87px, 0 87px);
+  }
+  35% {
+    clip-path: polygon(0 39px, 100% 39px, 100% 16px, 0 16px);
+  }
+  40% {
+    clip-path: polygon(0 96px, 100% 96px, 100% 25px, 0 25px);
+  }
+  45% {
+    clip-path: polygon(0 16px, 100% 16px, 100% 100px, 0 100px);
+  }
+  50% {
+    clip-path: polygon(0 92px, 100% 92px, 100% 76px, 0 76px);
+  }
+  55.0% {
+    clip-path: polygon(0 29px, 100% 29px, 100% 40px, 0 40px);
+  }
+  60.0% {
+    clip-path: polygon(0 40px, 100% 40px, 100% 39px, 0 39px);
+  }
+  65% {
+    clip-path: polygon(0 94px, 100% 94px, 100% 44px, 0 44px);
+  }
+  70% {
+    clip-path: polygon(0 2px, 100% 2px, 100% 78px, 0 78px);
+  }
+  75% {
+    clip-path: polygon(0 86px, 100% 86px, 100% 50px, 0 50px);
+  }
+  80% {
+    clip-path: polygon(0 2px, 100% 2px, 100% 46px, 0 46px);
+  }
+  85.0% {
+    clip-path: polygon(0 41px, 100% 41px, 100% 71px, 0 71px);
+  }
+  90% {
+    clip-path: polygon(0 75px, 100% 75px, 100% 15px, 0 15px);
+  }
+  95% {
+    clip-path: polygon(0 41px, 100% 41px, 100% 8px, 0 8px);
+  }
+  100% {
+    clip-path: polygon(0 23px, 100% 23px, 100% 75px, 0 75px);
+  }
+}
+/* Глючный текст - Конец */
+
+
+
+
+
+
+
+
+/* hovertip v2.0 - Старт */
+.hoverTip {
+	display: inline-block;
+	top: 4px;
+	border-width: 0px;
+    border-bottom: 2px dotted #00cc00;  /* Если вы хотите, чтобы под зависающим текстом были точки */
+}
+.hoverTipTxt {
+	position: relative;
+	vertical-align: text-bottom;
+	line-height: initial;
+}
+.hoverTipTxt .hoverBox {
+	position: absolute;
+	visibility: hidden;
+}
+.hoverTipTxt:hover .hoverBox, .hoverTipTxt:focus .hoverBox {
+	visibility: visible;
+}
+.hoverBox {
+	padding: 3px 10px;
+	width: intrinsic;  /* Safari/WebKit использует нестандартное имя */
+	width: -webkit-max-content;  /* Chrome */
+	width: -moz-max-content;  /* Firefox/Gecko */
+	width: max-content;
+	max-width: 333px;
+	line-height: initial;
+	text-align: left;
+	color: #00cc00;
+	background-color: black;
+	border: #00cc00 solid 2px;
+	-webkit-border-radius: 6px;
+	   -moz-border-radius: 6px;
+	        border-radius: 6px;
+	-webkit-box-shadow: 0px 0px 12px 2px rgba(0, 0, 0, 0.75);
+	   -moz-box-shadow: 0px 0px 12px 2px rgba(0, 0, 0, 0.75);
+	        box-shadow: 0px 0px 12px 2px rgba(0, 0, 0, 0.75);
+	z-index: 100;
+}
+.hoverTail::after {
+	content: "";
+	position: absolute;
+	top: 100%;  /* В нижней части всплывающей подсказки */
+	left: 50%;
+	margin-left: -5px;
+	border-width: 8px;
+	border-style: solid;
+	border-color: #00cc00 transparent transparent transparent;
+	z-index: 100;
+}
+.hoverBox a {
+	-webkit-transition-duration: unset;
+	   -moz-transition-duration: unset;
+	     -o-transition-duration: unset;
+	        transition-duration: unset;
+}
+#ui-bar .hoverBox {
+	max-width: 230px;
+}
+/* hovertip v2.0 - Конец*/
+
+
+
+
+
+
+/* ===== KR2 INTERFACE ===== */
+
+#passages.kr2-layout {
+    display: grid;
+    grid-template-columns: 65% 35%;
+    grid-template-rows: 65% 35%;
+    padding: 0;
+    gap: 0;
+    overflow: hidden;
+    position: relative;
+}
+
+#passages.kr2-layout .passage {
+    display: contents;
+}
+
+#kr2-main {
+    grid-column: 1;
+    grid-row: 1;
+    overflow-y: auto;
+    padding: 15px;
+    border-right: 2px solid #00cc00;
+    border-bottom: 2px solid #00cc00;
+    box-sizing: border-box;
+}
+
+#kr2-nav {
+    grid-column: 1;
+    grid-row: 2;
+    overflow-y: auto;
+    padding: 15px;
+    border-right: 2px solid #00cc00;
+    box-sizing: border-box;
+}
+
+/* Каждая ссылка навигации — с новой строки */
+#kr2-nav a,
+#kr2-nav button {
+    display: block;
+    margin-bottom: 6px;
+}
+
+#kr2-image {
+    grid-column: 2;
+    grid-row: 1;
+    overflow: hidden;
+    position: relative;
+    border-bottom: 2px solid #00cc00;
+    box-sizing: border-box;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #000;
+}
+
+/* Картинка в нормальном режиме */
+#kr2-image img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    display: block;
+}
+
+/* СИГНАЛЫ: правила #kr2-image.expanded удалены — картинка разворачивается через #kr2-overlay (ниже) */
+
+#kr2-vars {
+    grid-column: 2;
+    grid-row: 2;
+    overflow-y: auto;
+    padding: 10px;
+    box-sizing: border-box;
+    font-size: 0.8em;
+    color: #00aa00;
+}
+
+#kr2-main::-webkit-scrollbar,
+#kr2-nav::-webkit-scrollbar,
+#kr2-vars::-webkit-scrollbar {
+    width: 6px;
+}
+#kr2-main::-webkit-scrollbar-track,
+#kr2-nav::-webkit-scrollbar-track,
+#kr2-vars::-webkit-scrollbar-track {
+    background: #000;
+}
+#kr2-main::-webkit-scrollbar-thumb,
+#kr2-nav::-webkit-scrollbar-thumb,
+#kr2-vars::-webkit-scrollbar-thumb {
+    background: #00cc00;
+}
+
+/* ===== END KR2 INTERFACE ===== */
+
+
+#kr2-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: #000;
+    z-index: 999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-sizing: border-box;
+}
+
+#kr2-overlay img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}

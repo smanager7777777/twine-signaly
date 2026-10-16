@@ -41,10 +41,10 @@ describe('backupStoryDirectory()', () => {
 		]);
 		statMock.mockImplementation((name: string) => {
 			switch (name) {
-				case 'mock-electron-app-path-documents/common.appName/electron.backupsDirectoryName/mock-backup-1':
+				case 'mock-electron-app-path-documents/Twine СИГНАЛЫ/electron.backupsDirectoryName/mock-backup-1':
 				case 'test-app-pref-backup-directory/mock-backup-1':
 					return {mtimeMs: 1000};
-				case 'mock-electron-app-path-documents/common.appName/electron.backupsDirectoryName/mock-backup-2':
+				case 'mock-electron-app-path-documents/Twine СИГНАЛЫ/electron.backupsDirectoryName/mock-backup-2':
 				case 'test-app-pref-backup-directory/mock-backup-2':
 					return {mtimeMs: 500};
 				default:
@@ -59,7 +59,7 @@ describe('backupStoryDirectory()', () => {
 		[
 			"isn't set",
 			undefined,
-			'mock-electron-app-path-documents/common.appName/electron.backupsDirectoryName'
+			'mock-electron-app-path-documents/Twine СИГНАЛЫ/electron.backupsDirectoryName'
 		],
 		[
 			'is set',
@@ -81,7 +81,7 @@ describe('backupStoryDirectory()', () => {
 			await backupStoryDirectory();
 			expect(copyMock.mock.calls).toEqual([
 				[
-					'mock-electron-app-path-documents/common.appName/electron.storiesDirectoryName',
+					'mock-electron-app-path-documents/Twine СИГНАЛЫ/electron.storiesDirectoryName',
 					expect.stringMatching(new RegExp(`${path}/.+`))
 				]
 			]);
@@ -196,7 +196,7 @@ describe('initStoryDirectoryPath()', () => {
 	it('returns the default path if no app pref is set', async () => {
 		await initStoryDirectory();
 		expect(getStoryDirectoryPath()).toBe(
-			'mock-electron-app-path-documents/common.appName/electron.storiesDirectoryName'
+			'mock-electron-app-path-documents/Twine СИГНАЛЫ/electron.storiesDirectoryName'
 		);
 	});
 
@@ -270,7 +270,7 @@ describe('initStoryDirectoryPath()', () => {
 				showMessageBoxMock.mockResolvedValue({response: 0});
 				await initStoryDirectory();
 				expect(getStoryDirectoryPath()).toBe(
-					'mock-electron-app-path-documents/common.appName/electron.storiesDirectoryName'
+					'mock-electron-app-path-documents/Twine СИГНАЛЫ/electron.storiesDirectoryName'
 				);
 				expect(quitMock).not.toHaveBeenCalled();
 			});
@@ -291,7 +291,7 @@ describe('revealStoryDirectoryPath()', () => {
 		await revealStoryDirectory();
 		expect(openPathSpy.mock.calls).toEqual([
 			[
-				'mock-electron-app-path-documents/common.appName/electron.storiesDirectoryName'
+				'mock-electron-app-path-documents/Twine СИГНАЛЫ/electron.storiesDirectoryName'
 			]
 		]);
 	});

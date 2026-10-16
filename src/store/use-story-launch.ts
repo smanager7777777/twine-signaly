@@ -1,4 +1,5 @@
 import {usePublishing} from './use-publishing';
+import {playFileName, testFileName, useGameFolder} from './use-game-folder';
 import {isElectronRenderer} from '../util/is-electron';
 import {TwineElectronWindow} from '../electron/shared';
 
@@ -14,6 +15,7 @@ export interface UseStoryLaunchProps {
  */
 export function useStoryLaunch(): UseStoryLaunchProps {
 	const {proofStory, publishStory} = usePublishing();
+	const {chooseGameFolder, gameFolder, writeGameFile} = useGameFolder();
 
 	if (isElectronRenderer()) {
 		const {twineElectron} = window as TwineElectronWindow;
@@ -25,11 +27,19 @@ export function useStoryLaunch(): UseStoryLaunchProps {
 		// These are async to match the type in the browser context.
 
 		return {
+			// «Twine СИГНАЛЫ»: «Играть» и «Тест» пишут игру в папку игры, чтобы
+			// пути media/... работали. Если папка не выбрана, программа
+			// предлагает её выбрать; при отмене — старое поведение Twine.
+
 			playStory: async storyId => {
-				twineElectron.openHtmlWithScratchFile(
-					await publishStory(storyId),
-					`play-${storyId}.html`
-				);
+				const html = await publishStory(storyId);
+				const folder = gameFolder(storyId) ?? (await chooseGameFolder(storyId));
+
+				if (folder) {
+					await writeGameFile(folder, playFileName, html, true);
+				} else {
+					twineElectron.openHtmlWithScratchFile(html, `play-${storyId}.html`);
+				}
 			},
 			proofStory: async storyId => {
 				twineElectron.openHtmlWithScratchFile(
@@ -38,13 +48,17 @@ export function useStoryLaunch(): UseStoryLaunchProps {
 				);
 			},
 			testStory: async (storyId, startPassageId) => {
-				twineElectron.openHtmlWithScratchFile(
-					await publishStory(storyId, {
-						formatOptions: 'debug',
-						startId: startPassageId
-					}),
-					`test-${storyId}.html`
-				);
+				const html = await publishStory(storyId, {
+					formatOptions: 'debug',
+					startId: startPassageId
+				});
+				const folder = gameFolder(storyId) ?? (await chooseGameFolder(storyId));
+
+				if (folder) {
+					await writeGameFile(folder, testFileName, html, true);
+				} else {
+					twineElectron.openHtmlWithScratchFile(html, `test-${storyId}.html`);
+				}
 			}
 		};
 	}
