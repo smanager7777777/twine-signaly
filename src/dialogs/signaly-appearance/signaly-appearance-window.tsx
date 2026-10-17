@@ -46,7 +46,15 @@ export const SignalyAppearanceWindow: React.FC<
 	const [appearance, setAppearance] = React.useState<SignalyAppearance>(
 		prepared.appearance
 	);
-	const [saved, setSaved] = React.useState(prepared.moved.length === 0);
+	// «Сохранено» — только если история уже в точности такая, какой её запишет
+	// окно (после обновления программы движок и блок можно пересохранить).
+	const [upToDate] = React.useState(
+		() =>
+			prepared.script === story.script &&
+			withAppearance(prepared.stylesheet, prepared.appearance) ===
+				story.stylesheet
+	);
+	const [saved, setSaved] = React.useState(upToDate);
 	const [savedOnce, setSavedOnce] = React.useState(false);
 	const [screen, setScreen] = React.useState(story.startPassage);
 	const [refresh, setRefresh] = React.useState(0);
@@ -195,6 +203,11 @@ export const SignalyAppearanceWindow: React.FC<
 			</header>
 			<div className="signaly-appearance-body">
 				<div className="signaly-appearance-settings">
+					{!upToDate && prepared.moved.length === 0 && !savedOnce && (
+						<div className="signaly-notice">
+							{t('signaly.appearance.updated')}
+						</div>
+					)}
 					{prepared.moved.length > 0 && !savedOnce && (
 						<div className="signaly-notice">
 							{t('signaly.appearance.migrated', {
@@ -270,6 +283,7 @@ export const SignalyAppearanceWindow: React.FC<
 						{color('borderColor')}
 						{range('glowSize', 0, 60, px)}
 						{color('glowColor')}
+						{check('lineScroll')}
 					</section>
 
 					<section>
@@ -281,8 +295,6 @@ export const SignalyAppearanceWindow: React.FC<
 
 					<section>
 						<h3>{t('signaly.appearance.sections.crt')}</h3>
-						{range('scanlines', 0, 100, percent)}
-						{range('scanlineGap', 2, 12, px)}
 						{range('vignette', 0, 100, percent)}
 						{range('noise', 0, 100, percent)}
 					</section>

@@ -52,9 +52,7 @@ export interface SignalyAppearance {
 	flickerPeriod: number;
 	/** Глубина мерцания, % (яркость падает до 100 − глубина). */
 	flickerDepth: number;
-	/** Эффекты старого монитора, % (0 — выключено). */
-	scanlines: number;
-	scanlineGap: number;
+	/** Эффекты старого монитора, % (0 — выключено). Только на терминале. */
 	vignette: number;
 	noise: number;
 	/** Защита экрана. */
@@ -63,6 +61,8 @@ export interface SignalyAppearance {
 	noZoom: boolean;
 	/** Скрывать курсор через N секунд без движения мыши; 0 — не скрывать. */
 	hideCursor: number;
+	/** Колесо мыши прокручивает текст по одной строке, без плавности. */
+	lineScroll: boolean;
 	/** Стартовый экран. */
 	startText: string;
 	startSound: string;
@@ -92,14 +92,13 @@ export const defaultAppearance: SignalyAppearance = {
 	flicker: true,
 	flickerPeriod: 0.1,
 	flickerDepth: 5,
-	scanlines: 0,
-	scanlineGap: 3,
 	vignette: 0,
 	noise: 0,
 	noSelect: false,
 	noContextMenu: false,
 	noZoom: false,
 	hideCursor: 0,
+	lineScroll: false,
 	startText: 'Нажмите, чтобы запустить систему',
 	startSound: '',
 	startVolume: 100,
@@ -210,6 +209,7 @@ export function appearanceCss(a: SignalyAppearance): string {
 		`\t--sg-protect-menu: ${a.noContextMenu ? 1 : 0};`,
 		`\t--sg-protect-zoom: ${a.noZoom ? 1 : 0};`,
 		`\t--sg-hide-cursor: ${round(a.hideCursor)};`,
+		`\t--sg-line-scroll: ${a.lineScroll ? 1 : 0};`,
 		'}'
 	);
 
@@ -226,9 +226,6 @@ export function appearanceCss(a: SignalyAppearance): string {
 		'\talign-items: center;',
 		'\tposition: relative;'
 	);
-	if (a.flicker) {
-		lines.push(`\tanimation: sg-flicker ${round(a.flickerPeriod)}s infinite;`);
-	}
 	if (a.noSelect) {
 		lines.push('\tuser-select: none;');
 	}
@@ -254,6 +251,10 @@ export function appearanceCss(a: SignalyAppearance): string {
 			`\ttop: ${round(a.winOffsetY)}px;`
 		);
 	}
+	// Мерцает только терминал (рамка и всё внутри), вокруг — ровный фон.
+	if (a.flicker) {
+		lines.push(`\tanimation: sg-flicker ${round(a.flickerPeriod)}s infinite;`);
+	}
 	lines.push('}');
 
 	if (a.flicker) {
@@ -273,54 +274,46 @@ export function appearanceCss(a: SignalyAppearance): string {
 		'html.sg-cursor-hidden, html.sg-cursor-hidden * { cursor: none !important; }'
 	);
 
-	// Эффекты старого монитора — слой поверх всего, сквозь него можно кликать.
-	const overlays: string[] = [];
-
-	if (a.scanlines > 0) {
-		const alpha = round(a.scanlines / 100);
-		const gap = Math.max(2, round(a.scanlineGap));
-
-		overlays.push(
-			`repeating-linear-gradient(to bottom, rgba(0, 0, 0, ${alpha}) 0, rgba(0, 0, 0, ${alpha}) 1px, transparent 1px, transparent ${gap}px)`
-		);
-	}
+	// Эффекты старого монитора — слой #sg-fx поверх терминала (его ставит
+	// движок точно по рамке), сквозь него можно кликать. Экран тревоги
+	// (#blockscreen, z-index 1002) остаётся над ним.
+	lines.push(
+		'#sg-fx {',
+		'\tposition: fixed;',
+		'\tpointer-events: none;',
+		'\tz-index: 1000;',
+		'\toverflow: hidden;',
+		'}'
+	);
 	if (a.vignette > 0) {
-		overlays.push(
-			`radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, ${round(
-				a.vignette / 100
-			)}) 100%)`
-		);
-	}
-	if (overlays.length > 0) {
 		lines.push(
-			'body::before {',
+			'#sg-fx::before {',
 			'\tcontent: "";',
-			'\tposition: fixed;',
+			'\tposition: absolute;',
 			'\tinset: 0;',
 			'\tpointer-events: none;',
-			'\tz-index: 2147483600;',
-			`\tbackground: ${overlays.join(', ')};`,
+			`\tbackground: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, ${round(
+				a.vignette / 100
+			)}) 100%);`,
 			'}'
 		);
 	}
 	if (a.noise > 0) {
 		lines.push(
-			'body::after {',
+			'#sg-fx::after {',
 			'\tcontent: "";',
-			'\tposition: fixed;',
-			'\tinset: -240px;',
+			'\tposition: absolute;',
+			'\tinset: 0;',
 			'\tpointer-events: none;',
-			'\tz-index: 2147483601;',
 			`\tbackground-image: ${noiseImage()};`,
 			`\topacity: ${round(a.noise / 100)};`,
-			'\tanimation: sg-noise 0.4s steps(4) infinite;',
+			'\tanimation: sg-noise 0.4s steps(1, end) infinite;',
 			'}',
 			'@keyframes sg-noise {',
-			'\t0% { transform: translate(0, 0); }',
-			'\t25% { transform: translate(-97px, 53px); }',
-			'\t50% { transform: translate(61px, -89px); }',
-			'\t75% { transform: translate(-43px, -127px); }',
-			'\t100% { transform: translate(0, 0); }',
+			'\t0% { background-position: 0 0; }',
+			'\t25% { background-position: -97px 53px; }',
+			'\t50% { background-position: 61px -89px; }',
+			'\t75% { background-position: -43px -127px; }',
 			'}'
 		);
 	}

@@ -511,8 +511,6 @@
 				"flicker": "Screen flickers",
 				"flickerPeriod": "Flicker period",
 				"flickerDepth": "Flicker strength",
-				"scanlines": "Scanlines",
-				"scanlineGap": "Line spacing",
 				"vignette": "Dark corners",
 				"noise": "Noise",
 				"noSelect": "Disable text selection",
@@ -521,11 +519,13 @@
 				"hideCursor": "Hide idle cursor after",
 				"startText": "Text",
 				"startSound": "Start sound",
-				"startVolume": "Start sound volume"
+				"startVolume": "Start sound volume",
+				"lineScroll": "Wheel scrolls one line at a time"
 			},
 			"hints": {
 				"savedColors": "Colors of this story. In any color field: ★ adds the color here; a swatch applies it.",
-				"hideCursor": "0 means never hide."
+				"hideCursor": "0 means never hide.",
+				"lineScroll": "No smooth scrolling: one wheel notch, one line of text."
 			},
 			"preview": {
 				"title": "Terminal preview",
@@ -536,7 +536,8 @@
 				"noFolder": "No game folder chosen: images and fonts are not visible in the preview.",
 				"chooseFolder": "Choose Game Folder…",
 				"noFormat": "Couldn't load the story format."
-			}
+			},
+			"updated": "The program was updated. Press Save to update the terminal engine and appearance in the story; your settings are kept."
 		}
 	}
 }

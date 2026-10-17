@@ -147,13 +147,35 @@ if (twee) {
 	await win.getByLabel('Звук запуска').selectOption('media/audio/startscreentape.mp3');
 	await win.getByRole('slider', {name: 'Шум'}).fill('25');
 	await win.waitForTimeout(300);
-	check('эффекты видны в предпросмотре', (await frameEval(() => getComputedStyle(document.body, '::after').opacity)) === '0.25');
+	check('эффекты видны в предпросмотре', (await frameEval(() => getComputedStyle(document.querySelector('#sg-fx'), '::after').opacity)) === '0.25');
 	await win.screenshot({path: (process.env.SHOT || path.join(home, 'shot.png')).replace('.png', '-appearance.png')});
 	await win.getByLabel('Экран:').selectOption({label: 'Стартовый экран'});
 	await frame().locator('#sg-start').waitFor({timeout: 20000});
 	await win.waitForTimeout(500);
 	check('предпросмотр стартового экрана', await frameEval(() => getComputedStyle(document.querySelector('#sg-start'), '::after').content === '"Нажмите, чтобы запустить систему"'));
 	await win.screenshot({path: (process.env.SHOT || path.join(home, 'shot.png')).replace('.png', '-start.png')});
+	// Выбор экрана в списке переключает предпросмотр (ошибка build-4).
+	await win.getByLabel('Экран:').selectOption({label: 'radio'});
+	await win.waitForTimeout(500);
+	await frame().locator('#passages .passage').waitFor({timeout: 20000});
+	await win.waitForTimeout(1500);
+	check('выбор экрана в списке переключает предпросмотр', (await frameEval(() => SugarCube.State.passage)) === 'radio');
+	await win.getByLabel('Экран:').selectOption({label: 'Texttests'});
+	await win.waitForTimeout(3000);
+	check('и на другой экран тоже', (await frameEval(() => SugarCube.State.passage)) === 'Texttests');
+	// Тёмная тема Twine: текст окна светлый.
+	await win.evaluate(() => (document.body.dataset.appTheme = 'dark'));
+	await win.waitForTimeout(300);
+	const dark = await win.evaluate(() => {
+		const lum = c => { const [r, g, b] = c.match(/\d+/g).map(Number); return 0.299 * r + 0.587 * g + 0.114 * b; };
+		const label = getComputedStyle(document.querySelector('.signaly-field-label')).color;
+		const bg = getComputedStyle(document.querySelector('.signaly-appearance-window')).backgroundColor;
+		const input = getComputedStyle(document.querySelector('.signaly-color-hex')).color;
+		return {label: lum(label), bg: lum(bg), input: lum(input)};
+	});
+	check('тёмная тема: светлый текст на тёмном фоне', dark.label > 180 && dark.bg < 80 && dark.input > 180, JSON.stringify(dark));
+	await win.screenshot({path: (process.env.SHOT || path.join(home, 'shot.png')).replace('.png', '-dark.png')});
+	await win.evaluate(() => (document.body.dataset.appTheme = 'light'));
 	await btn(/^Сохранить$/).click();
 	await win.waitForTimeout(1500);
 	await btn(/^Закрыть$/).last().click();

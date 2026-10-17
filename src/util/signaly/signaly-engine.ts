@@ -12,13 +12,14 @@
 //   (музыку после сбоя включает мастер — ответ 2б);
 // - «Новая игра» — Shift+Z+N с вопросом;
 // - защита экрана: правая кнопка мыши, Ctrl+колесо, скрытие курсора;
+// - прокрутка колесом по одной строке (по галочке);
 // - история в один шаг (Config.history.maxStates = 1).
 //
 // Код написан без обратных кавычек и без «${», потому что хранится в шаблонной
 // строке.
 
 /** Версия движка. Увеличивать при каждом изменении кода ниже. */
-export const signalyEngineVersion = 1;
+export const signalyEngineVersion = 2;
 
 export const signalyEngineStart =
 	'/* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */';
@@ -60,7 +61,8 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		startVolume: opt('start-volume', 1),
 		noContextMenu: opt('protect-menu', 0) === 1,
 		noZoom: opt('protect-zoom', 0) === 1,
-		hideCursorAfter: opt('hide-cursor', 0)
+		hideCursorAfter: opt('hide-cursor', 0),
+		lineScroll: opt('line-scroll', 0) === 1
 	};
 
 	// Предпросмотр в программе: без стартового экрана, автокопии и защиты.
@@ -79,7 +81,93 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		return screen;
 	}
 
+	/* ----- Прокрутка по одной строке ----- */
+
+	function scrollTarget(element) {
+		while (element && element !== document.documentElement) {
+			var style = getComputedStyle(element);
+
+			if (
+				/(auto|scroll)/.test(style.overflowY) &&
+				element.scrollHeight > element.clientHeight
+			) {
+				return element;
+			}
+			element = element.parentElement;
+		}
+		return null;
+	}
+
+	if (settings.lineScroll) {
+		document.addEventListener(
+			'wheel',
+			function (ev) {
+				if (ev.ctrlKey || ev.deltaY === 0) {
+					return;
+				}
+
+				var target = scrollTarget(ev.target);
+
+				if (!target) {
+					return;
+				}
+
+				// Высота строки — меряем настоящую строку текста этого блока.
+				var probe = document.createElement('div');
+
+				probe.textContent = 'X';
+				probe.style.cssText = 'position:absolute;visibility:hidden;left:0;top:0;';
+				target.appendChild(probe);
+
+				var line = probe.getBoundingClientRect().height;
+
+				target.removeChild(probe);
+				ev.preventDefault();
+				target.scrollBy({top: ev.deltaY > 0 ? line : -line, behavior: 'instant'});
+			},
+			{passive: false}
+		);
+	}
+
+	/* ----- Слой эффектов поверх терминала ----- */
+
+	// Шум и затемнение углов — в слое #sg-fx точно по рамке #passages. Слой
+	// живёт внутри #passages (мерцает вместе с ним, экран тревоги остаётся
+	// сверху), но закреплён на экране и не прокручивается вместе с текстом.
+	function placeEffects() {
+		var passages = document.getElementById('passages');
+
+		if (!passages) {
+			return;
+		}
+
+		var fx = document.getElementById('sg-fx');
+
+		if (!fx) {
+			fx = document.createElement('div');
+			fx.id = 'sg-fx';
+			fx.setAttribute('aria-hidden', 'true');
+		}
+		if (fx.parentNode !== passages) {
+			passages.appendChild(fx);
+		}
+
+		var rect = passages.getBoundingClientRect();
+
+		fx.style.left = rect.left + 'px';
+		fx.style.top = rect.top + 'px';
+		fx.style.width = rect.width + 'px';
+		fx.style.height = rect.height + 'px';
+	}
+
+	$(document).on(':passagedisplay', placeEffects);
+	window.addEventListener('resize', placeEffects);
+	document.addEventListener('fullscreenchange', placeEffects);
+	setInterval(placeEffects, 1000);
+
 	if (preview) {
+		// Всегда с выбранного экрана, а не с того, что был в прошлый раз.
+		State.reset();
 		if (preview === 'start') {
 			LoadScreen.lock();
 			showStartScreen(function () {});
@@ -121,7 +209,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	}
 
 	if (settings.noZoom) {
-		window.addEventListener(
+		document.addEventListener(
 			'wheel',
 			function (ev) {
 				if (ev.ctrlKey) {

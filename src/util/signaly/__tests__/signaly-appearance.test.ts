@@ -198,10 +198,16 @@ describe('appearance block', () => {
 	it('writes the template look exactly', () => {
 		const css = appearanceBlock(defaultAppearance);
 
-		expect(css).toContain('animation: sg-flicker 0.1s infinite;');
+		// Мерцание и эффекты — только на терминале (#story), не на всём экране.
+		expect(css).toContain(
+			'\toverflow: auto;\n\tanimation: sg-flicker 0.1s infinite;\n}'
+		);
+		expect(css.split('#passages {')[0]).not.toContain('animation');
 		expect(css).toContain('50% { opacity: 0.95; }');
 		expect(css).toContain('--sg-font: "Courier New", monospace;');
 		expect(css).not.toContain('body::before');
+		expect(css).not.toContain('#sg-fx::before');
+		expect(css).toContain('--sg-line-scroll: 0;');
 		expect(css).not.toContain('position: relative;\n\tleft');
 	});
 

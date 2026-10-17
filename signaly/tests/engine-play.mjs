@@ -176,13 +176,59 @@ await page.waitForTimeout(2300);
 check('курсор скрыт после простоя', await page.evaluate(() => document.documentElement.classList.contains('sg-cursor-hidden')));
 await page.mouse.move(400, 400);
 check('курсор вернулся при движении', !(await page.evaluate(() => document.documentElement.classList.contains('sg-cursor-hidden'))));
-const fx = await page.evaluate(() => [getComputedStyle(document.body, '::before').backgroundImage, getComputedStyle(document.body, '::after').opacity]);
-check('строки развёртки и затемнение углов', fx[0].includes('repeating-linear-gradient') && fx[0].includes('radial-gradient'));
-check('шум', fx[1] === '0.2', fx[1]);
-check('клик проходит сквозь эффекты', await page.evaluate(() => getComputedStyle(document.body, '::before').pointerEvents === 'none'));
+const fx = await page.evaluate(() => {
+	const layer = document.querySelector('#sg-fx');
+	const passages = document.querySelector('#passages');
+	const a = layer.getBoundingClientRect();
+	const b = passages.getBoundingClientRect();
+	return {
+		vignette: getComputedStyle(layer, '::before').backgroundImage,
+		noise: getComputedStyle(layer, '::after').opacity,
+		anim: getComputedStyle(passages).animationName,
+		bodyAnim: getComputedStyle(document.body).animationName,
+		same: Math.abs(a.left - b.left) < 1 && Math.abs(a.top - b.top) < 1 && Math.abs(a.width - b.width) < 1 && Math.abs(a.height - b.height) < 1,
+		bodyBefore: getComputedStyle(document.body, '::before').content,
+		bodyAfter: getComputedStyle(document.body, '::after').content
+	};
+});
+check('затемнение углов — на терминале', fx.vignette.includes('radial-gradient'));
+check('шум — на терминале', fx.noise === '0.2', fx.noise);
+check('мерцает терминал, а не весь экран', fx.anim === 'sg-flicker' && fx.bodyAnim === 'none', fx.anim + '/' + fx.bodyAnim);
+check('эффекты ровно по рамке терминала', fx.same);
+check('вне терминала эффектов нет', fx.bodyBefore === 'none' && fx.bodyAfter === 'none');
+check('клик проходит сквозь эффекты', await page.evaluate(() => getComputedStyle(document.querySelector('#sg-fx')).pointerEvents === 'none'));
 await page.click('#passages a[data-passage="radio"]');
 await page.waitForTimeout(500);
 check('ссылки работают поверх эффектов', (await passage(page)) === 'radio');
+// Прокрутка по одной строке
+// Простой экран, в который добавляем 100 строк текста, чтобы было что прокручивать.
+await page.evaluate(() => SugarCube.Engine.play('Admin'));
+await page.waitForTimeout(1000);
+await page.evaluate(() => {
+	document.querySelector('#passages .passage').insertAdjacentHTML('beforeend', Array.from({length: 100}, (_, i) => 'Строка ' + i).join('<br>'));
+});
+const scroll = await page.evaluate(() => {
+	const p = document.querySelector('#passages');
+	const probe = document.createElement('div');
+	probe.textContent = 'X';
+	probe.style.cssText = 'position:absolute;visibility:hidden';
+	p.appendChild(probe);
+	const line = probe.getBoundingClientRect().height;
+	probe.remove();
+	return {line, can: p.scrollHeight > p.clientHeight, top: p.scrollTop};
+});
+// Безоконный Chromium в полноэкранном режиме не передаёт колесо мыши — выходим.
+await page.evaluate(() => document.fullscreenElement && document.exitFullscreen());
+await page.mouse.move(960, 540);
+await page.waitForTimeout(700);
+await page.mouse.wheel(0, 100);
+await page.waitForTimeout(700);
+const top1 = await page.evaluate(() => document.querySelector('#passages').scrollTop);
+check('колесо прокручивает ровно на одну строку', scroll.can && Math.abs(top1 - scroll.top - scroll.line) < 1, `строка ${scroll.line}, сдвиг ${top1 - scroll.top}`);
+await page.waitForTimeout(700);
+await page.mouse.wheel(0, -100);
+await page.waitForTimeout(700);
+check('и обратно на одну строку', Math.abs((await page.evaluate(() => document.querySelector('#passages').scrollTop)) - scroll.top) < 1);
 await page.close();
 
 check('нет ошибок JavaScript', errors.length === 0, errors.join(' | '));

@@ -1183,7 +1183,7 @@ $(document).one(':passagedisplay', function() {
 
 :: StoryScript [script]
 /* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */
-/* Версия движка: 1. Обновляется программой «Twine СИГНАЛЫ».
+/* Версия движка: 2. Обновляется программой «Twine СИГНАЛЫ».
    Настройки — в окне «Оформление терминала» (они лежат в таблице стилей).
    Свой код пишите ниже конца этого блока. */
 (function () {
@@ -1218,13 +1218,14 @@ $(document).one(':passagedisplay', function() {
 		startVolume: opt('start-volume', 1),
 		noContextMenu: opt('protect-menu', 0) === 1,
 		noZoom: opt('protect-zoom', 0) === 1,
-		hideCursorAfter: opt('hide-cursor', 0)
+		hideCursorAfter: opt('hide-cursor', 0),
+		lineScroll: opt('line-scroll', 0) === 1
 	};
 
 	// Предпросмотр в программе: без стартового экрана, автокопии и защиты.
 	var preview = window.SIGNALY_PREVIEW;
 
-	setup.signaly = {engine: 1, preview: !!preview};
+	setup.signaly = {engine: 2, preview: !!preview};
 
 	function showStartScreen(onClick) {
 		var screen = document.createElement('div');
@@ -1237,7 +1238,93 @@ $(document).one(':passagedisplay', function() {
 		return screen;
 	}
 
+	/* ----- Прокрутка по одной строке ----- */
+
+	function scrollTarget(element) {
+		while (element && element !== document.documentElement) {
+			var style = getComputedStyle(element);
+
+			if (
+				/(auto|scroll)/.test(style.overflowY) &&
+				element.scrollHeight > element.clientHeight
+			) {
+				return element;
+			}
+			element = element.parentElement;
+		}
+		return null;
+	}
+
+	if (settings.lineScroll) {
+		window.addEventListener(
+			'wheel',
+			function (ev) {
+				if (ev.ctrlKey || ev.deltaY === 0) {
+					return;
+				}
+
+				var target = scrollTarget(ev.target);
+
+				if (!target) {
+					return;
+				}
+
+				// Высота строки — меряем настоящую строку текста этого блока.
+				var probe = document.createElement('div');
+
+				probe.textContent = 'X';
+				probe.style.cssText = 'position:absolute;visibility:hidden;left:0;top:0;';
+				target.appendChild(probe);
+
+				var line = probe.getBoundingClientRect().height;
+
+				target.removeChild(probe);
+				ev.preventDefault();
+				target.scrollBy({top: ev.deltaY > 0 ? line : -line, behavior: 'instant'});
+			},
+			{passive: false}
+		);
+	}
+
+	/* ----- Слой эффектов поверх терминала ----- */
+
+	// Шум и затемнение углов — в слое #sg-fx точно по рамке #passages. Слой
+	// живёт внутри #passages (мерцает вместе с ним, экран тревоги остаётся
+	// сверху), но закреплён на экране и не прокручивается вместе с текстом.
+	function placeEffects() {
+		var passages = document.getElementById('passages');
+
+		if (!passages) {
+			return;
+		}
+
+		var fx = document.getElementById('sg-fx');
+
+		if (!fx) {
+			fx = document.createElement('div');
+			fx.id = 'sg-fx';
+			fx.setAttribute('aria-hidden', 'true');
+		}
+		if (fx.parentNode !== passages) {
+			passages.appendChild(fx);
+		}
+
+		var rect = passages.getBoundingClientRect();
+
+		fx.style.left = rect.left + 'px';
+		fx.style.top = rect.top + 'px';
+		fx.style.width = rect.width + 'px';
+		fx.style.height = rect.height + 'px';
+	}
+
+	$(document).on(':passagedisplay', placeEffects);
+	window.addEventListener('resize', placeEffects);
+	document.addEventListener('fullscreenchange', placeEffects);
+	setInterval(placeEffects, 1000);
+
 	if (preview) {
+		// Всегда с выбранного экрана, а не с того, что был в прошлый раз.
+		State.reset();
 		if (preview === 'start') {
 			LoadScreen.lock();
 			showStartScreen(function () {});
@@ -1935,7 +2022,7 @@ setup.initXiaomi = function () {
 /* ===== СИГНАЛЫ: оформление терминала — не редактировать вручную ===== */
 /* Меняется в окне «Оформление терминала» программы «Twine СИГНАЛЫ».
    В своих стилях можно брать эти значения: var(--sg-text), var(--sg-font-size) и т. д. */
-/* СИГНАЛЫ-настройки: {"v":1,"pageBg":"#000000","textColor":"#00cc00","font":"Courier New","fontFile":"","fontSize":25,"winWidth":1050,"winHeight":1050,"winPadding":20,"winOffsetX":0,"winOffsetY":0,"winBg":"#000000","borderWidth":2,"borderColor":"#00cc00","glowColor":"#00cc00","glowSize":10,"flicker":true,"flickerPeriod":0.1,"flickerDepth":5,"scanlines":0,"scanlineGap":3,"vignette":0,"noise":0,"noSelect":false,"noContextMenu":false,"noZoom":false,"hideCursor":0,"startText":"Нажмите, чтобы запустить систему","startSound":"","startVolume":100,"savedColors":["#00cc00","#ffbf00","#cc0000","#cccc00","#cc00cc","#000000"]} */
+/* СИГНАЛЫ-настройки: {"v":1,"pageBg":"#000000","textColor":"#00cc00","font":"Courier New","fontFile":"","fontSize":25,"winWidth":1050,"winHeight":1050,"winPadding":20,"winOffsetX":0,"winOffsetY":0,"winBg":"#000000","borderWidth":2,"borderColor":"#00cc00","glowColor":"#00cc00","glowSize":10,"flicker":true,"flickerPeriod":0.1,"flickerDepth":5,"vignette":0,"noise":0,"noSelect":false,"noContextMenu":false,"noZoom":false,"hideCursor":0,"lineScroll":false,"startText":"Нажмите, чтобы запустить систему","startSound":"","startVolume":100,"savedColors":["#00cc00","#ffbf00","#cc0000","#cccc00","#cc00cc","#000000"]} */
 :root {
 	--sg-page-bg: #000000;
 	--sg-text: #00cc00;
@@ -1955,6 +2042,7 @@ setup.initXiaomi = function () {
 	--sg-protect-menu: 0;
 	--sg-protect-zoom: 0;
 	--sg-hide-cursor: 0;
+	--sg-line-scroll: 0;
 }
 body {
 	background-color: var(--sg-page-bg);
@@ -1967,7 +2055,6 @@ body {
 	justify-content: center;
 	align-items: center;
 	position: relative;
-	animation: sg-flicker 0.1s infinite;
 }
 #passages {
 	background-color: var(--sg-win-bg);
@@ -1978,6 +2065,7 @@ body {
 	padding: var(--sg-win-padding);
 	box-sizing: border-box;
 	overflow: auto;
+	animation: sg-flicker 0.1s infinite;
 }
 @keyframes sg-flicker {
 	0% { opacity: 1; }
@@ -1985,6 +2073,12 @@ body {
 	100% { opacity: 1; }
 }
 html.sg-cursor-hidden, html.sg-cursor-hidden * { cursor: none !important; }
+#sg-fx {
+	position: fixed;
+	pointer-events: none;
+	z-index: 1000;
+	overflow: hidden;
+}
 #sg-start {
 	position: fixed;
 	inset: 0;

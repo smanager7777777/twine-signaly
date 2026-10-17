@@ -11,9 +11,23 @@
 	z-index: 1000;
 }
 
+/* Тёмная тема Twine меняет местами --black и --white; поля ввода и списки
+   тоже переключаются в тёмный вид. */
 [data-app-theme='dark'] .signaly-appearance-window {
-	background: rgb(30, 30, 30);
-	color: var(--off-white);
+	color-scheme: dark;
+}
+
+.signaly-appearance-window input,
+.signaly-appearance-window select {
+	background: var(--white);
+	border: 1px solid var(--gray);
+	color: var(--black);
+}
+
+.signaly-appearance-window input[type='range'],
+.signaly-appearance-window input[type='checkbox'] {
+	background: none;
+	border: none;
 }
 
 .signaly-appearance-header {
@@ -191,21 +205,12 @@
 	opacity: 0.5;
 }
 
-[data-app-theme='dark'] .signaly-button,
-[data-app-theme='dark'] .signaly-small-button {
-	background: rgb(50, 50, 50);
-}
-
 .signaly-notice {
 	background: var(--faint-yellow);
 	border: 1px solid var(--yellow);
 	border-radius: 4px;
 	margin: var(--grid-size) 0 0;
 	padding: calc(var(--grid-size) / 2);
-}
-
-[data-app-theme='dark'] .signaly-notice {
-	background: rgb(60, 55, 20);
 }
 
 .signaly-appearance-preview {
