@@ -54,7 +54,8 @@ describe('signaly-blocks', () => {
 
 describe('signaly-css', () => {
 	it('finds top-level rules, at-rules and declarations', () => {
-		const css = '/* c */ body { color: red; /* x */ margin: 0 }\n@keyframes f { 0% { opacity: 1; } }\na:hover{color:#fff}';
+		const css =
+			'/* c */ body { color: red; /* x */ margin: 0 }\n@keyframes f { 0% { opacity: 1; } }\na:hover{color:#fff}';
 		const rules = topLevelRules(css);
 
 		expect(rules.map(r => r.selector)).toEqual([
@@ -62,17 +63,64 @@ describe('signaly-css', () => {
 			'@keyframes f',
 			'a:hover'
 		]);
-		expect(
-			declarations(css, rules[0]).map(d => [d.property, d.value])
-		).toEqual([
-			['color', 'red'],
-			['margin', '0']
-		]);
+		expect(declarations(css, rules[0]).map(d => [d.property, d.value])).toEqual(
+			[
+				['color', 'red'],
+				['margin', '0']
+			]
+		);
 	});
 });
 
+// Стили шаблона автора до переноса (как в 27_03_2025.twee до шага 1.2).
+const originalCss = `body {
+      background-color: #000000;
+  color: #00cc00;
+    font-family: "Courier New", monospace;
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+      animation: flicker 0.1s infinite;
+    position: relative;
+     font-size: 25px;
+}
+
+a {
+    color: #00cc00;
+    text-decoration: none
+}
+
+#passages {
+      background-color: #000000;
+  border: 2px solid #00cc00;
+    box-shadow: 0 0 10px #00cc00, 0 0 20px #00cc00;
+    width: 1050px;
+    height: 1050px;
+    padding: 20px;
+    box-sizing: border-box;
+    overflow: auto;
+}
+
+.ui-dialog-body {
+    color: #00cc00;
+     font-size: 25px;
+}
+
+@keyframes
+ flicker {
+    0% { opacity: 1; }
+    50% { opacity: 0.95; }
+    100% { opacity: 1; }
+}
+
+#passages.kr2-layout {
+    padding: 0;
+}`;
+
 describe('migrateStylesheet() on the author template', () => {
-	const result = migrateStylesheet(templateCss);
+	const result = migrateStylesheet(originalCss);
 
 	it('reads the template values', () => {
 		expect(result.appearance).toEqual({...defaultAppearance});
@@ -80,18 +128,27 @@ describe('migrateStylesheet() on the author template', () => {
 	});
 
 	it('removes moved rules and keeps the rest of the author code', () => {
-		const rules = topLevelRules(result.stylesheet).map(r => r.selector);
+		expect(result.stylesheet).toBe(`
+a {
+    color: #00cc00;
+    text-decoration: none
+}
 
-		expect(rules).not.toContain('body');
-		expect(rules).not.toContain('#passages');
-		expect(rules).not.toContain('@keyframes flicker');
-		expect(rules).toContain('#passages.kr2-layout');
-		expect(rules).toContain('.ui-dialog');
-		expect(rules).toContain('@keyframes noise-animY');
-		// Окна-сообщения не трогаются (ответ автора 5б).
-		expect(result.stylesheet).toContain(
-			'.ui-dialog-body {\n    color: #00cc00;\n     font-size: 25px;\n}'
-		);
+
+.ui-dialog-body {
+    color: #00cc00;
+     font-size: 25px;
+}
+
+
+#passages.kr2-layout {
+    padding: 0;
+}`);
+	});
+
+	it('the template in the repository already has the block', () => {
+		expect(readAppearance(templateCss)).toEqual({...defaultAppearance});
+		expect(engineVersionIn(templateJs)).toBe(signalyEngineVersion);
 	});
 
 	it('keeps declarations it does not understand', () => {
@@ -108,7 +165,8 @@ describe('migrateStylesheet() on the author template', () => {
 	});
 
 	it('leaves a foreign animation alone', () => {
-		const css = 'body { animation: pulse 2s infinite; }\n@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.2; transform: scale(2); } 100% { opacity: 1; } }';
+		const css =
+			'body { animation: pulse 2s infinite; }\n@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.2; transform: scale(2); } 100% { opacity: 1; } }';
 		const migrated = migrateStylesheet(css);
 
 		expect(migrated.appearance.flicker).toBe(false);
@@ -156,13 +214,15 @@ describe('appearance block', () => {
 
 describe('engine', () => {
 	it('replaces the old settings block and is idempotent', () => {
-		const once = withEngine(templateJs);
+		const old =
+			'/* ===== СИГНАЛЫ: общие настройки ===== */\nConfig.history.maxStates = 1;\n/* ===== КОНЕЦ: общие настройки ===== */\n\n\nauthor();';
+		const once = withEngine(old);
 
 		expect(once).not.toContain('СИГНАЛЫ: общие настройки');
-		expect(once.startsWith(signalyEngineBlock())).toBe(true);
+		expect(once).toBe(`${signalyEngineBlock()}\n\n\nauthor();`);
 		expect(withEngine(once)).toBe(once);
 		expect(engineVersionIn(once)).toBe(signalyEngineVersion);
-		expect(engineVersionIn(templateJs)).toBe(0);
+		expect(engineVersionIn(old)).toBe(0);
 	});
 
 	it('is valid JavaScript', () => {
@@ -170,7 +230,7 @@ describe('engine', () => {
 	});
 
 	it('prepareStory keeps an existing block untouched', () => {
-		const first = prepareStory(templateJs, templateCss);
+		const first = prepareStory('author();', originalCss);
 		const second = prepareStory(first.script, first.stylesheet);
 
 		expect(second.moved).toEqual([]);
