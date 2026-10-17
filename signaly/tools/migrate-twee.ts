@@ -1,0 +1,84 @@
+// «Twine СИГНАЛЫ»: перенос общих настроек .twee-истории в блок оформления и
+// установка движка — то же, что делает окно «Оформление терминала» при первом
+// открытии. Используется для шаблона в репозитории и в проверках.
+//
+// Сборка и запуск:
+//   npx tsc -p signaly/tools/tsconfig.json
+//   node .signaly-tools/signaly/tools/migrate-twee.js вход.twee выход.twee ['{"noise":20}']
+// Третий параметр (для проверок) — настройки, которые поменять после переноса.
+
+import {readFileSync, writeFileSync} from 'fs';
+import {
+	prepareStory,
+	sanitizeAppearance,
+	withAppearance
+} from '../../src/util/signaly/signaly-appearance';
+
+function section(source: string, header: RegExp) {
+	const match = header.exec(source);
+
+	if (!match) {
+		return undefined;
+	}
+
+	const from = match.index + match[0].length;
+	const next = source.slice(from).search(/\n:: /);
+	const to = next === -1 ? source.length : from + next + 1;
+
+	return {from, to, text: source.slice(from, to).replace(/\s+$/, '')};
+}
+
+function replaceSection(
+	source: string,
+	found: {from: number; to: number},
+	text: string,
+	last: boolean
+) {
+	return (
+		source.slice(0, found.from) +
+		text +
+		(last ? '\n' : '\n\n\n') +
+		source.slice(found.to)
+	);
+}
+
+const [input, output, overrides] = process.argv.slice(2);
+
+if (!input || !output) {
+	console.error('Использование: migrate-twee.js вход.twee выход.twee');
+	process.exit(1);
+}
+
+let twee = readFileSync(input, 'utf8');
+const scriptHeader = /^:: StoryScript \[script\][^\n]*\n/m;
+const styleHeader = /^:: StoryStylesheet \[stylesheet\][^\n]*\n/m;
+const script = section(twee, scriptHeader);
+const style = section(twee, styleHeader);
+
+if (!script || !style) {
+	console.error('В истории нет StoryScript или StoryStylesheet');
+	process.exit(1);
+}
+
+const result = prepareStory(script.text, style.text);
+
+if (overrides) {
+	result.appearance = sanitizeAppearance({
+		...result.appearance,
+		...JSON.parse(overrides)
+	});
+	result.stylesheet = withAppearance(result.stylesheet, result.appearance);
+}
+
+// Сначала то, что ниже по тексту, чтобы позиции не сдвинулись.
+const parts = [
+	{found: script, text: result.script},
+	{found: style, text: result.stylesheet}
+].sort((a, b) => b.found.from - a.found.from);
+
+parts.forEach(({found, text}) => {
+	twee = replaceSection(twee, found, text, found.to >= twee.length);
+});
+
+writeFileSync(output, twee);
+console.log('Перенесено:', result.moved.join('; ') || 'ничего');

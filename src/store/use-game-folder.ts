@@ -34,6 +34,11 @@ export interface UseGameFolderProps {
 	chooseGameFolder: (storyId: string) => Promise<string | undefined>;
 	/** Папка игры истории или undefined, если не выбрана. */
 	gameFolder: (storyId: string) => string | undefined;
+	/** Файлы из media/<kind> папки игры: «media/audio/старт.wav» и т. п. */
+	listMedia: (
+		storyId: string,
+		kind: 'audio' | 'fonts'
+	) => Promise<string[]>;
 	/** Открыть папку игры в проводнике. */
 	showGameFolder: (storyId: string) => void;
 	/** Записать HTML в папку игры; при open — открыть в Chrome. */
@@ -69,6 +74,11 @@ export function useGameFolder(): UseGameFolderProps {
 			}
 
 			return folder;
+		},
+		async listMedia(storyId, kind) {
+			const folder = gameFolder(storyId);
+
+			return available && folder ? bridge().signalyListMedia(folder, kind) : [];
 		},
 		showGameFolder(storyId) {
 			const folder = gameFolder(storyId);

@@ -1,6 +1,7 @@
 import * as React from 'react';
 import {ButtonBar} from '../../../../components/container/button-bar';
 import {RenameStoryButton} from '../../../../components/story/rename-story-button';
+import {SignalyAppearanceButton} from '../../../../dialogs/signaly-appearance';
 import {Story, updateStory, useStoriesContext} from '../../../../store/stories';
 import {DetailsButton} from './details-button';
 import {FindReplaceButton} from './find-replace-button';
@@ -28,6 +29,7 @@ export const StoryActions: React.FC<StoryActionsProps> = props => {
 			<PassageTagsButton story={story} />
 			<JavaScriptButton story={story} />
 			<StylesheetButton story={story} />
+			<SignalyAppearanceButton story={story} />
 		</ButtonBar>
 	);
 };

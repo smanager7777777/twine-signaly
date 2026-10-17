@@ -48,6 +48,9 @@ const page = await browser.newPage({viewport: {width: 1920, height: 1080}});
 const jsErrors = [];
 page.on('pageerror', e => jsErrors.push(e.message));
 await page.goto(`http://localhost:${port}/${encodeURIComponent(gameName)}`);
+// Шаг 1.2: стартовый экран — игра запускается по щелчку.
+await page.waitForTimeout(800);
+if (await page.$('#sg-start')) await page.click('#sg-start');
 await page.waitForFunction(() => window.SugarCube && SugarCube.State && SugarCube.State.passage, null, {timeout: 20000});
 await page.waitForTimeout(1500);
 

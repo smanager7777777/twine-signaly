@@ -32,6 +32,9 @@ contextBridge.exposeInMainWorld('twineElectron', {
 	signalyChooseGameFolder(currentPath?: string) {
 		return ipcRenderer.invoke('signaly-choose-game-folder', currentPath);
 	},
+	signalyListMedia(folder: string, kind: string) {
+		return ipcRenderer.invoke('signaly-list-media', folder, kind);
+	},
 	signalyShowGameFolder(folder: string) {
 		ipcRenderer.send('signaly-show-game-folder', folder);
 	},

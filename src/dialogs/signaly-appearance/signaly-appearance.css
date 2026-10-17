@@ -1,0 +1,257 @@
+/* «Twine СИГНАЛЫ»: окно «Оформление терминала» — поверх всей программы. */
+@import '../../styles/metrics.css';
+
+.signaly-appearance-window {
+	background: var(--white);
+	color: var(--black);
+	display: grid;
+	grid-template-rows: auto 1fr;
+	inset: 0;
+	position: fixed;
+	z-index: 1000;
+}
+
+[data-app-theme='dark'] .signaly-appearance-window {
+	background: rgb(30, 30, 30);
+	color: var(--off-white);
+}
+
+.signaly-appearance-header {
+	align-items: center;
+	border-bottom: 1px solid var(--gray);
+	display: flex;
+	gap: var(--grid-size);
+	padding: calc(var(--grid-size) / 2) var(--grid-size);
+}
+
+.signaly-appearance-header h2 {
+	flex-grow: 1;
+	font-size: 120%;
+	margin: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.signaly-appearance-status {
+	font-size: 90%;
+	opacity: 0.75;
+}
+
+.signaly-appearance-body {
+	display: grid;
+	grid-template-columns: minmax(340px, 400px) 1fr;
+	min-height: 0;
+}
+
+.signaly-appearance-settings {
+	border-right: 1px solid var(--gray);
+	overflow-y: auto;
+	padding: 0 var(--grid-size) var(--grid-size);
+}
+
+.signaly-appearance-settings section {
+	border-bottom: 1px solid var(--light-gray);
+	padding-bottom: var(--grid-size);
+}
+
+.signaly-appearance-settings h3 {
+	font-size: 105%;
+	margin: var(--grid-size) 0 calc(var(--grid-size) / 2);
+}
+
+.signaly-field {
+	margin: calc(var(--grid-size) / 2) 0;
+}
+
+.signaly-field-label {
+	display: block;
+	font-weight: bold;
+	margin-bottom: 2px;
+}
+
+.signaly-field-hint {
+	font-size: 85%;
+	margin: 2px 0 0;
+	opacity: 0.75;
+}
+
+.signaly-range,
+.signaly-color {
+	align-items: center;
+	display: flex;
+	gap: 6px;
+}
+
+.signaly-range input[type='range'] {
+	flex-grow: 1;
+	min-width: 0;
+}
+
+.signaly-number {
+	text-align: right;
+	width: 4.5em;
+}
+
+.signaly-unit {
+	min-width: 1.6em;
+}
+
+.signaly-color-picker {
+	block-size: 32px;
+	border: 1px solid var(--gray);
+	cursor: pointer;
+	inline-size: 48px;
+	padding: 0;
+}
+
+.signaly-color-hex {
+	font-family: monospace;
+	width: 6.5em;
+}
+
+.signaly-select,
+.signaly-text {
+	box-sizing: border-box;
+	width: 100%;
+}
+
+.signaly-swatches {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin-top: 4px;
+}
+
+.signaly-swatch {
+	border: 1px solid var(--gray);
+	border-radius: 3px;
+	cursor: pointer;
+	display: inline-block;
+	height: 18px;
+	padding: 0;
+	width: 18px;
+}
+
+.signaly-swatch.selected {
+	outline: 2px solid var(--blue);
+	outline-offset: 1px;
+}
+
+.signaly-swatches.large .signaly-swatch {
+	cursor: default;
+	height: 26px;
+	width: 26px;
+}
+
+.signaly-saved-color {
+	align-items: center;
+	display: inline-flex;
+}
+
+.signaly-remove-color {
+	background: none;
+	border: none;
+	color: inherit;
+	cursor: pointer;
+	font-size: 110%;
+	padding: 0 2px;
+}
+
+.signaly-check label {
+	align-items: center;
+	cursor: pointer;
+	display: flex;
+	gap: 6px;
+}
+
+.signaly-button,
+.signaly-small-button {
+	background: var(--faint-gray);
+	border: 1px solid var(--gray);
+	border-radius: var(--corner-round, 4px);
+	color: inherit;
+	cursor: pointer;
+	padding: 4px 12px;
+}
+
+.signaly-small-button {
+	padding: 4px 8px;
+}
+
+.signaly-button.primary {
+	background: var(--dark-blue);
+	border-color: var(--dark-blue);
+	color: var(--white);
+}
+
+.signaly-button:disabled,
+.signaly-small-button:disabled {
+	cursor: default;
+	opacity: 0.5;
+}
+
+[data-app-theme='dark'] .signaly-button,
+[data-app-theme='dark'] .signaly-small-button {
+	background: rgb(50, 50, 50);
+}
+
+.signaly-notice {
+	background: var(--faint-yellow);
+	border: 1px solid var(--yellow);
+	border-radius: 4px;
+	margin: var(--grid-size) 0 0;
+	padding: calc(var(--grid-size) / 2);
+}
+
+[data-app-theme='dark'] .signaly-notice {
+	background: rgb(60, 55, 20);
+}
+
+.signaly-appearance-preview {
+	display: grid;
+	grid-template-rows: auto auto 1fr;
+	min-height: 0;
+	min-width: 0;
+	padding: var(--grid-size);
+}
+
+.signaly-preview-toolbar {
+	align-items: center;
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--grid-size);
+	margin-bottom: calc(var(--grid-size) / 2);
+}
+
+.signaly-preview-box {
+	align-items: center;
+	display: flex;
+	justify-content: center;
+	min-height: 0;
+	min-width: 0;
+	overflow: hidden;
+	position: relative;
+}
+
+.signaly-preview-frame {
+	background: #000;
+	box-shadow: 0 0 0 1px var(--gray);
+	overflow: hidden;
+	position: relative;
+}
+
+.signaly-preview-frame iframe {
+	border: none;
+	left: 0;
+	position: absolute;
+	top: 0;
+	transform-origin: 0 0;
+}
+
+.signaly-preview-error {
+	color: var(--dark-red);
+	left: 0;
+	position: absolute;
+	top: 0;
+}

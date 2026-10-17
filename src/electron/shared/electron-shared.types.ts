@@ -9,6 +9,10 @@ export interface TwineElectronWindow extends Window {
 		onceStoryRenamed(callback: () => void): void;
 		openHtmlWithScratchFile(data: string, filename: string): void;
 		signalyChooseGameFolder(currentPath?: string): Promise<string | undefined>;
+		signalyListMedia(
+			folder: string,
+			kind: 'audio' | 'fonts'
+		): Promise<string[]>;
 		signalyShowGameFolder(folder: string): void;
 		signalyWriteGameFile(
 			folder: string,

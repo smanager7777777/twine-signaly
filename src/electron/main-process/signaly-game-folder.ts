@@ -8,7 +8,7 @@
 import {BrowserWindow, dialog, shell} from 'electron';
 import {spawn} from 'child_process';
 import {existsSync} from 'fs';
-import {mkdirp, stat, writeFile} from 'fs-extra';
+import {mkdirp, readdir, stat, writeFile} from 'fs-extra';
 import {basename, extname, isAbsolute, join} from 'path';
 import {i18n} from './locales';
 
@@ -135,4 +135,52 @@ export function showGameFolder(folder: string) {
 	if (typeof folder === 'string' && isAbsolute(folder)) {
 		shell.openPath(folder);
 	}
+}
+
+const mediaKinds: Record<string, string[]> = {
+	audio: ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', '.opus', '.weba'],
+	fonts: ['.woff2', '.woff', '.ttf', '.otf']
+};
+
+/**
+ * Список файлов в папке игры media/<kind> (с подпапками), пути вида
+ * «media/fonts/DSEG7.woff2». Для окна «Оформление терминала».
+ */
+export async function listGameMedia(
+	folder: string,
+	kind: string
+): Promise<string[]> {
+	const extensions = mediaKinds[kind];
+
+	if (typeof folder !== 'string' || !isAbsolute(folder) || !extensions) {
+		return [];
+	}
+
+	const result: string[] = [];
+
+	async function walk(relative: string, depth: number) {
+		let entries;
+
+		try {
+			entries = await readdir(join(folder, relative), {withFileTypes: true});
+		} catch {
+			return;
+		}
+
+		for (const entry of entries) {
+			const path = `${relative}/${entry.name}`;
+
+			if (entry.isDirectory() && depth < 4) {
+				await walk(path, depth + 1);
+			} else if (
+				entry.isFile() &&
+				extensions.includes(extname(entry.name).toLowerCase())
+			) {
+				result.push(path);
+			}
+		}
+	}
+
+	await walk(`media/${kind}`, 0);
+	return result.sort((a, b) => a.localeCompare(b, 'ru'));
 }

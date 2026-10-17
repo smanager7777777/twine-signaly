@@ -14,6 +14,7 @@ import {loadPrefs} from './prefs';
 import {openHtmlWithScratchFile} from './scratch-file';
 import {
 	chooseGameFolder,
+	listGameMedia,
 	showGameFolder,
 	writeGameFile
 } from './signaly-game-folder';
@@ -86,6 +87,10 @@ export function initIpc() {
 
 	ipcMain.on('signaly-show-game-folder', (event, folder: string) =>
 		showGameFolder(folder)
+	);
+
+	ipcMain.handle('signaly-list-media', (event, folder: string, kind: string) =>
+		listGameMedia(folder, kind)
 	);
 
 	ipcMain.on(
