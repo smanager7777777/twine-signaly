@@ -214,11 +214,18 @@
 }
 
 .signaly-appearance-preview {
-	display: grid;
-	grid-template-rows: auto auto 1fr;
+	/* Предпросмотр занимает всё место под строкой выбора экрана (раньше без
+	   строки-предупреждения он попадал в строку «по содержимому» и оставался
+	   маленьким). */
+	display: flex;
+	flex-direction: column;
 	min-height: 0;
 	min-width: 0;
 	padding: var(--grid-size);
+}
+
+.signaly-appearance-preview > .signaly-preview-box {
+	flex: 1 1 0;
 }
 
 .signaly-preview-toolbar {

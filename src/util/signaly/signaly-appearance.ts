@@ -199,6 +199,8 @@ export function appearanceCss(a: SignalyAppearance): string {
 		`\t--sg-win-width: ${round(a.winWidth)}px;`,
 		`\t--sg-win-height: ${round(a.winHeight)}px;`,
 		`\t--sg-win-padding: ${round(a.winPadding)}px;`,
+		`\t--sg-win-offset-x: ${round(a.winOffsetX)}px;`,
+		`\t--sg-win-offset-y: ${round(a.winOffsetY)}px;`,
 		`\t--sg-border-width: ${round(a.borderWidth)}px;`,
 		`\t--sg-border-color: ${a.borderColor};`,
 		`\t--sg-glow-color: ${a.glowColor};`,
@@ -247,8 +249,8 @@ export function appearanceCss(a: SignalyAppearance): string {
 	if (a.winOffsetX !== 0 || a.winOffsetY !== 0) {
 		lines.push(
 			'\tposition: relative;',
-			`\tleft: ${round(a.winOffsetX)}px;`,
-			`\ttop: ${round(a.winOffsetY)}px;`
+			'\tleft: var(--sg-win-offset-x);',
+			'\ttop: var(--sg-win-offset-y);'
 		);
 	}
 	// Мерцает только терминал (рамка и всё внутри), вокруг — ровный фон.

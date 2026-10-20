@@ -538,6 +538,120 @@
 				"noFormat": "Couldn't load the story format."
 			},
 			"updated": "The program was updated. Press Save to update the terminal engine and appearance in the story; your settings are kept."
+		},
+		"kinds": {
+			"button": "Button and Link Styles",
+			"title": "Button and Link Styles",
+			"intro": "A style is a look template, separate for links and buttons. «Обычный» applies to all links and buttons; other styles are assigned from the toolbar above passage text.",
+			"newName": "New style name",
+			"add": "Add Style",
+			"addHint": "A new style starts as a copy of the selected one.",
+			"delete": "Delete Style",
+			"confirmDelete": "Style “{{name}}” is used in {{count}} passage(s). Its links and buttons will look ordinary. Delete?",
+			"baseHint": "Main style: all links and buttons look like this unless another style is assigned.",
+			"code": "In passage text: {{code}}. Passages using it: {{count}}.",
+			"updated": "The program was updated. Press Save to update the terminal engine, appearance and styles in the story — your settings are kept.",
+			"migrated": "Link and button styles were moved from the stylesheet into styles: {{list}}. Unused duplicates (…-link, …-button) were removed. The game looks the same. Press Save to write the styles to the story.",
+			"tabs": {
+				"kinds": "Styles",
+				"places": "On-screen Buttons"
+			},
+			"targets": {
+				"link": "Links",
+				"button": "Buttons"
+			},
+			"sections": {
+				"common": "General",
+				"normal": "Normal",
+				"hover": "Hover",
+				"active": "Pressed"
+			},
+			"fields": {
+				"name": "Name",
+				"size": "Text size",
+				"padV": "Padding top and bottom",
+				"padH": "Padding left and right",
+				"transition": "Transition",
+				"color": "Text color",
+				"noBg": "No background",
+				"bg": "Background",
+				"borderWidth": "Border",
+				"borderColor": "Border color",
+				"glow": "Glow",
+				"glowColor": "Glow color",
+				"underline": "Underline",
+				"activeAsHover": "Same as hover",
+				"buttonAsLink": "Buttons look like this style's links"
+			},
+			"hints": {
+				"size": "100% is the terminal's normal text.",
+				"transition": "Seconds to change on hover. 0 — instantly.",
+				"borderWidth": "0 — no border.",
+				"glow": "0 — no glow.",
+				"buttonAsLink": "Uncheck to set up buttons separately."
+			},
+			"demo": {
+				"screen": "Samples of all styles",
+				"link": "Link",
+				"button": "Button",
+				"hint": "Samples show hover and pressed states at once; on any screen you can hover with the mouse."
+			},
+			"places": {
+				"intro": "An on-screen button stays in place near the terminal window and does not scroll with the text. Its place is measured from a window corner. The passage toolbar puts it into a passage.",
+				"newName": "New button name",
+				"add": "Add Button",
+				"name": "Name",
+				"code": "In passage text: {{code}}",
+				"kind": "Button style",
+				"corner": "From terminal window corner",
+				"cornerHint": "Buttons near the right edge are easier to place from the right corner.",
+				"corners": {
+					"tl": "Top left",
+					"tr": "Top right",
+					"bl": "Bottom left",
+					"br": "Bottom right"
+				},
+				"xLeft": "From left edge, rightwards",
+				"xRight": "From right edge, leftwards",
+				"xHint": "Negative — outside the window.",
+				"yTop": "From top edge, downwards",
+				"yBottom": "From bottom edge, upwards",
+				"delete": "Delete Button",
+				"confirmDelete": "This button is used in {{count}} passage(s). After deletion it will appear inside the text. Delete?"
+			},
+			"migratedAppearance": "General settings (background, text, terminal window) were also moved into the appearance block, as in the Terminal Appearance window."
+		},
+		"format": {
+			"bold": "Bold",
+			"italic": "Italic",
+			"underline": "Underline",
+			"strike": "Strikethrough",
+			"color": "Text color",
+			"colorHint": "Select text and pick a color.",
+			"otherColor": "Other color",
+			"applyColor": "Apply",
+			"removeColor": "Remove Color",
+			"size": "Text size",
+			"normalSize": "Normal size",
+			"center": "Center",
+			"right": "Right",
+			"heading": "Heading",
+			"heading1": "Heading 1 (large)",
+			"heading2": "Heading 2",
+			"heading3": "Heading 3",
+			"list": "List",
+			"rule": "Horizontal line",
+			"kind": "Style",
+			"noKind": "No style (normal)",
+			"noKinds": "Styles are set up in the Button and Link Styles window on the Story tab",
+			"sampleLink": "Link",
+			"place": "On-screen button",
+			"noPlace": "Remove from place",
+			"noPlaces": "On-screen buttons are set up in the Button and Link Styles window"
+		},
+		"passagePreview": {
+			"button": "Preview",
+			"title": "Preview"
 		}
 	}
 }

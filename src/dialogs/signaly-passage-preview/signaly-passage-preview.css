@@ -1,0 +1,36 @@
+/* «Twine СИГНАЛЫ»: панель предпросмотра слева от окон пассажей. */
+@import '../../styles/metrics.css';
+
+.signaly-passage-preview {
+	background: var(--white);
+	border: 1px solid var(--gray);
+	border-radius: var(--corner-round, 4px);
+	bottom: var(--grid-size);
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+	color: var(--black);
+	display: flex;
+	flex-direction: column;
+	left: var(--grid-size);
+	padding: calc(var(--grid-size) / 2);
+	position: fixed;
+	top: calc(2 * var(--control-height) + var(--grid-size));
+}
+
+.signaly-passage-preview-header {
+	align-items: center;
+	display: flex;
+	gap: 4px;
+	margin-bottom: calc(var(--grid-size) / 2);
+}
+
+.signaly-passage-preview-title {
+	flex-grow: 1;
+	font-weight: bold;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.signaly-passage-preview > .signaly-preview-box {
+	flex: 1 1 0;
+}

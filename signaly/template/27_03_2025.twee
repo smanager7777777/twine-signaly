@@ -798,9 +798,9 @@ $(document).one(':passagedisplay', function () {
 
 
 :: audiobuttons {"position":"200,0","size":"100,100"}
-/* СИГНАЛЫ: обе группы кнопок — в одном блоке (раньше было два одинаковых блока друг на друге) */\
-<div class="top-right-audio-buttons amber">
-<<link "РАД">>
+/* СИГНАЛЫ: каждая кнопка стоит на своём месте у окна терминала — места задаются в окне
+   «Виды кнопок и ссылок», вкладка «Кнопки на экране» (классы sg-place-…) */\
+<span class="sg-place-rad amber"><<link "РАД">>
 <<if $radioplaying is 1>>
 <<set $radioplaying to 0>>
 <<audio ":RADIO" pause>>
@@ -810,8 +810,8 @@ $(document).one(':passagedisplay', function () {
 <<audio ":AMBIENT" pause>>
 <<audio ":paused:not(:AMBIENT)" play>>
 <</if>>
-<</link>>
-<<link "АТМ">>
+<</link>></span>\
+<span class="sg-place-atm amber"><<link "АТМ">>
 <<if $ambientplaying is 1>>
 <<set $ambientplaying to 0>>
 <<audio ":AMBIENT" pause>>
@@ -821,26 +821,22 @@ $(document).one(':passagedisplay', function () {
 <<audio ":RADIO" pause>>
 <<audio ":paused:not(:RADIO)" play>>
 <</if>>
-<</link>>
-
-
-
-<<link "A">>
+<</link>></span>\
+<span class="sg-place-a amber"><<link "A">>
 <<audio ":playing:not(:TERMINAL)" fadeto 0.1>>
-<</link>>
- <<link "B">>
+<</link>></span>\
+<span class="sg-place-b amber"><<link "B">>
 <<audio ":playing:not(:TERMINAL)" fadeto 0.2>>
-<</link>>
- <<link "C">>
+<</link>></span>\
+<span class="sg-place-c amber"><<link "C">>
 <<audio ":playing:not(:TERMINAL)" fadeto 0.3>>
-<</link>>
- <<link "D">>
+<</link>></span>\
+<span class="sg-place-d amber"><<link "D">>
 <<audio ":playing:not(:TERMINAL)" fadeto 0.5>>
-<</link>>
- <<link "E">>
+<</link>></span>\
+<span class="sg-place-e amber"><<link "E">>
 <<audio ":playing:not(:TERMINAL)" fadeto 1.0>>
-<</link>>
-</div>
+<</link>></span>
 \<<silent>>
 <<timed 1s>><<audio "loopcomputer" volume 0.05 loop play>><</timed>>
 <<if $radioplaying is 0>>
@@ -1256,7 +1252,7 @@ $(document).one(':passagedisplay', function() {
 	}
 
 	if (settings.lineScroll) {
-		window.addEventListener(
+		document.addEventListener(
 			'wheel',
 			function (ev) {
 				if (ev.ctrlKey || ev.deltaY === 0) {
@@ -1366,7 +1362,7 @@ $(document).one(':passagedisplay', function() {
 	}
 
 	if (settings.noZoom) {
-		window.addEventListener(
+		document.addEventListener(
 			'wheel',
 			function (ev) {
 				if (ev.ctrlKey) {
@@ -2032,6 +2028,8 @@ setup.initXiaomi = function () {
 	--sg-win-width: 1050px;
 	--sg-win-height: 1050px;
 	--sg-win-padding: 20px;
+	--sg-win-offset-x: 0px;
+	--sg-win-offset-y: 0px;
 	--sg-border-width: 2px;
 	--sg-border-color: #00cc00;
 	--sg-glow-color: #00cc00;
@@ -2105,32 +2103,186 @@ html.sg-cursor-hidden, html.sg-cursor-hidden * { cursor: none !important; }
 }
 /* ===== СИГНАЛЫ: конец оформления терминала ===== */
 
-
+/* ===== СИГНАЛЫ: виды кнопок и ссылок — не редактировать вручную ===== */
+/* Меняется в окне «Виды кнопок и ссылок» программы «Twine СИГНАЛЫ».
+   В пассаже вид назначается обёрткой: <span class="amber">…ссылки и кнопки…</span>;
+   кнопка на экране — <span class="sg-place-…">…</span>. */
+/* СИГНАЛЫ-виды: {"v":1,"kinds":[{"cls":"","name":"Обычный","link":{"normal":{"color":"#00cc00","bg":"","borderWidth":0,"borderColor":"#00cc00","glow":0,"glowColor":"#00cc00","underline":false},"hover":{"color":"#00ff00","bg":"","borderWidth":0,"borderColor":"#00ff00","glow":0,"glowColor":"#00ff00","underline":true},"active":null,"padV":0,"padH":0,"size":100,"transition":0.2},"button":{"normal":{"color":"#00cc00","bg":"#000000","borderWidth":1,"borderColor":"#00cc00","glow":5,"glowColor":"#00cc00","underline":false},"hover":{"color":"#000000","bg":"#00cc00","borderWidth":0,"borderColor":"#00cc00","glow":5,"glowColor":"#00cc00","underline":false},"active":null,"padV":5,"padH":10,"size":100,"transition":0.3},"buttonAsLink":false},{"cls":"red-big","name":"Красный большой","link":{"normal":{"color":"#cc0000","bg":"","borderWidth":0,"borderColor":"#cc0000","glow":0,"glowColor":"#cc0000","underline":false},"hover":{"color":"#ff0000","bg":"","borderWidth":0,"borderColor":"#ff0000","glow":0,"glowColor":"#ff0000","underline":true},"active":null,"padV":0,"padH":0,"size":120,"transition":0.3},"button":{"normal":{"color":"#cc0000","bg":"#000000","borderWidth":1,"borderColor":"#cc0000","glow":5,"glowColor":"#cc0000","underline":false},"hover":{"color":"#000000","bg":"#cc0000","borderWidth":0,"borderColor":"#cc0000","glow":5,"glowColor":"#cc0000","underline":false},"active":null,"padV":10,"padH":20,"size":120,"transition":0.3},"buttonAsLink":false},{"cls":"yellow-small","name":"Жёлтый маленький","link":{"normal":{"color":"#cccc00","bg":"#000000","borderWidth":1,"borderColor":"#cccc00","glow":5,"glowColor":"#cccc00","underline":false},"hover":{"color":"#000000","bg":"#cccc00","borderWidth":0,"borderColor":"#cccc00","glow":5,"glowColor":"#cccc00","underline":true},"active":null,"padV":3,"padH":6,"size":80,"transition":0.3},"button":{"normal":{"color":"#cccc00","bg":"#000000","borderWidth":1,"borderColor":"#cccc00","glow":5,"glowColor":"#cccc00","underline":false},"hover":{"color":"#000000","bg":"#cccc00","borderWidth":0,"borderColor":"#cccc00","glow":5,"glowColor":"#cccc00","underline":false},"active":null,"padV":3,"padH":6,"size":80,"transition":0.3},"buttonAsLink":false},{"cls":"amber","name":"Янтарный","link":{"normal":{"color":"#ffbf00","bg":"#000000","borderWidth":2,"borderColor":"#ffbf00","glow":5,"glowColor":"#ffbf00","underline":false},"hover":{"color":"#000000","bg":"#ffbf00","borderWidth":2,"borderColor":"#ffbf00","glow":5,"glowColor":"#ffbf00","underline":false},"active":null,"padV":4,"padH":9,"size":120,"transition":0.3},"button":{"normal":{"color":"#ffbf00","bg":"#000000","borderWidth":2,"borderColor":"#ffbf00","glow":5,"glowColor":"#ffbf00","underline":false},"hover":{"color":"#000000","bg":"#ffbf00","borderWidth":2,"borderColor":"#ffbf00","glow":5,"glowColor":"#ffbf00","underline":false},"active":null,"padV":4,"padH":9,"size":120,"transition":0.3},"buttonAsLink":false},{"cls":"purple","name":"Фиолетовый","link":{"normal":{"color":"#cc00cc","bg":"","borderWidth":0,"borderColor":"#cc00cc","glow":0,"glowColor":"#cc00cc","underline":false},"hover":{"color":"#ff00ff","bg":"","borderWidth":0,"borderColor":"#ff00ff","glow":0,"glowColor":"#ff00ff","underline":true},"active":null,"padV":0,"padH":0,"size":100,"transition":0.3},"button":{"normal":{"color":"#cc00cc","bg":"#000000","borderWidth":1,"borderColor":"#cc00cc","glow":5,"glowColor":"#cc00cc","underline":false},"hover":{"color":"#000000","bg":"#cc00cc","borderWidth":1,"borderColor":"#cc00cc","glow":5,"glowColor":"#cc00cc","underline":false},"active":null,"padV":5,"padH":10,"size":100,"transition":0.3},"buttonAsLink":false}],"places":[{"id":"rad","name":"РАД","corner":"tr","x":5,"y":2.75,"kind":"amber"},{"id":"atm","name":"АТМ","corner":"tr","x":5,"y":55.25,"kind":"amber"},{"id":"a","name":"A","corner":"tr","x":41,"y":239,"kind":"amber"},{"id":"b","name":"B","corner":"tr","x":41,"y":291.5,"kind":"amber"},{"id":"c","name":"C","corner":"tr","x":41,"y":344,"kind":"amber"},{"id":"d","name":"D","corner":"tr","x":41,"y":396.5,"kind":"amber"},{"id":"e","name":"E","corner":"tr","x":41,"y":449,"kind":"amber"}]} */
 a {
-    color: #00cc00;
-    text-decoration: none
+	color: #00cc00;
+	text-decoration: none;
+	transition: all 0.2s;
 }
-
 a:hover {
-    color: #00ff00;
-    text-decoration: underline;
+	color: #00ff00;
+	text-decoration: underline;
 }
-
-/* Зелёная кнопка по дефолту */
 button {
-    background-color: #000000;
-    color: #00cc00;
-    border: 1px solid #00cc00;
-    box-shadow: 0 0 5px #00cc00;
-    padding: 5px 10px;
-    transition: background-color 0.3s, color 0.3s;
+	color: #00cc00;
+	background-color: #000000;
+	border: 1px solid #00cc00;
+	box-shadow: 0 0 5px #00cc00;
+	text-decoration: none;
+	padding: 5px 10px;
+	transition: all 0.3s;
 }
-
 button:hover {
-    background-color: #00cc00;
-    color: #000000;
-        border: #00cc00;
+	color: #000000;
+	background-color: #00cc00;
+	border: none;
 }
+.red-big a {
+	color: #cc0000;
+	background-color: transparent;
+	border: none;
+	box-shadow: none;
+	text-decoration: none;
+	padding: 0px 0px;
+	font-size: 1.2em;
+	transition: all 0.3s;
+}
+.red-big a:hover {
+	color: #ff0000;
+	text-decoration: underline;
+}
+.red-big button {
+	color: #cc0000;
+	background-color: #000000;
+	border: 1px solid #cc0000;
+	box-shadow: 0 0 5px #cc0000;
+	text-decoration: none;
+	padding: 10px 20px;
+	font-size: 1.2em;
+	transition: all 0.3s;
+}
+.red-big button:hover {
+	color: #000000;
+	background-color: #cc0000;
+	border: none;
+}
+.yellow-small a {
+	color: #cccc00;
+	background-color: #000000;
+	border: 1px solid #cccc00;
+	box-shadow: 0 0 5px #cccc00;
+	text-decoration: none;
+	padding: 3px 6px;
+	font-size: 0.8em;
+	transition: all 0.3s;
+}
+.yellow-small a:hover {
+	color: #000000;
+	background-color: #cccc00;
+	border: none;
+	text-decoration: underline;
+}
+.yellow-small button {
+	color: #cccc00;
+	background-color: #000000;
+	border: 1px solid #cccc00;
+	box-shadow: 0 0 5px #cccc00;
+	text-decoration: none;
+	padding: 3px 6px;
+	font-size: 0.8em;
+	transition: all 0.3s;
+}
+.yellow-small button:hover {
+	color: #000000;
+	background-color: #cccc00;
+	border: none;
+}
+.amber a {
+	color: #ffbf00;
+	background-color: #000000;
+	border: 2px solid #ffbf00;
+	box-shadow: 0 0 5px #ffbf00;
+	text-decoration: none;
+	padding: 4px 9px;
+	font-size: 1.2em;
+	transition: all 0.3s;
+}
+.amber a:hover {
+	color: #000000;
+	background-color: #ffbf00;
+}
+.amber button {
+	color: #ffbf00;
+	background-color: #000000;
+	border: 2px solid #ffbf00;
+	box-shadow: 0 0 5px #ffbf00;
+	text-decoration: none;
+	padding: 4px 9px;
+	font-size: 1.2em;
+	transition: all 0.3s;
+}
+.amber button:hover {
+	color: #000000;
+	background-color: #ffbf00;
+}
+.purple a {
+	color: #cc00cc;
+	background-color: transparent;
+	border: none;
+	box-shadow: none;
+	text-decoration: none;
+	padding: 0px 0px;
+	font-size: 1em;
+	transition: all 0.3s;
+}
+.purple a:hover {
+	color: #ff00ff;
+	text-decoration: underline;
+}
+.purple button {
+	color: #cc00cc;
+	background-color: #000000;
+	border: 1px solid #cc00cc;
+	box-shadow: 0 0 5px #cc00cc;
+	text-decoration: none;
+	padding: 5px 10px;
+	font-size: 1em;
+	transition: all 0.3s;
+}
+.purple button:hover {
+	color: #000000;
+	background-color: #cc00cc;
+}
+.sg-place-rad {
+	position: fixed;
+	right: calc(50% - var(--sg-win-width, 1050px) / 2 - var(--sg-win-offset-x, 0px) + 5px);
+	top: calc(50% - var(--sg-win-height, 1050px) / 2 + var(--sg-win-offset-y, 0px) + 2.75px);
+}
+.sg-place-atm {
+	position: fixed;
+	right: calc(50% - var(--sg-win-width, 1050px) / 2 - var(--sg-win-offset-x, 0px) + 5px);
+	top: calc(50% - var(--sg-win-height, 1050px) / 2 + var(--sg-win-offset-y, 0px) + 55.25px);
+}
+.sg-place-a {
+	position: fixed;
+	right: calc(50% - var(--sg-win-width, 1050px) / 2 - var(--sg-win-offset-x, 0px) + 41px);
+	top: calc(50% - var(--sg-win-height, 1050px) / 2 + var(--sg-win-offset-y, 0px) + 239px);
+}
+.sg-place-b {
+	position: fixed;
+	right: calc(50% - var(--sg-win-width, 1050px) / 2 - var(--sg-win-offset-x, 0px) + 41px);
+	top: calc(50% - var(--sg-win-height, 1050px) / 2 + var(--sg-win-offset-y, 0px) + 291.5px);
+}
+.sg-place-c {
+	position: fixed;
+	right: calc(50% - var(--sg-win-width, 1050px) / 2 - var(--sg-win-offset-x, 0px) + 41px);
+	top: calc(50% - var(--sg-win-height, 1050px) / 2 + var(--sg-win-offset-y, 0px) + 344px);
+}
+.sg-place-d {
+	position: fixed;
+	right: calc(50% - var(--sg-win-width, 1050px) / 2 - var(--sg-win-offset-x, 0px) + 41px);
+	top: calc(50% - var(--sg-win-height, 1050px) / 2 + var(--sg-win-offset-y, 0px) + 396.5px);
+}
+.sg-place-e {
+	position: fixed;
+	right: calc(50% - var(--sg-win-width, 1050px) / 2 - var(--sg-win-offset-x, 0px) + 41px);
+	top: calc(50% - var(--sg-win-height, 1050px) / 2 + var(--sg-win-offset-y, 0px) + 449px);
+}
+/* ===== СИГНАЛЫ: конец видов кнопок и ссылок ===== */
 
 
 .ui-dialog {
@@ -2169,106 +2321,6 @@ input, textarea {
      font-size: 25px;
 }
 
-
-
-/* Красная большая кнопка
-   СИГНАЛЫ: в пассаже — <span class="red-big">…кнопка…</span> */
-.red-big-button,
-.red-big button {
-    background-color: #000000;
-    color: #cc0000;
-    border: 1px solid #cc0000;
-    box-shadow: 0 0 5px #cc0000;
-    padding: 10px 20px;
-    font-size: 1.2em;
-    transition: background-color 0.3s, color 0.3s;
-}
-.red-big-button:hover,
-.red-big button:hover {
-    background-color: #cc0000;
-    color: #000000;
-      border: #cc0000;
-}
-
-/* Жёлтая маленькая кнопка
-   СИГНАЛЫ: в пассаже — <span class="yellow-small">…ссылка…</span> */
-.yellow-small-button,
-.yellow-small a,
-.yellow-small button {
-    background-color: #000000;
-    color: #cccc00;
-    border: 1px solid #cccc00;
-    box-shadow: 0 0 5px #cccc00;
-    padding: 3px 6px;
-    font-size: 0.8em;
-    transition: background-color 0.3s, color 0.3s;
-}
-.yellow-small-button:hover,
-.yellow-small a:hover,
-.yellow-small button:hover {
-    background-color: #cccc00;
-    color: #000000;
-        border: #cccc00;
-}
-
-
-
-/* Янтарная кнопка
-   СИГНАЛЫ: в пассаже — <span class="amber">…ссылки…</span> */
-.amber-button,
-.amber a,
-.amber button {
-    background-color: #000000;
-    color: #FFBF00;
-    border: 2px solid #FFBF00;
-    box-shadow: 0 0 5px #FFBF00;
-    padding: 4px 9px;
-      font-size: 1.2em;
-    transition: background-color 0.3s, color 0.3s;
-}
-
-.amber-button:hover,
-.amber a:hover,
-.amber button:hover {
-    background-color: #FFBF00;
-    color: #000000;
-        border: 2px solid #FFBF00;
-      text-decoration: none;
-}
-
-/* Существующие стили остаются без изменений */
-/* Новые стили для ссылок */
-.purple-link {
-    color: #cc00cc !important; /* Убедимся, что цвет приоритетен */
-    text-decoration: none;
-    transition: color 0.3s;
-}
-.purple-link:hover {
-    color: #ff00ff !important;
-    text-decoration: underline;
-}
-
-.red-big-link {
-    color: #cc0000 !important;
-    text-decoration: none;
-    font-size: 1.2em !important;
-    transition: color 0.3s;
-}
-.red-big-link:hover {
-    color: #ff0000 !important;
-    text-decoration: underline;
-}
-
-.yellow-small-link {
-    color: #cccc00 !important;
-    text-decoration: none;
-    font-size: 0.8em !important;
-    transition: color 0.3s;
-}
-.yellow-small-link:hover {
-    color: #ffff00 !important;
-    text-decoration: underline;
-}
 
 /* Подключаем шрифт DSEG7 Classic для сегментного дизайна */
 @font-face {
@@ -2337,12 +2389,6 @@ input, textarea {
 
 
 
-/* Новый стиль для текста в правом верхнем углу */
-.top-right-audio-buttons {
-    position: absolute;
-    top: -26px; /* Отступ сверху */
-    right: 440px; /* Отступ справа от края #passages */
-}
 
 /* Стили для поля ввода пароля */
 .password-input {

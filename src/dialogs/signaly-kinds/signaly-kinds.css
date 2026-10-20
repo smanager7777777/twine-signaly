@@ -1,0 +1,79 @@
+/* «Twine СИГНАЛЫ»: окно «Виды кнопок и ссылок» (общие стили — в signaly-appearance.css). */
+
+.signaly-kinds-body {
+	grid-template-columns: minmax(360px, 440px) 1fr;
+}
+
+.signaly-tabs {
+	border-bottom: 1px solid var(--gray);
+	display: flex;
+	gap: 4px;
+	margin-top: var(--grid-size);
+}
+
+.signaly-tab {
+	background: none;
+	border: 1px solid transparent;
+	border-bottom: none;
+	border-radius: 4px 4px 0 0;
+	color: inherit;
+	cursor: pointer;
+	margin-bottom: -1px;
+	padding: 6px 12px;
+}
+
+.signaly-tab[aria-selected='true'] {
+	background: var(--white);
+	border-color: var(--gray);
+	font-weight: bold;
+}
+
+.signaly-kinds-list {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	margin: calc(var(--grid-size) / 2) 0;
+}
+
+.signaly-kinds-item {
+	align-items: center;
+	background: none;
+	border: 1px solid transparent;
+	border-radius: 4px;
+	color: inherit;
+	cursor: pointer;
+	display: flex;
+	gap: 8px;
+	padding: 4px 6px;
+	text-align: left;
+}
+
+.signaly-kinds-item:hover {
+	background: var(--faint-gray);
+}
+
+.signaly-kinds-item[aria-pressed='true'] {
+	background: var(--faint-blue, var(--faint-gray));
+	border-color: var(--blue);
+	font-weight: bold;
+}
+
+.signaly-kinds-chip {
+	border: 2px solid;
+	border-radius: 3px;
+	display: inline-block;
+	font-family: 'Courier New', monospace;
+	font-weight: bold;
+	min-width: 2.6em;
+	padding: 1px 4px;
+	text-align: center;
+}
+
+.signaly-kinds-add {
+	display: flex;
+	gap: 6px;
+}
+
+.signaly-kinds-add .signaly-text {
+	flex-grow: 1;
+}

@@ -95,10 +95,15 @@ await page.click('#passages a[data-passage="radio"]');
 await page.waitForTimeout(800);
 check('переход на radio', (await passage(page)) === 'radio');
 await page.click('#passages >> text=Трек 1 radioRegentropfen');
-await page.waitForTimeout(9500);
+// Трек включается через 8 с; пустышка звука короткая — ловим, пока играет.
+let trackPlayed = false;
+for (let i = 0; i < 40 && !trackPlayed; i++) {
+	await page.waitForTimeout(250);
+	trackPlayed = (await playing(page)).includes('radioRegentropfen');
+}
 const c1 = await copy(page);
 check('действие на экране записано (без перехода)', c1?.passage === 'radio' && JSON.parse(c1.vars).radioplaying === 1, c1 && c1.vars.slice(0, 120));
-check('играет radioRegentropfen', (await playing(page)).includes('radioRegentropfen'));
+check('играет radioRegentropfen', trackPlayed);
 
 // 4. «Сбой»: закрываем вкладку, открываем заново
 await page.close();

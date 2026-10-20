@@ -3,6 +3,7 @@ import {useParams} from 'react-router-dom';
 import {MainContent} from '../../components/container/main-content';
 import {DocumentTitle} from '../../components/document-title/document-title';
 import {DialogsContextProvider} from '../../dialogs';
+import {SignalyPassagePreview} from '../../dialogs/signaly-passage-preview';
 import { usePrefsContext } from '../../store/prefs';
 import {storyWithId} from '../../store/stories';
 import {
@@ -72,6 +73,7 @@ export const InnerStoryEditRoute: React.FC = () => {
 					story={story}
 				/>
 			</MainContent>
+			<SignalyPassagePreview story={story} />
 		</div>
 	);
 };

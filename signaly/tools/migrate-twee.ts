@@ -4,15 +4,22 @@
 //
 // Сборка и запуск:
 //   npx tsc -p signaly/tools/tsconfig.json
-//   node .signaly-tools/signaly/tools/migrate-twee.js вход.twee выход.twee ['{"noise":20}']
-// Третий параметр (для проверок) — настройки, которые поменять после переноса.
+//   node .signaly-tools/signaly/tools/migrate-twee.js вход.twee выход.twee ['{"noise":20}'] ['{"places":[…]}']
+// Третий параметр (для проверок) — настройки оформления, которые поменять после
+// переноса; четвёртый — данные видов кнопок (например, кнопки на экране).
 
 import {readFileSync, writeFileSync} from 'fs';
 import {
+	appearanceMarkers,
 	prepareStory,
 	sanitizeAppearance,
 	withAppearance
 } from '../../src/util/signaly/signaly-appearance';
+import {
+	prepareKinds,
+	sanitizeKinds,
+	withKinds
+} from '../../src/util/signaly/signaly-kinds';
 
 function section(source: string, header: RegExp) {
 	const match = header.exec(source);
@@ -42,7 +49,7 @@ function replaceSection(
 	);
 }
 
-const [input, output, overrides] = process.argv.slice(2);
+const [input, output, overrides, kindsOverrides] = process.argv.slice(2);
 
 if (!input || !output) {
 	console.error('Использование: migrate-twee.js вход.twee выход.twee');
@@ -69,6 +76,18 @@ if (overrides) {
 	});
 	result.stylesheet = withAppearance(result.stylesheet, result.appearance);
 }
+
+// Виды кнопок и ссылок (шаг 1.3): перенос правил автора в блок видов.
+const passageTexts = twee
+	.split(/^:: /m)
+	.filter(p => !/^Story(Script|Stylesheet) /.test(p));
+const kinds = prepareKinds(result.stylesheet, passageTexts);
+
+if (kindsOverrides) {
+	kinds.kinds = sanitizeKinds({...kinds.kinds, ...JSON.parse(kindsOverrides)});
+}
+result.stylesheet = withKinds(kinds.stylesheet, kinds.kinds, appearanceMarkers);
+result.moved.push(...kinds.moved);
 
 // Сначала то, что ниже по тексту, чтобы позиции не сдвинулись.
 const parts = [

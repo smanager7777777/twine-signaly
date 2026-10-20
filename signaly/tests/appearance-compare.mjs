@@ -1,6 +1,7 @@
 // Вид игры до и после переноса настроек в блок оформления должен совпадать.
 // Каждый пассаж открывается в обеих версиях, снимки сравниваются попиксельно
-// (мерцание на время снимка останавливается).
+// (мерцание на время снимка останавливается). HOVER=1 — ещё наведение и нажатие
+// на первые ссылки и кнопки каждого экрана.
 // node appearance-compare.mjs <папка игры> <было.html> <стало.html> <playwright> <sharp> [папка снимков]
 import {createRequire} from 'module';
 import fs from 'fs';
@@ -119,6 +120,56 @@ for (const name of names) {
 		fs.writeFileSync(path.join(shotsDir, `${safe}-стало.png`), b);
 	}
 	console.log(`${diff === 0 ? 'OK  ' : 'DIFF'} ${name}${diff ? ` — ${diff} пикс.` : ''}`);
+	if (process.env.HOVER && diff === 0) {
+		failed += await compareStates(name, safe);
+	}
+}
+
+// Наведение и нажатие (HOVER=1): первые ссылки и кнопки экрана, в обеих версиях.
+async function stateShot(page, index, press) {
+	const box = await page.evaluate(i => {
+		const els = [...document.querySelectorAll('#passages a, #passages button')].filter(e => {
+			const r = e.getBoundingClientRect();
+			return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight;
+		});
+		const e = els[i];
+		if (!e) return null;
+		const r = e.getBoundingClientRect();
+		return {x: r.left + r.width / 2, y: r.top + r.height / 2};
+	}, index);
+	if (!box) return null;
+	await page.mouse.move(box.x, box.y);
+	if (press) await page.mouse.down();
+	await page.waitForTimeout(50);
+	const png = await page.screenshot({animations: 'disabled', caret: 'hide'});
+	await page.mouse.move(1, 1);
+	if (press) await page.mouse.up();
+	return png;
+}
+
+async function compareStates(name, safe) {
+	let bad = 0;
+	for (let i = 0; i < Number(process.env.HOVER_COUNT || 6); i++) {
+		for (const press of [false, true]) {
+			const [a, b] = [await stateShot(oldPage, i, press), await stateShot(newPage, i, press)];
+			if (!a || !b) {
+				if (a || b) {
+					console.log(`DIFF ${name} — элемент ${i + 1} есть не в обеих версиях`);
+					bad++;
+				}
+				return bad;
+			}
+			const diff = await compare(a, b);
+			if (diff > 0) {
+				bad++;
+				const tag = `${safe}-${i + 1}-${press ? 'нажатие' : 'наведение'}`;
+				fs.writeFileSync(path.join(shotsDir, `${tag}-было.png`), a);
+				fs.writeFileSync(path.join(shotsDir, `${tag}-стало.png`), b);
+				console.log(`DIFF ${name}, элемент ${i + 1}, ${press ? 'нажатие' : 'наведение'} — ${diff} пикс.`);
+			}
+		}
+	}
+	return bad;
 }
 
 console.log(failed === 0 ? `\nВсе ${names.length} экранов совпадают` : `\nРазличаются: ${failed} из ${names.length}`);

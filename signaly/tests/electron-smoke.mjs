@@ -22,6 +22,11 @@ const app = await electron.launch({
 });
 const win = await app.firstWindow();
 await win.waitForLoadState('domcontentloaded');
+// Окно побольше — как на мониторе автора (экран Xvfb — 1600×1000).
+await app.evaluate(({BrowserWindow}) => {
+	const w = BrowserWindow.getAllWindows()[0];
+	w.setBounds({x: 0, y: 0, width: 1600, height: 1000});
+});
 await win.waitForTimeout(4000);
 
 check('имя программы', (await app.evaluate(({app}) => app.getName())) === 'Twine СИГНАЛЫ');
@@ -191,6 +196,114 @@ if (twee) {
 	if (process.env.OUT) {
 		fs.copyFileSync(pubFile, path.join(process.env.OUT, 'game-electron-1.2.html'));
 	}
+
+	// Предпросмотр в окне оформления — во всю высоту (замечание автора к build-5).
+	await win.getByRole('tab', {name: 'История'}).click();
+	await btn(/Оформление терминала/).click();
+	await frame().locator('#passages .passage').waitFor({timeout: 20000});
+	await win.waitForTimeout(800);
+	const sizes = await win.evaluate(() => {
+		const box = document.querySelector('.signaly-appearance-preview').getBoundingClientRect();
+		const fr = document.querySelector('.signaly-preview-frame').getBoundingClientRect();
+		return {box: box.height, frame: fr.height, width: fr.width, boxWidth: box.width};
+	});
+	check('предпросмотр оформления занимает всё место', sizes.frame > sizes.box * 0.75 || sizes.width > sizes.boxWidth * 0.9, JSON.stringify(sizes));
+	await win.screenshot({path: (process.env.SHOT || path.join(home, 'shot.png')).replace('.png', '-appearance2.png')});
+	await btn(/^Закрыть$/).last().click();
+
+	// Шаг 1.3: окно «Виды кнопок и ссылок».
+	await win.getByRole('tab', {name: 'История'}).click();
+	await btn(/Виды кнопок и ссылок/).click();
+	await win.waitForSelector('.signaly-kinds-window');
+	check('окно видов открылось', await win.locator('.signaly-kinds-window').isVisible());
+	check('стили кнопок перенесены', (await win.locator('.signaly-notice').first().textContent()).includes('Обычный, Красный большой, Жёлтый маленький, Янтарный, Фиолетовый'));
+	await frame().locator('.sg-demo-table').waitFor({timeout: 20000});
+	await win.waitForTimeout(800);
+	const demo = await frameEval(() => {
+		const cell = document.querySelectorAll('.sg-demo-table tr')[4];
+		const [normal, hover] = [cell.children[1], cell.children[2]].map(td => getComputedStyle(td.querySelector('a')).backgroundColor);
+		return {name: cell.children[0].textContent, normal, hover, passage: SugarCube.State.passage};
+	});
+	check('образцы: янтарный обычный и при наведении', demo.name === 'Янтарный' && demo.normal === 'rgb(0, 0, 0)' && demo.hover === 'rgb(255, 191, 0)', JSON.stringify(demo));
+	await win.screenshot({path: (process.env.SHOT || path.join(home, 'shot.png')).replace('.png', '-kinds.png')});
+	await win.locator('.signaly-kinds-item', {hasText: 'Янтарный'}).click();
+	const kindHex = win.getByLabel('Код цвета').first();
+	await kindHex.fill('#ff8800');
+	await kindHex.press('Enter');
+	await win.waitForTimeout(400);
+	check('цвет вида меняется в предпросмотре сразу', (await frameEval(() => getComputedStyle(document.querySelector('.amber a')).color)) === 'rgb(255, 136, 0)');
+	await win.getByPlaceholder('Название нового вида').fill('Синий');
+	await btn(/^Добавить вид$/).click();
+	await win.waitForTimeout(2500);
+	check('новый вид: класс латиницей, в образцах', (await frameEval(() => !!document.querySelector('.sg-demo-table .siniy a'))), '');
+	// Своя кнопка на экране: место — 100 px от правого края окна.
+	await win.getByRole('tab', {name: 'Кнопки на экране'}).click();
+	await win.getByPlaceholder('Название новой кнопки').fill('Тест');
+	await btn(/^Добавить кнопку$/).click();
+	await win.waitForTimeout(300);
+	const xField = win.getByLabel('От правого края окна влево, px');
+	await xField.fill('100');
+	await xField.press('Enter');
+	await win.waitForTimeout(300);
+	await win.screenshot({path: (process.env.SHOT || path.join(home, 'shot.png')).replace('.png', '-places.png')});
+	await btn(/^Сохранить$/).click();
+	await win.waitForTimeout(1500);
+	await btn(/^Закрыть$/).last().click();
+	const saved2 = fs.readFileSync(path.join(lib, fs.readdirSync(lib).find(f => f.startsWith('27_03_2025'))), 'utf8');
+	check('блок видов сохранён в истории', saved2.includes('СИГНАЛЫ: виды кнопок и ссылок') && saved2.includes('.siniy a {') && saved2.includes('.sg-place-test {') && saved2.includes('+ 100px);') && !/^a \{\n    color: #00cc00;/m.test(saved2));
+
+	// Панель форматирования над текстом пассажа и предпросмотр рядом.
+	await win.locator('.passage-card').filter({has: win.locator('h2', {hasText: /^Texttests$/})}).dblclick();
+	await win.waitForSelector('.signaly-format-toolbar');
+	await win.waitForTimeout(800);
+	const cmSelect = text => win.evaluate(t => {
+		const cm = document.querySelector('.passage-edit-contents .CodeMirror').CodeMirror;
+		const from = t.indexOf('‹');
+		const to = t.indexOf('›') - 1;
+		cm.setValue(t.replace(/[‹›]/g, ''));
+		cm.getDoc().setSelection(cm.getDoc().posFromIndex(from), cm.getDoc().posFromIndex(to));
+	}, text);
+	const cmValue = () => win.evaluate(() => document.querySelector('.passage-edit-contents .CodeMirror').CodeMirror.getValue());
+	await cmSelect('Проверка ‹жирного› текста\n[[Назад|Start]]');
+	await btn(/^Жирный$/).click();
+	check('панель: жирный', (await cmValue()).startsWith("Проверка ''жирного'' текста"), await cmValue());
+	await win.evaluate(() => {
+		const doc = document.querySelector('.passage-edit-contents .CodeMirror').CodeMirror.getDoc();
+		const v = doc.getValue();
+		doc.setSelection(doc.posFromIndex(v.indexOf('[[')), doc.posFromIndex(v.length));
+	});
+	await btn(/^Вид$/).click();
+	await win.locator('.menu-button-menu').getByText('Янтарный', {exact: true}).click();
+	await win.waitForTimeout(300);
+	check('панель: вид ссылки', (await cmValue()).endsWith('<span class="amber">[[Назад|Start]]</span>'), await cmValue());
+	const toolbarNames = await win.locator('.signaly-format-toolbar button').evaluateAll(els => els.map(e => e.getAttribute('aria-label') || e.textContent).join(' | '));
+	check('панель показывает вид под курсором', toolbarNames.includes('Вид: Янтарный'), toolbarNames);
+	// Кнопка на экране из панели: без выделения вставляется ссылка с названием.
+	await win.evaluate(() => {
+		const doc = document.querySelector('.passage-edit-contents .CodeMirror').CodeMirror.getDoc();
+		doc.setCursor(doc.posFromIndex(doc.getValue().length));
+	});
+	await btn(/^Кнопка на экране$/).click();
+	await win.locator('.menu-button-menu').getByText('Тест', {exact: true}).click();
+	await win.waitForTimeout(300);
+	check('панель: кнопка на экране', (await cmValue()).endsWith('<span class="sg-place-test"><<link "Тест">><</link>></span>'), await cmValue());
+	await btn(/^Предпросмотр$/).click();
+	await win.waitForSelector('.signaly-passage-preview');
+	const pframe = async fn => {
+		const handle = await win.locator('.signaly-passage-preview iframe').elementHandle();
+		return (await handle.contentFrame()).evaluate(fn);
+	};
+	await win.waitForTimeout(4000);
+	const shownPassage = await pframe(() => SugarCube.State.passage);
+	check('предпросмотр пассажа: этот экран', shownPassage === 'Texttests', shownPassage);
+	const testPlace = await pframe(() => {
+		const p = document.querySelector('#passages').getBoundingClientRect();
+		const r = document.querySelector('.sg-place-test').getBoundingClientRect();
+		return {right: p.right - r.right, fixed: getComputedStyle(document.querySelector('.sg-place-test')).position};
+	});
+	check('кнопка на экране стоит на своём месте', testPlace.right === 100 && testPlace.fixed === 'fixed', JSON.stringify(testPlace));
+	check('предпросмотр пассажа: свежий текст', await pframe(() => !!document.querySelector('#passages .amber a') && document.querySelector('#passages strong').textContent === 'жирного'));
+	await win.screenshot({path: (process.env.SHOT || path.join(home, 'shot.png')).replace('.png', '-passage.png')});
 }
 
 await win.screenshot({path: process.env.SHOT || path.join(home, 'shot.png')});

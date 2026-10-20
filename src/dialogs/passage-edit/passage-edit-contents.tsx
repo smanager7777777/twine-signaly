@@ -11,6 +11,7 @@ import {useUndoableStoriesContext} from '../../store/undoable-stories';
 import {PassageText} from './passage-text';
 import {PassageToolbar} from './passage-toolbar';
 import {StoryFormatToolbar} from './story-format-toolbar';
+import {SignalyFormatToolbar} from './signaly-format-toolbar';
 import './passage-edit-contents.css';
 import {usePrefsContext} from '../../store/prefs';
 
@@ -104,6 +105,14 @@ export const PassageEditContents: React.FC<
 					editor={cmEditor}
 					onExecCommand={handleExecCommand}
 					storyFormat={storyFormat}
+				/>
+			)}
+			{prefs.useCodeMirror && (
+				<SignalyFormatToolbar
+					disabled={disabled}
+					editor={cmEditor}
+					passage={passage}
+					story={story}
 				/>
 			)}
 			<ErrorBoundary>

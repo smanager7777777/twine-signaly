@@ -1,0 +1,36 @@
+/* «Twine СИГНАЛЫ»: панель форматирования над текстом пассажа. */
+@import '../../styles/metrics.css';
+@import '../signaly-appearance/signaly-appearance.css';
+
+.signaly-format-toolbar {
+	border-bottom: 1px solid var(--light-gray);
+	padding-bottom: 2px;
+}
+
+.signaly-format-color-icon {
+	display: inline-flex;
+	flex-direction: column;
+	align-items: center;
+}
+
+.signaly-format-color-icon > span {
+	border-radius: 1px;
+	display: block;
+	height: 3px;
+	margin-top: -2px;
+	width: 16px;
+}
+
+.signaly-format-color-card {
+	max-width: 280px;
+	padding: var(--grid-size);
+}
+
+.signaly-format-color-card p {
+	margin: 0 0 6px;
+}
+
+.signaly-format-color-card .signaly-color {
+	flex-wrap: wrap;
+	margin-top: var(--grid-size);
+}
