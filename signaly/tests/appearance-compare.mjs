@@ -123,6 +123,57 @@ for (const name of names) {
 	if (process.env.HOVER && diff === 0) {
 		failed += await compareStates(name, safe);
 	}
+	if (process.env.DIALOGS && diff === 0) {
+		failed += await compareDialogs(name, safe);
+	}
+}
+
+// Окна-сообщения (DIALOGS=1): щелчок по каждой ссылке и кнопке экрана, которая
+// никуда не ведёт; если открылось окно — сравниваются снимки с окном.
+async function clickNth(page, index) {
+	return page.evaluate(i => {
+		const els = [...document.querySelectorAll('#passages a:not([data-passage]), #passages button')].filter(e => {
+			const r = e.getBoundingClientRect();
+			return r.width > 0 && r.height > 0 && r.bottom > 0 && r.top < innerHeight;
+		});
+		const e = els[i];
+		if (!e) return false;
+		e.click();
+		return true;
+	}, index);
+}
+
+async function compareDialogs(name, safe) {
+	let bad = 0;
+	for (let i = 0; i < 12; i++) {
+		const [ca, cb] = [await clickNth(oldPage, i), await clickNth(newPage, i)];
+		if (!ca || !cb) {
+			if (ca !== cb) {
+				console.log(`DIFF ${name} — элемент ${i + 1} есть не в обеих версиях`);
+				bad++;
+			}
+			break;
+		}
+		await Promise.all([oldPage.waitForTimeout(500), newPage.waitForTimeout(500)]);
+		const open = await Promise.all([oldPage, newPage].map(p => p.evaluate(() => SugarCube.Dialog.isOpen())));
+		if (open[0] || open[1]) {
+			const [a, b] = await Promise.all([oldPage, newPage].map(p => p.screenshot({animations: 'disabled', caret: 'hide'})));
+			const diff = open[0] === open[1] ? await compare(a, b) : -1;
+			if (diff !== 0) {
+				bad++;
+				fs.writeFileSync(path.join(shotsDir, `${safe}-окно${i + 1}-было.png`), a);
+				fs.writeFileSync(path.join(shotsDir, `${safe}-окно${i + 1}-стало.png`), b);
+			}
+			console.log(`${diff === 0 ? 'OK  ' : 'DIFF'} ${name}, окно от элемента ${i + 1}${diff ? ` — ${diff < 0 ? 'открылось не в обеих' : diff + ' пикс.'}` : ''}`);
+		}
+		// Вернуть экран в исходное состояние.
+		await Promise.all([oldPage, newPage].map(p => p.evaluate(n => {
+			SugarCube.Dialog.close();
+			SugarCube.Engine.play(n);
+		}, name)));
+		await Promise.all([oldPage.waitForTimeout(800), newPage.waitForTimeout(800)]);
+	}
+	return bad;
 }
 
 // Наведение и нажатие (HOVER=1): первые ссылки и кнопки экрана, в обеих версиях.

@@ -1,5 +1,8 @@
 import {Story} from '../../store/stories/stories.types';
 
+/** «Twine СИГНАЛЫ»: подпапки media/ папки игры. */
+export type MediaKind = 'audio' | 'fonts' | 'img' | 'video';
+
 export interface TwineElectronWindow extends Window {
 	twineElectron?: {
 		deleteStory(story: Story): void;
@@ -11,7 +14,7 @@ export interface TwineElectronWindow extends Window {
 		signalyChooseGameFolder(currentPath?: string): Promise<string | undefined>;
 		signalyListMedia(
 			folder: string,
-			kind: 'audio' | 'fonts'
+			kind: MediaKind
 		): Promise<string[]>;
 		signalyShowGameFolder(folder: string): void;
 		signalyWriteGameFile(

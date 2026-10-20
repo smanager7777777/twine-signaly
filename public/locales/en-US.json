@@ -491,7 +491,8 @@
 				"flicker": "Flicker",
 				"crt": "Old Monitor Effects",
 				"protect": "Screen Protection",
-				"start": "Start Screen"
+				"start": "Start Screen",
+				"dialogs": "Message windows"
 			},
 			"fields": {
 				"pageBg": "Screen background",
@@ -520,12 +521,24 @@
 				"startText": "Text",
 				"startSound": "Start sound",
 				"startVolume": "Start sound volume",
-				"lineScroll": "Wheel scrolls one line at a time"
+				"lineScroll": "Wheel scrolls one line at a time",
+				"dialogOn": "Custom message window style",
+				"dialogBg": "Background",
+				"dialogColor": "Text color",
+				"dialogSize": "Text size",
+				"dialogBorderColor": "Border and line color",
+				"dialogBorderWidth": "Border width",
+				"dialogGlow": "Border glow",
+				"dialogTitleBg": "Title background",
+				"dialogTitleColor": "Title color",
+				"dialogTitleSize": "Title size",
+				"dialogTitleLine": "Line under the title"
 			},
 			"hints": {
 				"savedColors": "Colors of this story. In any color field: ★ adds the color here; a swatch applies it.",
 				"hideCursor": "0 means never hide.",
-				"lineScroll": "No smooth scrolling: one wheel notch, one line of text."
+				"lineScroll": "No smooth scrolling: one wheel notch, one line of text.",
+				"dialogOn": "Off — standard SugarCube windows. When turned on, values are taken from your .ui-dialog rules."
 			},
 			"preview": {
 				"title": "Terminal preview",
@@ -537,7 +550,10 @@
 				"chooseFolder": "Choose Game Folder…",
 				"noFormat": "Couldn't load the story format."
 			},
-			"updated": "The program was updated. Press Save to update the terminal engine and appearance in the story; your settings are kept."
+			"updated": "The program was updated. Press Save to update the terminal engine and appearance in the story; your settings are kept.",
+			"sampleDialog": "Show a sample window in the preview",
+			"sampleDialogTitle": "Sample window",
+			"sampleDialogText": "This is how the game's message windows look."
 		},
 		"kinds": {
 			"button": "Button and Link Styles",
@@ -652,6 +668,149 @@
 		"passagePreview": {
 			"button": "Preview",
 			"title": "Preview"
+		},
+		"blocks": {
+			"markHint": "Screen block — click to edit",
+			"engineUpdated": "The terminal engine in Story JavaScript was updated to version {{version}} — it shows blocks in the game.",
+			"done": "Done",
+			"noFiles": "No matching files in the game folder (or no folder chosen).",
+			"noSound": "No sound",
+			"stay": "Stay on this screen",
+			"seconds": "After how many seconds",
+			"place": "Placement",
+			"places": {
+				"text": "In the text",
+				"center": "Centered on its own line",
+				"screen": "On screen — from a terminal window corner"
+			},
+			"corner": "From which corner",
+			"x": "Horizontal offset",
+			"y": "Vertical offset",
+			"dragHint": "Easiest: drag it with the mouse in the preview.",
+			"resizeHint": "In the preview, drag the bottom-right corner to resize.",
+			"border": "Border",
+			"glow": "Glow",
+			"borderColor": "Border and glow color",
+			"file": "File",
+			"width": "Width",
+			"contentHint": "SugarCube markup is allowed: ''bold'', $variables, macros.",
+			"remove": "Remove",
+			"up": "Up",
+			"down": "Down",
+			"add": {
+				"button": "Add block",
+				"alarm": "Alarm screen",
+				"dialog": "Message window",
+				"code": "Code field",
+				"image": "Image",
+				"video": "Video",
+				"kr2": "KR2 window (this screen)"
+			},
+			"image": {
+				"title": "Image"
+			},
+			"video": {
+				"title": "Video",
+				"height": "Height",
+				"heightHint": "0 — keep the video's proportions.",
+				"autoplay": "Autoplay",
+				"loop": "Loop",
+				"muted": "Muted",
+				"controls": "Browser controls",
+				"buttons": "Play and Stop buttons under the video"
+			},
+			"alarm": {
+				"title": "Alarm screen (above everything)",
+				"text": "Text",
+				"bg": "Screen color",
+				"color": "Text color",
+				"size": "Text size",
+				"blink": "Blinking",
+				"blinkHint": "0 — no blinking; otherwise one beat per this many seconds.",
+				"sound": "Sound (siren)",
+				"volume": "Volume",
+				"loop": "Repeat the sound while shown",
+				"close": "How it closes",
+				"closes": {
+					"click": "On click",
+					"time": "By itself after N seconds",
+					"master": "Only by the game master: Shift+Z+X"
+				},
+				"goto": "After closing, go to"
+			},
+			"dialog": {
+				"title": "Message window",
+				"label": "Link or button text",
+				"opener": "Opened by",
+				"link": "A link",
+				"button": "A button",
+				"heading": "Window title",
+				"content": "Window contents",
+				"ownText": "Own text",
+				"fromPassage": "Another passage's text",
+				"passage": "Passage",
+				"text": "Window text",
+				"close": "How it closes",
+				"closes": {
+					"cross": "With the close button (and clicking outside)",
+					"ok": "Only with a button in the window",
+					"time": "By itself after N seconds"
+				},
+				"ok": "Button text",
+				"okDefault": "OK"
+			},
+			"code": {
+				"title": "Code field",
+				"goto": "Go to screen",
+				"noGoto": "Don't go anywhere",
+				"message": "Message title",
+				"sound": "Sound",
+				"choosePassage": "— choose a passage —",
+				"textHint": "_code is the code entered.",
+				"field": "Field",
+				"visible": "Visible input",
+				"stars": "Asterisks (password)",
+				"button": "Confirm button (empty — no button)",
+				"gap": "Button below the field by",
+				"lines": "lines",
+				"focus": "Focus the field on entry",
+				"clear": "Clear the field after input",
+				"var": "Remember input in a variable (e.g. $inputCode)",
+				"enterHint": "Enter works like the button. A game-wide code table comes in stage 3.",
+				"code": "Code",
+				"value": "Code",
+				"add": "Add code",
+				"wrong": "Wrong code",
+				"noWrong": "Do nothing on a wrong code",
+				"addWrong": "Show a message on a wrong code",
+				"wrongTitle": "Error",
+				"wrongText": "Wrong code"
+			},
+			"kr2": {
+				"title": "KR2 window",
+				"tag": "This screen is a KR2 window",
+				"tagHint": "The screen is split into zones: text, navigation (all links), image, statuses. Tag kr2.",
+				"image": "Image",
+				"noImage": "No image",
+				"cols": "Width of the left part",
+				"rows": "Height of the top part",
+				"defaultLayout": "Back to 65% and 65%",
+				"status": "Statuses",
+				"statusHint": "Lines at the bottom right: items, room state, variables — and links that open a window with details.",
+				"textRow": "Line",
+				"windowRow": "Window link",
+				"line": "Line text",
+				"insertVar": "Insert a variable",
+				"windowPassage": "What to show (passage)",
+				"addText": "Add a line",
+				"addWindow": "Add a window link",
+				"windowLabel": "Details",
+				"mainHint": "Main text — plain screen text or between <<kr2main>> and <</kr2main>>. All links go to the navigation zone."
+			}
+		},
+		"drag": {
+			"lock": "Lock",
+			"lockHint": "When on, nothing can be moved with the mouse in the preview."
 		}
 	}
 }

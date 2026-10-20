@@ -304,6 +304,194 @@ if (twee) {
 	check('кнопка на экране стоит на своём месте', testPlace.right === 100 && testPlace.fixed === 'fixed', JSON.stringify(testPlace));
 	check('предпросмотр пассажа: свежий текст', await pframe(() => !!document.querySelector('#passages .amber a') && document.querySelector('#passages strong').textContent === 'жирного'));
 	await win.screenshot({path: (process.env.SHOT || path.join(home, 'shot.png')).replace('.png', '-passage.png')});
+
+	// Шаг 1.4: «Добавить блок», форма блока, щелчок по команде, перетаскивание.
+	const closeDialogs = async () => {
+		const closers = win.locator('.dialog-card-header-controls button[aria-label="Закрыть"]');
+		const preview = win.locator('.signaly-passage-preview').getByRole('button', {name: 'Закрыть'});
+		if (await preview.count()) {
+			await preview.click();
+		}
+		while (await closers.count()) {
+			await closers.first().click();
+			await win.waitForTimeout(500);
+		}
+	};
+	const panel = () => win.locator('.signaly-block-panel');
+	const addBlock = async name => {
+		await btn(/^Добавить блок$/).click();
+		await win.locator('.menu-button-menu').getByText(name, {exact: true}).click();
+		await win.waitForTimeout(400);
+	};
+	const toEnd = () =>
+		win.evaluate(() => {
+			const doc = document.querySelector('.passage-edit-contents .CodeMirror').CodeMirror.getDoc();
+			doc.setCursor(doc.posFromIndex(doc.getValue().length));
+		});
+	await toEnd();
+	await addBlock('Картинка');
+	check('блок: картинка вставлена', (await cmValue()).includes('<<sg-image "" width 400>>'), (await cmValue()).slice(-60));
+	check('блок: форма открылась', (await panel().locator('strong').textContent()) === 'Картинка');
+	await panel().getByLabel('Файл', {exact: true}).selectOption('media/img/radio.jpg');
+	await panel().getByLabel('Место', {exact: true}).selectOption('screen');
+	await panel().getByLabel('От какого угла окна терминала').selectOption('tr');
+	const xNum = panel().getByLabel('Отступ от края по горизонтали, px');
+	await xNum.fill('10');
+	await xNum.press('Enter');
+	await win.waitForTimeout(300);
+	check('форма переписывает команду', (await cmValue()).includes('<<sg-image "media/img/radio.jpg" width 400 place screen corner tr>>'.replace('tr>>', 'tr x 10>>')), (await cmValue()).slice(-90));
+	await win.waitForTimeout(5000);
+	const imgBox = await pframe(() => {
+		const img = document.querySelector('#passages img[data-sg-src]');
+		if (!img) return null;
+		const r = img.getBoundingClientRect();
+		return {x: r.left, y: r.top, w: r.width, h: r.height, right: document.querySelector('#passages').getBoundingClientRect().right - r.right};
+	});
+	check('предпросмотр: картинка на своём месте', imgBox && Math.abs(imgBox.right - 10) < 1, JSON.stringify(imgBox));
+	const frameBox = await win.locator('.signaly-passage-preview iframe').boundingBox();
+	const scale = frameBox.width / 1920;
+	const at = (x, y) => [frameBox.x + x * scale, frameBox.y + y * scale];
+	const dragBy = async (fx, fy, dx, dy) => {
+		const [sx, sy] = at(fx, fy);
+		await win.mouse.move(sx, sy);
+		await win.mouse.down();
+		await win.mouse.move(sx + dx / 2, sy + dy / 2, {steps: 4});
+		await win.mouse.move(sx + dx, sy + dy, {steps: 4});
+		await win.mouse.up();
+		await win.waitForTimeout(1500);
+	};
+	await dragBy(imgBox.x + 20, imgBox.y + 20, -60, 40);
+	const dragged = /<<sg-image "media\/img\/radio.jpg" width 400 place screen corner tr x (-?\d+) y (-?\d+)>>/.exec(await cmValue());
+	const expectX = 10 + Math.round(60 / scale);
+	const expectY = Math.round(40 / scale);
+	check('перетаскивание мышью меняет место в команде', dragged && Math.abs(Number(dragged[1]) - expectX) <= 2 && Math.abs(Number(dragged[2]) - expectY) <= 2, `${dragged && dragged.slice(1)} ждали ${expectX} ${expectY}`);
+	await win.waitForTimeout(4000);
+	const imgBox2 = await pframe(() => {
+		const r = document.querySelector('#passages img[data-sg-src]').getBoundingClientRect();
+		return {x: r.left, y: r.top, w: r.width, h: r.height};
+	});
+	await dragBy(imgBox2.x + imgBox2.w - 4, imgBox2.y + imgBox2.h - 4, 50, 0);
+	const resized = /<<sg-image "media\/img\/radio.jpg" width (\d+)/.exec(await cmValue());
+	check('ширина за уголок', resized && Math.abs(Number(resized[1]) - (400 + Math.round(50 / scale))) <= 2, resized && resized[1]);
+	await win.waitForTimeout(4000);
+	await win.locator('.signaly-passage-preview').getByLabel('Закрепить').check();
+	const beforeLock = await cmValue();
+	const imgBox3 = await pframe(() => {
+		const r = document.querySelector('#passages img[data-sg-src]').getBoundingClientRect();
+		return {x: r.left, y: r.top};
+	});
+	await dragBy(imgBox3.x + 20, imgBox3.y + 20, -80, 30);
+	check('«Закрепить»: мышью не сдвинуть', (await cmValue()) === beforeLock);
+	await win.locator('.signaly-passage-preview').getByLabel('Закрепить').uncheck();
+
+	// Щелчок по команде в тексте открывает её форму.
+	await panel().getByRole('button', {name: 'Готово'}).click();
+	check('форма закрылась', (await panel().count()) === 0);
+	const cmPoint = await win.evaluate(() => {
+		const cm = document.querySelector('.passage-edit-contents .CodeMirror').CodeMirror;
+		const doc = cm.getDoc();
+		const c = cm.charCoords(doc.posFromIndex(doc.getValue().indexOf('<<sg-image') + 4), 'window');
+		return {x: c.left + 2, y: (c.top + c.bottom) / 2};
+	});
+	await win.mouse.click(cmPoint.x, cmPoint.y);
+	await win.waitForTimeout(400);
+	check('щелчок по команде открывает форму', (await panel().count()) === 1 && (await panel().locator('strong').textContent()) === 'Картинка');
+
+	await toEnd();
+	await addBlock('Поле кода');
+	check('поле кода вставлено, форма открыта', (await cmValue()).includes('<<sg-code button "Подтвердить" gap 1>>') && (await panel().locator('strong').textContent()) === 'Поле кода');
+	await panel().getByLabel('Код', {exact: true}).first().fill('777');
+	await win.waitForTimeout(300);
+	check('поле кода: свой код в таблице', (await cmValue()).includes('<<sg-case "777" title "Код принят">>Доступ разрешён'), (await cmValue()).slice(-200));
+	await toEnd();
+	await addBlock('Экран тревоги');
+	await panel().getByLabel('Как закрывается').selectOption('master');
+	await win.waitForTimeout(300);
+	check('экран тревоги: вставлен, закрытие мастером', (await cmValue()).includes('<<sg-alarm bg "#cc0000" color "#000000" size 70 close master>>ТРЕВОГА<</sg-alarm>>'));
+	await toEnd();
+	await addBlock('Окно-сообщение');
+	await panel().getByLabel('Как закрывается').selectOption('ok');
+	await win.waitForTimeout(300);
+	check('окно-сообщение: вставлено, закрытие кнопкой', (await cmValue()).includes('<<sg-dialog "Открыть сообщение" title "Сообщение" close ok>>Текст сообщения<</sg-dialog>>'));
+	await toEnd();
+	await addBlock('Видео');
+	check('видео: вставлено', (await cmValue()).includes('<<sg-video "" width 1000 autoplay loop muted>>') && (await panel().locator('strong').textContent()) === 'Видео');
+	await win.screenshot({path: (process.env.SHOT || path.join(home, 'shot.png')).replace('.png', '-blocks.png')});
+	await win.waitForTimeout(5000);
+	const blockErrors = await pframe(() => [...document.querySelectorAll('.error-view, .error')].map(e => e.textContent));
+	check('предпросмотр: все блоки без ошибок', blockErrors.length === 0, blockErrors.join(' | '));
+
+	// Окно KR2: форма со статусами и ссылкой на окно.
+	await closeDialogs();
+	await win.waitForTimeout(500);
+	await win.locator('.passage-card').filter({has: win.locator('h2', {hasText: /^Космические рейнджеры$/})}).dblclick();
+	await win.waitForSelector('.signaly-format-toolbar');
+	await win.waitForTimeout(800);
+	await addBlock('Окно KR2 (этот экран)');
+	check('KR2: форма, тег стоит', (await panel().locator('strong').textContent()) === 'Окно KR2' && (await panel().getByLabel('Этот экран — окно KR2').isChecked()));
+	check('KR2: картинка и статус из текста', (await panel().getByLabel('Картинка', {exact: true}).inputValue()) === 'media/img/radio.jpg' && (await panel().getByLabel('Текст строки').inputValue()) === 'Здоровье: $health');
+	await panel().getByRole('button', {name: 'Добавить ссылку на окно'}).click();
+	await win.waitForTimeout(300);
+	await panel().getByLabel('Что показать (пассаж)').selectOption('showPSGinfo');
+	const colsNum = panel().getByLabel('Ширина левой части (текст и навигация), %');
+	await colsNum.fill('50');
+	await colsNum.press('Enter');
+	await win.waitForTimeout(300);
+	const kr2Text = await cmValue();
+	check('KR2: статус-ссылка и доли записаны', kr2Text.includes('<<kr2layout 50 65>>') && kr2Text.includes('<<kr2vars>>Здоровье: $health\n<<sg-dialog "Подробно" title "" passage "showPSGinfo">><</sg-dialog>><</kr2vars>>'.replace('title "" ', '')), kr2Text.slice(0, 220));
+	await btn(/^Предпросмотр$/).click();
+	await win.waitForTimeout(6000);
+	const kr2Shown = await pframe(() => ({
+		passage: SugarCube.State.passage,
+		cols: getComputedStyle(document.querySelector('#passages')).gridTemplateColumns,
+		link: !!document.querySelector('#kr2-vars a')
+	}));
+	check('KR2 в предпросмотре: доли и ссылка в статусах', kr2Shown.passage === 'Космические рейнджеры' && kr2Shown.link && /^(\d+(\.\d+)?)px \1px$/.test(kr2Shown.cols), JSON.stringify(kr2Shown));
+	await win.screenshot({path: (process.env.SHOT || path.join(home, 'shot.png')).replace('.png', '-kr2.png')});
+	await closeDialogs();
+	await win.waitForTimeout(1500);
+
+	// Окна-сообщения в «Оформлении терминала».
+	await win.getByRole('tab', {name: 'История'}).click();
+	await btn(/Оформление терминала/).click();
+	await frame().locator('#passages .passage').waitFor({timeout: 20000});
+	await win.waitForTimeout(1000);
+	await win.getByLabel('Своё оформление окон-сообщений').check();
+	await win.waitForTimeout(300);
+	check('окна-сообщения: поля из правил .ui-dialog', (await win.getByLabel('Свечение рамки', {exact: true}).inputValue()) === '10' && (await win.getByLabel('Размер текста, px').last().inputValue()) === '25');
+	await btn(/Показать образец окна/).click();
+	await win.waitForTimeout(800);
+	const dlg = await frameEval(() => ({open: SugarCube.Dialog.isOpen(), border: getComputedStyle(document.getElementById('ui-dialog')).borderTopColor, shadow: getComputedStyle(document.getElementById('ui-dialog')).boxShadow}));
+	check('окна-сообщения: образец в предпросмотре', dlg.open && dlg.border === 'rgb(0, 204, 0)' && dlg.shadow.includes('10px'), JSON.stringify(dlg));
+	await win.screenshot({path: (process.env.SHOT || path.join(home, 'shot.png')).replace('.png', '-dialogs.png')});
+	await btn(/^Сохранить$/).click();
+	await win.waitForTimeout(1500);
+	await btn(/^Закрыть$/).last().click();
+
+	// Окно видов: кнопку на экране тоже можно перетащить.
+	await win.getByRole('tab', {name: 'История'}).click();
+	await btn(/Виды кнопок и ссылок/).click();
+	await frame().locator('.sg-demo-table').waitFor({timeout: 20000});
+	await win.waitForTimeout(1000);
+	const placeBox = await frameEval(() => {
+		const r = document.querySelector('.sg-place-test').getBoundingClientRect();
+		return {x: r.left + r.width / 2, y: r.top + r.height / 2};
+	});
+	const kFrame = await win.locator('.signaly-preview-frame iframe').boundingBox();
+	const kScale = kFrame.width / 1920;
+	await win.mouse.move(kFrame.x + placeBox.x * kScale, kFrame.y + placeBox.y * kScale);
+	await win.mouse.down();
+	await win.mouse.move(kFrame.x + placeBox.x * kScale - 20, kFrame.y + placeBox.y * kScale, {steps: 4});
+	await win.mouse.move(kFrame.x + placeBox.x * kScale - 40, kFrame.y + placeBox.y * kScale, {steps: 4});
+	await win.mouse.up();
+	await win.waitForTimeout(800);
+	const newX = Number(await win.getByLabel('От правого края окна влево, px').inputValue());
+	check('окно видов: кнопку на экране двигают мышью', Math.abs(newX - (100 + Math.round(40 / kScale))) <= 2, `${newX}`);
+	await btn(/^Сохранить$/).click();
+	await win.waitForTimeout(1500);
+	await btn(/^Закрыть$/).last().click();
+	const saved3 = fs.readFileSync(path.join(lib, fs.readdirSync(lib).find(f => f.startsWith('27_03_2025'))), 'utf8');
+	check('история: движок 3, KR2 в движке, оформление окон', saved3.includes('Версия движка: 3') && saved3.includes('код окна KR2 перенесён в движок') && saved3.includes('#ui-dialog {') && saved3.includes('&lt;&lt;kr2layout 50 65&gt;&gt;') || saved3.includes('<<kr2layout 50 65>>'));
 }
 
 await win.screenshot({path: process.env.SHOT || path.join(home, 'shot.png')});

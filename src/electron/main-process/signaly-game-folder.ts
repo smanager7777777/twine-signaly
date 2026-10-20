@@ -139,7 +139,9 @@ export function showGameFolder(folder: string) {
 
 const mediaKinds: Record<string, string[]> = {
 	audio: ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac', '.opus', '.weba'],
-	fonts: ['.woff2', '.woff', '.ttf', '.otf']
+	fonts: ['.woff2', '.woff', '.ttf', '.otf'],
+	img: ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp'],
+	video: ['.mp4', '.webm', '.ogv', '.ogg', '.mov', '.m4v']
 };
 
 /**

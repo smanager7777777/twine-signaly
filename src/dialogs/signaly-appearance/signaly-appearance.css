@@ -267,3 +267,11 @@
 	position: absolute;
 	top: 0;
 }
+
+/* Галочка «Закрепить» у предпросмотра (шаг 1.4). */
+.signaly-drag-lock {
+	align-items: center;
+	display: inline-flex;
+	gap: 4px;
+	white-space: nowrap;
+}

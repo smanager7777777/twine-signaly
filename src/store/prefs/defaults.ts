@@ -9,6 +9,7 @@ export const defaults = (): PrefsState => ({
 	donateShown: false,
 	editorCursorBlinks: true,
 	gameFolders: {},
+	signalyDragLock: false,
 	firstRunTime: new Date().getTime(),
 	lastUpdateSeen: '',
 	lastUpdateCheckTime: new Date().getTime(),

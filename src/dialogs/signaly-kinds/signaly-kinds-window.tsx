@@ -9,6 +9,7 @@
 
 import * as React from 'react';
 import {useTranslation} from 'react-i18next';
+import {usePrefsContext} from '../../store/prefs';
 import {passageDefaults} from '../../store/stories/defaults';
 import {Passage, Story, updateStory, useStoriesContext} from '../../store/stories';
 import {useGameFolder} from '../../store/use-game-folder';
@@ -37,7 +38,10 @@ import {
 	CheckField,
 	TextField
 } from '../signaly-appearance/signaly-appearance-fields';
-import {SignalyAppearancePreview} from '../signaly-appearance/signaly-appearance-preview';
+import {
+	SignalyAppearancePreview,
+	SignalyDragLock
+} from '../signaly-appearance/signaly-appearance-preview';
 import {LookEditor} from './signaly-kinds-look';
 import {PlacesEditor} from './signaly-kinds-places';
 import '../signaly-appearance/signaly-appearance.css';
@@ -94,6 +98,7 @@ function build(prepared: Prepared, kinds: SignalyKinds, savedColors: string[]) {
 export const SignalyKindsWindow: React.FC<SignalyKindsWindowProps> = props => {
 	const {onClose, story} = props;
 	const {t} = useTranslation();
+	const {prefs} = usePrefsContext();
 	const {dispatch, stories} = useStoriesContext();
 	const {available, chooseGameFolder, gameFolder} = useGameFolder();
 	const [prepared] = React.useState(() => prepare(story));
@@ -453,6 +458,7 @@ export const SignalyKindsWindow: React.FC<SignalyKindsWindowProps> = props => {
 						>
 							{t('signaly.appearance.preview.refresh')}
 						</button>
+						<SignalyDragLock />
 						<span className="signaly-field-hint">
 							{t('signaly.kinds.demo.hint')}
 						</span>
@@ -471,6 +477,22 @@ export const SignalyKindsWindow: React.FC<SignalyKindsWindowProps> = props => {
 					)}
 					<SignalyAppearancePreview
 						baseUrl={folder ? folderToFileUrl(folder) : undefined}
+						drag={{
+							locked: prefs.signalyDragLock,
+							place: id => kinds.places.find(p => p.id === id),
+							onDrop: result => {
+								if (result.kind === 'place') {
+									change({
+										...kinds,
+										places: kinds.places.map(p =>
+											p.id === result.id ? {...p, x: result.x, y: result.y} : p
+										)
+									});
+									setTab('places');
+									setSelectedPlace(result.id);
+								}
+							}
+						}}
 						mode="passage"
 						passageId={screen}
 						refresh={refresh}

@@ -70,6 +70,22 @@ export interface SignalyAppearance {
 	startVolume: number;
 	/** Сохранённые цвета этой истории. */
 	savedColors: string[];
+	/**
+	 * Окна-сообщения (шаг 1.4, ответ 4а). Выключено — окна как у SugarCube
+	 * (так они выглядели в шаблоне: правила автора .ui-dialog не действовали).
+	 */
+	dialogOn: boolean;
+	dialogBg: string;
+	dialogColor: string;
+	dialogSize: number;
+	dialogBorderColor: string;
+	dialogBorderWidth: number;
+	dialogGlow: number;
+	dialogTitleBg: string;
+	dialogTitleColor: string;
+	dialogTitleSize: number;
+	/** Линия под заголовком, px. */
+	dialogTitleLine: number;
 }
 
 /** Значения по умолчанию — как в шаблоне автора 27_03_2025. */
@@ -109,7 +125,19 @@ export const defaultAppearance: SignalyAppearance = {
 		'#cccc00',
 		'#cc00cc',
 		'#000000'
-	]
+	],
+	// Как задумано в правилах автора .ui-dialog шаблона.
+	dialogOn: false,
+	dialogBg: '#000000',
+	dialogColor: '#00cc00',
+	dialogSize: 25,
+	dialogBorderColor: '#00cc00',
+	dialogBorderWidth: 2,
+	dialogGlow: 10,
+	dialogTitleBg: '#000000',
+	dialogTitleColor: '#00cc00',
+	dialogTitleSize: 25,
+	dialogTitleLine: 1
 };
 
 /** Системные моноширинные шрифты Windows 11. */
@@ -348,7 +376,102 @@ export function appearanceCss(a: SignalyAppearance): string {
 		'}'
 	);
 
+	if (a.dialogOn) {
+		lines.push(...dialogCss(a));
+	}
+
 	return lines.join('\n');
+}
+
+/** Оформление окон-сообщений SugarCube (#ui-dialog). */
+function dialogCss(a: SignalyAppearance) {
+	const glow = round(a.dialogGlow);
+	const shadow =
+		a.dialogGlow > 0
+			? `0 0 ${glow}px ${a.dialogBorderColor}, 0 0 ${round(a.dialogGlow * 2)}px ${a.dialogBorderColor}`
+			: 'none';
+
+	return [
+		'#ui-dialog {',
+		`\tbackground-color: ${a.dialogBg};`,
+		`\tborder: ${round(a.dialogBorderWidth)}px solid ${a.dialogBorderColor};`,
+		`\tbox-shadow: ${shadow};`,
+		`\tcolor: ${a.dialogColor};`,
+		`\tfont-size: ${round(a.dialogSize)}px;`,
+		'}',
+		'#ui-dialog-titlebar {',
+		`\tbackground-color: ${a.dialogTitleBg};`,
+		`\tcolor: ${a.dialogTitleColor};`,
+		`\tborder-bottom: ${round(a.dialogTitleLine)}px solid ${a.dialogBorderColor};`,
+		`\tfont-size: ${round(a.dialogTitleSize)}px;`,
+		'}',
+		'#ui-dialog-close {',
+		`\tcolor: ${a.dialogTitleColor};`,
+		'}',
+		'#ui-dialog-body {',
+		`\tbackground-color: ${a.dialogBg};`,
+		'\tborder: none;',
+		`\tcolor: ${a.dialogColor};`,
+		`\tfont-size: ${round(a.dialogSize)}px;`,
+		'}'
+	];
+}
+
+/**
+ * Значения окон-сообщений из правил автора .ui-dialog, .ui-dialog-titlebar,
+ * .ui-dialog-body (в шаблоне они не действовали — SugarCube 2.37 называет окно
+ * #ui-dialog). Берётся только то, что удалось понять.
+ */
+export function dialogFromAuthor(css: string): Partial<SignalyAppearance> {
+	const result: Partial<SignalyAppearance> = {};
+	const rules = topLevelRules(css);
+	const read = (selector: string) => {
+		const rule = rules.find(r => !r.at && r.selector === selector);
+		const map: Record<string, string> = {};
+
+		if (rule) {
+			declarations(css, rule).forEach(d => (map[d.property] = d.value));
+		}
+		return map;
+	};
+	const dialog = read('.ui-dialog');
+	const title = read('.ui-dialog-titlebar');
+	const body = read('.ui-dialog-body');
+	const color = (value: string | undefined) =>
+		value === undefined ? undefined : normalizeHex(value);
+	const border = /^(\d+(?:\.\d+)?)px\s+solid\s+(#[0-9a-f]{3,6})$/i;
+	const set = <K extends keyof SignalyAppearance>(key: K, value: SignalyAppearance[K] | undefined) => {
+		if (value !== undefined) {
+			result[key] = value;
+		}
+	};
+
+	set('dialogBg', color(dialog['background-color']));
+	set('dialogColor', color(body.color ?? dialog.color));
+	set('dialogSize', parsePx(body['font-size'] ?? dialog['font-size'] ?? ''));
+
+	const b = border.exec(dialog.border ?? '');
+
+	if (b) {
+		set('dialogBorderWidth', Number(b[1]));
+		set('dialogBorderColor', normalizeHex(b[2]));
+	}
+
+	const glow = /^0\s+0\s+(\d+(?:\.\d+)?)px/.exec(dialog['box-shadow'] ?? '');
+
+	if (glow) {
+		set('dialogGlow', Number(glow[1]));
+	}
+	set('dialogTitleBg', color(title['background-color']));
+	set('dialogTitleColor', color(title.color));
+	set('dialogTitleSize', parsePx(title['font-size'] ?? ''));
+
+	const line = border.exec(title['border-bottom'] ?? '');
+
+	if (line) {
+		set('dialogTitleLine', Number(line[1]));
+	}
+	return result;
 }
 
 export function appearanceBlock(a: SignalyAppearance) {
@@ -730,10 +853,27 @@ export function engineVersionIn(script: string) {
 	return match ? Number(match[1]) : 0;
 }
 
-/** JavaScript истории со свежим движком (старый блок «общие настройки» убирается). */
+// Код окна KR2 из шаблона автора: с шага 1.4 то же самое делает движок (и
+// ссылки в зоне статусов при этом работают). Убирается, только если это
+// узнаваемый код шаблона.
+const authorKr2Block =
+	/\/\* ===== KR2 INTERFACE ===== \*\/\s*\(function\s*\(\)\s*\{[\s\S]*?Macro\.add\('kr2image'[\s\S]*?\/\* ===== END KR2 INTERFACE ===== \*\/\n?/;
+
+export const kr2MovedNote =
+	'/* СИГНАЛЫ: код окна KR2 перенесён в движок терминала (шаг 1.4). */\n';
+
+/** Есть ли в JavaScript истории старый код KR2 автора. */
+export function hasAuthorKr2(script: string) {
+	return authorKr2Block.test(script);
+}
+
+/**
+ * JavaScript истории со свежим движком (старый блок «общие настройки» и код
+ * KR2 шаблона убираются).
+ */
 export function withEngine(script: string) {
 	return putBlock(
-		script.replace(oldSettingsBlock, ''),
+		script.replace(oldSettingsBlock, '').replace(authorKr2Block, kr2MovedNote),
 		engineMarkers,
 		signalyEngineBlock()
 	);

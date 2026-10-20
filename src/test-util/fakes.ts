@@ -122,6 +122,7 @@ export function fakePrefs(overrides?: Partial<PrefsState>): PrefsState {
 		donateShown: faker.datatype.boolean(),
 		editorCursorBlinks: faker.datatype.boolean(),
 		gameFolders: {},
+		signalyDragLock: false,
 		firstRunTime: new Date().getTime(),
 		lastUpdateSeen: '',
 		lastUpdateCheckTime: new Date().getTime(),

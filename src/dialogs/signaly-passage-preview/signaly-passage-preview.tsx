@@ -9,10 +9,21 @@ import * as React from 'react';
 import {useTranslation} from 'react-i18next';
 import {IconButton} from '../../components/control/icon-button';
 import {usePrefsContext} from '../../store/prefs';
-import {Story} from '../../store/stories';
+import {
+	Story,
+	updatePassage,
+	updateStory,
+	useStoriesContext
+} from '../../store/stories';
 import {useGameFolder} from '../../store/use-game-folder';
+import {blockAfterDrop, DragResult} from '../../util/signaly/signaly-drag';
+import {readKinds, withKinds} from '../../util/signaly/signaly-kinds';
 import {folderToFileUrl} from '../../util/signaly/signaly-preview';
-import {SignalyAppearancePreview} from '../signaly-appearance/signaly-appearance-preview';
+import {writeBlock} from '../../util/signaly/signaly-screen-blocks';
+import {
+	SignalyAppearancePreview,
+	SignalyDragLock
+} from '../signaly-appearance/signaly-appearance-preview';
 import '../signaly-appearance/signaly-appearance.css';
 import './signaly-passage-preview.css';
 
@@ -67,10 +78,38 @@ export const SignalyPreviewButton: React.FC<{passageId: string}> = ({
 export const SignalyPassagePreview: React.FC<{story: Story}> = ({story}) => {
 	const {t} = useTranslation();
 	const {prefs} = usePrefsContext();
+	const {dispatch, stories} = useStoriesContext();
 	const {gameFolder} = useGameFolder();
 	const passageId = usePreviewPassage();
 	const [refresh, setRefresh] = React.useState(0);
+	const [top, setTop] = React.useState<number>();
 	const passage = story.passages.find(p => p.id === passageId);
+
+	// Панель — под панелью инструментов Twine, даже если та в узком окне
+	// переносится на третью строку.
+	React.useEffect(() => {
+		const toolbar = document.querySelector('.route-toolbar');
+
+		if (!toolbar || typeof ResizeObserver === 'undefined') {
+			return;
+		}
+
+		// Кнопки могут вылезать за высоту панели — берём самую нижнюю.
+		const update = () =>
+			setTop(
+				Math.max(
+					toolbar.getBoundingClientRect().bottom,
+					...[...toolbar.querySelectorAll('button')].map(
+						el => el.getBoundingClientRect().bottom
+					)
+				) + 8
+			);
+		const observer = new ResizeObserver(update);
+
+		update();
+		observer.observe(toolbar);
+		return () => observer.disconnect();
+	}, [passageId]);
 	const folder = gameFolder(story.id);
 	// Перезапуск, когда меняется текст любого пассажа или JavaScript истории
 	// (стили меняются на лету).
@@ -96,18 +135,63 @@ export const SignalyPassagePreview: React.FC<{story: Story}> = ({story}) => {
 		return null;
 	}
 
+	// Элемент перетащили мышью — записываем новые числа (шаг 1.4).
+	function drop(result: DragResult) {
+		if (result.kind === 'place') {
+			const data = readKinds(story.stylesheet);
+
+			if (!data) {
+				return;
+			}
+			dispatch(
+				updateStory(stories, story, {
+					stylesheet: withKinds(story.stylesheet, {
+						...data,
+						places: data.places.map(p =>
+							p.id === result.id ? {...p, x: result.x, y: result.y} : p
+						)
+					})
+				})
+			);
+			return;
+		}
+
+		// Сначала этот пассаж, потом остальные (блок мог прийти из <<include>>).
+		const candidates = [passage!, ...story.passages.filter(p => p !== passage)];
+
+		for (const candidate of candidates) {
+			const found = blockAfterDrop(candidate.text, result);
+
+			if (found) {
+				const {block, changed} = found;
+
+				dispatch(
+					updatePassage(story, candidate, {
+						text:
+							candidate.text.slice(0, block.from) +
+							writeBlock(changed) +
+							candidate.text.slice(block.to)
+					})
+				);
+				return;
+			}
+		}
+	}
+
 	return (
 		<div
 			aria-label={t('signaly.passagePreview.title')}
 			className="signaly-passage-preview"
 			style={{
-				right: `calc(${prefs.dialogWidth}px + 3 * var(--grid-size))`
+				right: `calc(${prefs.dialogWidth}px + 3 * var(--grid-size))`,
+				top
 			}}
 		>
 			<div className="signaly-passage-preview-header">
 				<span className="signaly-passage-preview-title">
 					{t('signaly.passagePreview.title')}: {passage.name}
 				</span>
+				<SignalyDragLock />
 				<IconButton
 					icon={<IconRefresh />}
 					iconOnly
@@ -128,6 +212,11 @@ export const SignalyPassagePreview: React.FC<{story: Story}> = ({story}) => {
 			)}
 			<SignalyAppearancePreview
 				baseUrl={folder ? folderToFileUrl(folder) : undefined}
+				drag={{
+					locked: prefs.signalyDragLock,
+					onDrop: drop,
+					place: id => readKinds(story.stylesheet)?.places.find(p => p.id === id)
+				}}
 				mode="passage"
 				passageId={passage.id}
 				refresh={refresh}

@@ -6,7 +6,7 @@
 
 import {setPref, usePrefsContext} from './prefs';
 import {isElectronRenderer} from '../util/is-electron';
-import {TwineElectronWindow} from '../electron/shared';
+import {MediaKind, TwineElectronWindow} from '../electron/shared';
 
 /** Служебный файл для «Играть». */
 export const playFileName = '_играть.html';
@@ -37,7 +37,7 @@ export interface UseGameFolderProps {
 	/** Файлы из media/<kind> папки игры: «media/audio/старт.wav» и т. п. */
 	listMedia: (
 		storyId: string,
-		kind: 'audio' | 'fonts'
+		kind: MediaKind
 	) => Promise<string[]>;
 	/** Открыть папку игры в проводнике. */
 	showGameFolder: (storyId: string) => void;

@@ -4,6 +4,7 @@
 
 import * as React from 'react';
 import {useTranslation} from 'react-i18next';
+import {setPref, usePrefsContext} from '../../store/prefs';
 import {Story} from '../../store/stories';
 import {
 	formatWithNameAndVersion,
@@ -12,7 +13,25 @@ import {
 } from '../../store/story-formats';
 import {getAppInfo} from '../../util/app-info';
 import {publishStoryWithFormat} from '../../util/publish';
+import {attachDrag, DragOptions} from '../../util/signaly/signaly-drag';
 import {PreviewMode, previewHtml} from '../../util/signaly/signaly-preview';
+
+/** Галочка «Закрепить»: в предпросмотре ничего не двигается мышью. */
+export const SignalyDragLock: React.FC = () => {
+	const {t} = useTranslation();
+	const {dispatch, prefs} = usePrefsContext();
+
+	return (
+		<label className="signaly-drag-lock" title={t('signaly.drag.lockHint')}>
+			<input
+				checked={prefs.signalyDragLock}
+				onChange={e => dispatch(setPref('signalyDragLock', e.target.checked))}
+				type="checkbox"
+			/>{' '}
+			{t('signaly.drag.lock')}
+		</label>
+	);
+};
 
 export const previewWidth = 1920;
 export const previewHeight = 1080;
@@ -25,14 +44,18 @@ export interface SignalyAppearancePreviewProps {
 	passageId?: string;
 	/** Меняется — предпросмотр перезапускается. */
 	refresh: number;
+	/** Меняется — во фрейме открывается образец окна-сообщения. */
+	sampleDialog?: number;
 	/** История с готовыми блоками (JavaScript и таблица стилей). */
 	story: Story;
+	/** Перетаскивание мышью (шаг 1.4): что делать, когда элемент отпустили. */
+	drag?: {locked: boolean} & Pick<DragOptions, 'onDrop' | 'place'>;
 }
 
 export const SignalyAppearancePreview: React.FC<
 	SignalyAppearancePreviewProps
 > = props => {
-	const {baseUrl, mode, passageId, refresh, story} = props;
+	const {baseUrl, drag, mode, passageId, refresh, sampleDialog, story} = props;
 	const {dispatch, formats} = useStoryFormatsContext();
 	const {t} = useTranslation();
 	const frameRef = React.useRef<HTMLIFrameElement>(null);
@@ -43,6 +66,14 @@ export const SignalyAppearancePreview: React.FC<
 	const [scale, setScale] = React.useState(0.4);
 
 	storyRef.current = story;
+
+	// Перетаскивание: свежие настройки — через ref, подключение — при загрузке.
+	const dragRef = React.useRef(drag);
+	const dragControl = React.useRef<ReturnType<typeof attachDrag>>();
+
+	dragRef.current = drag;
+	React.useEffect(() => dragControl.current?.update(), [drag?.locked]);
+	React.useEffect(() => () => dragControl.current?.detach(), []);
 
 	// Публикация — только при смене экрана или «Обновить».
 	React.useEffect(() => {
@@ -97,6 +128,18 @@ export const SignalyAppearancePreview: React.FC<
 
 	React.useEffect(applyStyles, [applyStyles, story.stylesheet]);
 
+	// Образец окна-сообщения — чтобы видеть его оформление.
+	React.useEffect(() => {
+		const sugar = (frameRef.current?.contentWindow as any)?.SugarCube;
+
+		if (!sampleDialog || !sugar?.Dialog) {
+			return;
+		}
+		sugar.Dialog.create(t('signaly.appearance.sampleDialogTitle'))
+			.wiki(t('signaly.appearance.sampleDialogText'))
+			.open();
+	}, [sampleDialog]); // eslint-disable-line
+
 	// Масштаб под размер окна.
 	React.useEffect(() => {
 		const box = boxRef.current;
@@ -127,6 +170,18 @@ export const SignalyAppearancePreview: React.FC<
 	function handleLoad() {
 		// SugarCube вставляет стили чуть позже загрузки — подстрахуемся.
 		[100, 500, 1500].forEach(delay => setTimeout(applyStyles, delay));
+
+		const doc = frameRef.current?.contentDocument;
+
+		dragControl.current?.detach();
+		dragControl.current = undefined;
+		if (doc && dragRef.current) {
+			dragControl.current = attachDrag(doc, {
+				locked: () => dragRef.current?.locked ?? true,
+				onDrop: result => dragRef.current?.onDrop(result),
+				place: id => dragRef.current?.place(id)
+			});
+		}
 	}
 
 	return (

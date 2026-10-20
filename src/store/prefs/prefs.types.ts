@@ -56,6 +56,11 @@ export interface PrefsState {
 	 */
 	gameFolders: Record<string, string>;
 	/**
+	 * «Twine СИГНАЛЫ»: галочка «Закрепить» — в предпросмотре элементы нельзя
+	 * двигать мышью (от случайных перемещений).
+	 */
+	signalyDragLock: boolean;
+	/**
 	 * Timestamp when the app was first run.
 	 */
 	firstRunTime: number;

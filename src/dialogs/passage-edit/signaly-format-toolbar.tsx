@@ -14,6 +14,7 @@ import {
 	IconList,
 	IconMapPin,
 	IconPalette,
+	IconSquarePlus,
 	IconSeparatorHorizontal,
 	IconStrikethrough,
 	IconTextSize,
@@ -26,10 +27,19 @@ import {ButtonBar} from '../../components/container/button-bar';
 import {CardButton} from '../../components/control/card-button';
 import {IconButton} from '../../components/control/icon-button';
 import {MenuButton} from '../../components/control/menu-button';
-import {Passage, Story, updateStory, useStoriesContext} from '../../store/stories';
+import {
+	Passage,
+	Story,
+	updatePassage,
+	updateStory,
+	useStoriesContext
+} from '../../store/stories';
 import {
 	defaultAppearance,
-	readAppearance
+	engineVersionIn,
+	readAppearance,
+	signalyEngineVersion,
+	withEngine
 } from '../../util/signaly/signaly-appearance';
 import {normalizeHex} from '../../util/signaly/signaly-css';
 import {
@@ -51,7 +61,15 @@ import {
 	toggleMark
 } from '../../util/signaly/signaly-format';
 import {readKinds} from '../../util/signaly/signaly-kinds';
+import {
+	BlockType,
+	findBlocks,
+	kr2Tag,
+	newBlock,
+	writeBlock
+} from '../../util/signaly/signaly-screen-blocks';
 import {SignalyPreviewButton} from '../signaly-passage-preview';
+import {PanelTarget, SignalyBlockPanel} from './signaly-block-panel';
 import './signaly-format-toolbar.css';
 
 export interface SignalyFormatToolbarProps {
@@ -71,6 +89,30 @@ interface CursorInfo {
 
 const sizes = ['50%', '75%', '125%', '150%', '200%', '300%'];
 
+/** Порядок пунктов «Добавить блок» (решение 52). */
+const addable: Array<BlockType | 'kr2'> = ['alarm', 'dialog', 'code', 'image', 'video', 'kr2'];
+
+// Команды окна KR2 в тексте — тоже открывают форму.
+const kr2Command = /<<\/?kr2(?:image|layout|vars|main)(?=[\s>])[^]*?>>/g;
+
+/** Минимальная правка: заменить только то, что отличается. */
+function diffEdit(before: string, after: string) {
+	let start = 0;
+
+	while (start < before.length && start < after.length && before[start] === after[start]) {
+		start++;
+	}
+
+	let endBefore = before.length;
+	let endAfter = after.length;
+
+	while (endBefore > start && endAfter > start && before[endBefore - 1] === after[endAfter - 1]) {
+		endBefore--;
+		endAfter--;
+	}
+	return {from: start, to: endBefore, insert: after.slice(start, endAfter)};
+}
+
 export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props => {
 	const {disabled, editor, passage, story} = props;
 	const {t} = useTranslation();
@@ -89,6 +131,9 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 		[story.stylesheet]
 	);
 	const kindClasses = React.useMemo(() => kinds.map(k => k.cls), [kinds]);
+	const [panel, setPanel] = React.useState<PanelTarget>();
+	const [text, setText] = React.useState('');
+	const [engineUpdated, setEngineUpdated] = React.useState(false);
 
 	const selection = React.useCallback(() => {
 		const doc = editor!.getDoc();
@@ -124,6 +169,71 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 		editor.on('cursorActivity', updateInfo);
 		return () => editor.off('cursorActivity', updateInfo);
 	}, [editor, updateInfo]);
+
+	// Блоки в тексте подсвечены; щелчок по команде открывает её форму.
+	React.useEffect(() => {
+		if (!editor) {
+			return;
+		}
+
+		const doc = editor.getDoc();
+		const title = t('signaly.blocks.markHint');
+		let marks: CodeMirror.TextMarker[] = [];
+		let timer: number | undefined;
+
+		const refresh = () => {
+			const value = doc.getValue();
+			const ranges = findBlocks(value).map(b => [b.from, b.to]);
+
+			for (const match of value.matchAll(kr2Command)) {
+				ranges.push([match.index!, match.index! + match[0].length]);
+			}
+			marks.forEach(m => m.clear());
+			marks = ranges.map(([from, to]) =>
+				doc.markText(doc.posFromIndex(from), doc.posFromIndex(to), {
+					attributes: {title},
+					className: 'signaly-block-mark'
+				})
+			);
+			setText(value);
+		};
+		const schedule = () => {
+			window.clearTimeout(timer);
+			timer = window.setTimeout(refresh, 120);
+		};
+		const onDown = () => {
+			window.setTimeout(() => {
+				if (doc.somethingSelected()) {
+					return;
+				}
+
+				const value = doc.getValue();
+				const at = doc.indexFromPos(doc.getCursor());
+				const index = findBlocks(value).findIndex(b => at > b.from && at < b.to);
+
+				if (index !== -1) {
+					setPanel({kind: 'block', index});
+					return;
+				}
+				for (const match of value.matchAll(kr2Command)) {
+					if (at > match.index! && at < match.index! + match[0].length) {
+						setPanel({kind: 'kr2'});
+						return;
+					}
+				}
+			}, 0);
+		};
+
+		refresh();
+		editor.on('change', schedule);
+		editor.on('mousedown', onDown);
+		return () => {
+			window.clearTimeout(timer);
+			editor.off('change', schedule);
+			editor.off('mousedown', onDown);
+			marks.forEach(m => m.clear());
+		};
+	}, [editor, t]);
 
 	function run(make: (text: string, from: number, to: number) => Edit | undefined) {
 		if (!editor) {
@@ -178,6 +288,73 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 	function color(value: string | null) {
 		run((text, from, to) => setStyle(text, from, to, 'color', value));
 		setColorOpen(false);
+	}
+
+	// Блоки понимает движок — при первом блоке он ставится или обновляется.
+	function ensureEngine() {
+		if (engineVersionIn(story.script) < signalyEngineVersion) {
+			dispatch(updateStory(stories, story, {script: withEngine(story.script)}));
+			setEngineUpdated(true);
+		}
+	}
+
+	function setKr2Tag(on: boolean) {
+		const tags = passage.tags.filter(tag => tag !== kr2Tag);
+
+		dispatch(updatePassage(story, passage, {tags: on ? [...tags, kr2Tag] : tags}));
+	}
+
+	function addBlock(type: BlockType | 'kr2') {
+		if (!editor) {
+			return;
+		}
+		ensureEngine();
+		if (type === 'kr2') {
+			if (!passage.tags.includes(kr2Tag)) {
+				setKr2Tag(true);
+			}
+			setPanel({kind: 'kr2'});
+			return;
+		}
+
+		const {text: value, from, to} = selection();
+		const block = newBlock(type);
+		const selected = value.slice(from, to);
+
+		// Выделенный текст становится текстом тревоги или окна.
+		if (selected.trim() !== '' && (type === 'alarm' || type === 'dialog')) {
+			block.content = selected;
+		}
+
+		const insert = writeBlock(block);
+
+		run(() => ({from, to, insert, selFrom: from, selTo: from}));
+
+		const after = value.slice(0, from) + insert + value.slice(to);
+
+		setPanel({
+			kind: 'block',
+			index: findBlocks(after).findIndex(b => b.from === from)
+		});
+	}
+
+	// Форма блока меняет текст: правим только изменившийся кусок, курсор и
+	// фокус остаются в форме.
+	function writeText(after: string) {
+		if (!editor) {
+			return;
+		}
+
+		const doc = editor.getDoc();
+		const edit = diffEdit(doc.getValue(), after);
+
+		if (edit.from === edit.to && edit.insert === '') {
+			return;
+		}
+		editor.operation(() =>
+			doc.replaceRange(edit.insert, doc.posFromIndex(edit.from), doc.posFromIndex(edit.to))
+		);
+		setText(after);
 	}
 
 	const label = (key: string) => t(`signaly.format.${key}`);
@@ -360,8 +537,33 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 					}
 					label={placeName ? `${label('place')}: ${placeName}` : label('place')}
 				/>
+				<MenuButton
+					disabled={off}
+					icon={<IconSquarePlus />}
+					items={addable.map(type => ({
+						label: t(`signaly.blocks.add.${type}`),
+						onClick: () => addBlock(type)
+					}))}
+					label={t('signaly.blocks.add.button')}
+				/>
 				<SignalyPreviewButton passageId={passage.id} />
 			</ButtonBar>
+			{engineUpdated && (
+				<div className="signaly-notice signaly-block-notice">
+					{t('signaly.blocks.engineUpdated', {version: signalyEngineVersion})}
+				</div>
+			)}
+			{panel && editor && (
+				<SignalyBlockPanel
+					onClose={() => setPanel(undefined)}
+					onKr2Tag={setKr2Tag}
+					onText={writeText}
+					passage={passage}
+					story={story}
+					target={panel}
+					text={text || editor.getDoc().getValue()}
+				/>
+			)}
 		</div>
 	);
 };

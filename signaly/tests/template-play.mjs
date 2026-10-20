@@ -124,7 +124,8 @@ await page.waitForTimeout(500);
 check('код 33333 → окно', (await page.evaluate(() => document.querySelector('#ui-dialog-title')?.textContent)) === 'Предустановленное инфо');
 
 await go('PASSWORDTEST');
-const pwd = await page.evaluate(() => document.getElementById('passwordInput').value);
+// С шага 1.4 поле пароля — блок <<sg-code password>>.
+const pwd = await page.evaluate(() => document.querySelector('input[type=password]').value);
 check('пароль: поле пустое, без <<print>>', pwd === '', pwd);
 check('пароль: нет лишней строки «:: PasswordEntry»', !(await page.evaluate(() => document.querySelector('.passage').textContent.includes('PasswordEntry'))));
 

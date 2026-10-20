@@ -13,7 +13,8 @@ import {
 	prepareStory,
 	SignalyAppearance,
 	systemFonts,
-	withAppearance
+	withAppearance,
+	dialogFromAuthor
 } from '../../util/signaly/signaly-appearance';
 import {folderToFileUrl} from '../../util/signaly/signaly-preview';
 import {
@@ -58,6 +59,7 @@ export const SignalyAppearanceWindow: React.FC<
 	const [savedOnce, setSavedOnce] = React.useState(false);
 	const [screen, setScreen] = React.useState(story.startPassage);
 	const [refresh, setRefresh] = React.useState(0);
+	const [sampleDialog, setSampleDialog] = React.useState(0);
 	const [fonts, setFonts] = React.useState<string[]>([]);
 	const [sounds, setSounds] = React.useState<string[]>([]);
 	const folder = gameFolder(story.id);
@@ -83,6 +85,16 @@ export const SignalyAppearanceWindow: React.FC<
 
 	function changeFont(font: string) {
 		setAppearance(current => ({...current, font, fontFile: ''}));
+		setSaved(false);
+	}
+
+	// Включая окна-сообщения, берём значения из правил автора .ui-dialog.
+	function turnDialogs(on: boolean) {
+		setAppearance(current => ({
+			...current,
+			...(on ? dialogFromAuthor(prepared.stylesheet) : {}),
+			dialogOn: on
+		}));
 		setSaved(false);
 	}
 
@@ -334,6 +346,37 @@ export const SignalyAppearanceWindow: React.FC<
 						/>
 						{range('startVolume', 0, 100, percent)}
 					</section>
+
+					<section>
+						<h3>{t('signaly.appearance.sections.dialogs')}</h3>
+						<CheckField
+							hint={hint('dialogOn')}
+							label={label('dialogOn')}
+							onChange={turnDialogs}
+							value={appearance.dialogOn}
+						/>
+						{appearance.dialogOn && (
+							<>
+								{color('dialogBg')}
+								{color('dialogColor')}
+								{range('dialogSize', 10, 80, px)}
+								{color('dialogBorderColor')}
+								{range('dialogBorderWidth', 0, 20, px)}
+								{range('dialogGlow', 0, 60, px)}
+								{color('dialogTitleBg')}
+								{color('dialogTitleColor')}
+								{range('dialogTitleSize', 10, 80, px)}
+								{range('dialogTitleLine', 0, 10, px)}
+							</>
+						)}
+						<button
+							className="signaly-button"
+							onClick={() => setSampleDialog(n => n + 1)}
+							type="button"
+						>
+							{t('signaly.appearance.sampleDialog')}
+						</button>
+					</section>
 				</div>
 
 				<div className="signaly-appearance-preview">
@@ -379,6 +422,7 @@ export const SignalyAppearanceWindow: React.FC<
 						mode={screen === startScreenValue ? 'start' : 'passage'}
 						passageId={screen === startScreenValue ? undefined : screen}
 						refresh={refresh}
+						sampleDialog={sampleDialog}
 						story={previewStory}
 					/>
 				</div>

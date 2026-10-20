@@ -4,7 +4,10 @@ import {
 	appearanceBlock,
 	appearanceMarkers,
 	defaultAppearance,
+	dialogFromAuthor,
 	engineVersionIn,
+	hasAuthorKr2,
+	kr2MovedNote,
 	migrateStylesheet,
 	prepareStory,
 	readAppearance,
@@ -262,5 +265,47 @@ describe('preview', () => {
 		expect(html).toMatch(
 			/^<html><head><base href="file:\/\/\/C:\/g\/"><script>window\.SIGNALY_PREVIEW = "start";/
 		);
+	});
+});
+
+describe('step 1.4: message windows and KR2 in the engine', () => {
+	it('message windows stay standard until turned on', () => {
+		expect(appearanceBlock(defaultAppearance)).not.toContain('#ui-dialog');
+
+		const css = appearanceBlock({...defaultAppearance, dialogOn: true});
+
+		expect(css).toContain('#ui-dialog {');
+		expect(css).toContain('box-shadow: 0 0 10px #00cc00, 0 0 20px #00cc00;');
+		expect(css).toContain('border-bottom: 1px solid #00cc00;');
+	});
+
+	it('reads the dead .ui-dialog rules of the template', () => {
+		expect(dialogFromAuthor(templateCss)).toEqual({
+			dialogBg: '#000000',
+			dialogColor: '#00cc00',
+			dialogSize: 25,
+			dialogBorderWidth: 2,
+			dialogBorderColor: '#00cc00',
+			dialogGlow: 10,
+			dialogTitleBg: '#000000',
+			dialogTitleColor: '#00cc00',
+			dialogTitleSize: 25,
+			dialogTitleLine: 1
+		});
+		expect(dialogFromAuthor('body { color: red; }')).toEqual({});
+	});
+
+	it('the engine takes over the KR2 code of the template', () => {
+		const old =
+			'author1();\n/* ===== KR2 INTERFACE ===== */\n(function() {\n    Macro.add(\'kr2image\', {});\n})();\n/* ===== END KR2 INTERFACE ===== */\nauthor2();';
+
+		expect(hasAuthorKr2(old)).toBe(true);
+
+		const result = withEngine(old);
+
+		expect(result).toContain('author1();\n' + kr2MovedNote + 'author2();');
+		expect(hasAuthorKr2(result)).toBe(false);
+		expect(hasAuthorKr2(templateJs)).toBe(false);
+		expect(templateJs).toContain(kr2MovedNote.trim());
 	});
 });

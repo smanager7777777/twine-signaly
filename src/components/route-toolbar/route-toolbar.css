@@ -56,3 +56,17 @@
 	font-weight: bold;
 	background: linear-gradient(to top, var(--blue) 0, var(--blue) 2px, transparent 2px)
 }
+/*
+«Twine СИГНАЛЫ»: в узком окне кнопки вкладки не переносятся на третью строку
+(она закрывала шапки окон пассажей), а прокручиваются вбок.
+*/
+.route-toolbar [role='tabpanel'] {
+	overflow-x: auto;
+	overflow-y: hidden;
+	scrollbar-width: thin;
+}
+
+.route-toolbar [role='tabpanel'] .button-bar {
+	flex-wrap: nowrap;
+	white-space: nowrap;
+}
