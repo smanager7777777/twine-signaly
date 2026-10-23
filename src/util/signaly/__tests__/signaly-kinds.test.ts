@@ -160,7 +160,7 @@ describe('signaly-kinds: блок в таблице стилей', () => {
 		expect(templateCss.slice(appearance.to, kinds.from).trim()).toBe('');
 	});
 
-	it('в шаблоне — пять видов и семь кнопок на экране', () => {
+	it('в шаблоне — пять видов; семь кнопок на экране — элементами в пассаже', () => {
 		const data = readKinds(templateCss)!;
 
 		expect(data.kinds.map(k => k.cls)).toEqual([
@@ -170,7 +170,9 @@ describe('signaly-kinds: блок в таблице стилей', () => {
 			'amber',
 			'purple'
 		]);
-		expect(data.places.map(p => p.id)).toEqual(['rad', 'atm', 'a', 'b', 'c', 'd', 'e']);
+		// С сессии 6 места кнопок — у самих элементов <<sg-place>>.
+		expect(data.places).toEqual([]);
+		expect(section('audiobuttons').match(/<<sg-place kind amber corner tr /g)).toHaveLength(7);
 		expect(templateCss).not.toContain('top-right-audio-buttons');
 	});
 

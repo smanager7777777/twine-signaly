@@ -12,8 +12,8 @@ import {
 	IconHeading,
 	IconItalic,
 	IconList,
-	IconMapPin,
 	IconPalette,
+	IconWand,
 	IconSquarePlus,
 	IconSeparatorHorizontal,
 	IconStrikethrough,
@@ -47,13 +47,11 @@ import {
 	alignAt,
 	applyAlign,
 	applyKind,
-	applyPlace,
 	Edit,
 	insertRule,
 	kindAt,
 	Mark,
 	missingAlignCss,
-	placeAt,
 	setStyle,
 	styleAt,
 	toggleHeading,
@@ -64,11 +62,19 @@ import {readKinds} from '../../util/signaly/signaly-kinds';
 import {
 	BlockType,
 	findBlocks,
+	innermostAt,
 	kr2Tag,
 	newBlock,
 	writeBlock
 } from '../../util/signaly/signaly-screen-blocks';
+import {
+	EffectType,
+	findEffects,
+	newEffect,
+	newLinesEffect
+} from '../../util/signaly/signaly-effects';
 import {SignalyPreviewButton} from '../signaly-passage-preview';
+import {saveStoryWithUpgrade} from '../signaly-upgrade';
 import {PanelTarget, SignalyBlockPanel} from './signaly-block-panel';
 import './signaly-format-toolbar.css';
 
@@ -81,7 +87,6 @@ export interface SignalyFormatToolbarProps {
 
 interface CursorInfo {
 	kind: string;
-	place: string;
 	align: Align | '';
 	color?: string;
 	size?: string;
@@ -90,7 +95,33 @@ interface CursorInfo {
 const sizes = ['50%', '75%', '125%', '150%', '200%', '300%'];
 
 /** Порядок пунктов «Добавить блок» (решение 52). */
-const addable: Array<BlockType | 'kr2'> = ['alarm', 'dialog', 'code', 'image', 'video', 'kr2'];
+const addable: Array<BlockType | 'kr2'> = ['alarm', 'dialog', 'code', 'image', 'video', 'place', 'kr2'];
+
+/** Пункты «Эффект» (шаг 2.1, ответ 5А); lines — появление строк по очереди. */
+const effectItems: Array<EffectType | 'lines'> = ['type', 'timed', 'lines', 'swap', 'blink', 'glitch'];
+
+/**
+ * Где в тексте щелчок открывает форму: блоки — целиком, эффекты — по своим
+ * командам (по тексту внутри эффекта щёлкать можно свободно), смена — целиком.
+ */
+function clickTargets(value: string) {
+	const targets: Array<{from: number; to: number; target: PanelTarget}> = [];
+
+	findBlocks(value).forEach((b, index) =>
+		targets.push({from: b.from, to: b.to, target: {kind: 'block', index}})
+	);
+	findEffects(value).forEach((e, index) => {
+		const target: PanelTarget = {kind: 'effect', index};
+
+		if (e.type === 'swap') {
+			targets.push({from: e.from, to: e.to, target});
+		} else {
+			targets.push({from: e.from, to: e.contentFrom, target});
+			targets.push({from: e.contentTo, to: e.to, target});
+		}
+	});
+	return targets;
+}
 
 // Команды окна KR2 в тексте — тоже открывают форму.
 const kr2Command = /<<\/?kr2(?:image|layout|vars|main)(?=[\s>])[^]*?>>/g;
@@ -117,7 +148,7 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 	const {disabled, editor, passage, story} = props;
 	const {t} = useTranslation();
 	const {dispatch, stories} = useStoriesContext();
-	const [info, setInfo] = React.useState<CursorInfo>({kind: '', place: '', align: ''});
+	const [info, setInfo] = React.useState<CursorInfo>({kind: '', align: ''});
 	const [colorOpen, setColorOpen] = React.useState(false);
 	const [pickerColor, setPickerColor] = React.useState('#cc0000');
 	const data = React.useMemo(() => readKinds(story.stylesheet), [story.stylesheet]);
@@ -125,7 +156,6 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 		() => (data?.kinds ?? []).filter(k => k.cls !== ''),
 		[data]
 	);
-	const places = data?.places ?? [];
 	const savedColors = React.useMemo(
 		() => (readAppearance(story.stylesheet) ?? defaultAppearance).savedColors,
 		[story.stylesheet]
@@ -154,7 +184,6 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 
 		setInfo({
 			kind: kindAt(text, from, to, kindClasses),
-			place: placeAt(text, from, to),
 			align: alignAt(text, from, to),
 			color: styleAt(text, from, to, 'color'),
 			size: styleAt(text, from, to, 'font-size')
@@ -183,7 +212,7 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 
 		const refresh = () => {
 			const value = doc.getValue();
-			const ranges = findBlocks(value).map(b => [b.from, b.to]);
+			const ranges = clickTargets(value).map(c => [c.from, c.to]);
 
 			for (const match of value.matchAll(kr2Command)) {
 				ranges.push([match.index!, match.index! + match[0].length]);
@@ -209,10 +238,11 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 
 				const value = doc.getValue();
 				const at = doc.indexFromPos(doc.getCursor());
-				const index = findBlocks(value).findIndex(b => at > b.from && at < b.to);
+				const targets = clickTargets(value);
+				const index = innermostAt(targets, at);
 
 				if (index !== -1) {
-					setPanel({kind: 'block', index});
+					setPanel(targets[index].target);
 					return;
 				}
 				for (const match of value.matchAll(kr2Command)) {
@@ -293,7 +323,8 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 	// Блоки понимает движок — при первом блоке он ставится или обновляется.
 	function ensureEngine() {
 		if (engineVersionIn(story.script) < signalyEngineVersion) {
-			dispatch(updateStory(stories, story, {script: withEngine(story.script)}));
+			// Заодно старые кнопки на экране становятся элементами (сессия 6).
+			saveStoryWithUpgrade(dispatch, stories, story, {script: withEngine(story.script)});
 			setEngineUpdated(true);
 		}
 	}
@@ -321,8 +352,9 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 		const block = newBlock(type);
 		const selected = value.slice(from, to);
 
-		// Выделенный текст становится текстом тревоги или окна.
-		if (selected.trim() !== '' && (type === 'alarm' || type === 'dialog')) {
+		// Выделенный текст становится текстом тревоги или окна, а выделенная
+		// ссылка или кнопка — кнопкой на экране.
+		if (selected.trim() !== '' && (type === 'alarm' || type === 'dialog' || type === 'place')) {
 			block.content = selected;
 		}
 
@@ -335,6 +367,31 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 		setPanel({
 			kind: 'block',
 			index: findBlocks(after).findIndex(b => b.from === from)
+		});
+	}
+
+	// Эффект на выделенный текст (без выделения — образец текста).
+	function addEffect(type: EffectType | 'lines') {
+		if (!editor) {
+			return;
+		}
+		ensureEngine();
+
+		const {text: value, from, to} = selection();
+		const selected = value.slice(from, to);
+		const sample = t('signaly.effects.sample');
+		const made =
+			type === 'lines'
+				? newLinesEffect(selected, t('signaly.effects.sampleLines'))
+				: newEffect(type, selected, value, sample, t('signaly.effects.sampleNew'));
+
+		run(() => ({from, to, insert: made.insert, selFrom: from, selTo: from}));
+
+		const after = value.slice(0, from) + made.insert + value.slice(to);
+
+		setPanel({
+			kind: 'effect',
+			index: findEffects(after).findIndex(e => e.from === from + made.at)
 		});
 	}
 
@@ -359,7 +416,6 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 
 	const label = (key: string) => t(`signaly.format.${key}`);
 	const kindName = kinds.find(k => k.cls === info.kind)?.name;
-	const placeName = places.find(p => p.id === info.place)?.name;
 	const off = disabled || !editor;
 
 	return (
@@ -516,26 +572,12 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 				/>
 				<MenuButton
 					disabled={off}
-					icon={<IconMapPin />}
-					items={
-						places.length === 0
-							? [{disabled: true, label: label('noPlaces'), onClick: () => {}}]
-							: [
-									...places.map(p => ({
-										checkable: true as const,
-										checked: info.place === p.id,
-										label: p.name,
-										onClick: () => run((text, from, to) => applyPlace(text, from, to, p))
-									})),
-									{separator: true as const},
-									{
-										disabled: info.place === '',
-										label: label('noPlace'),
-										onClick: () => run((text, from, to) => applyPlace(text, from, to, null))
-									}
-							  ]
-					}
-					label={placeName ? `${label('place')}: ${placeName}` : label('place')}
+					icon={<IconWand />}
+					items={effectItems.map(type => ({
+						label: t(`signaly.effects.add.${type}`),
+						onClick: () => addEffect(type)
+					}))}
+					label={t('signaly.effects.button')}
 				/>
 				<MenuButton
 					disabled={off}

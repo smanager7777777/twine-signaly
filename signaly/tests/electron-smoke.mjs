@@ -236,21 +236,13 @@ if (twee) {
 	await btn(/^Добавить вид$/).click();
 	await win.waitForTimeout(2500);
 	check('новый вид: класс латиницей, в образцах', (await frameEval(() => !!document.querySelector('.sg-demo-table .siniy a'))), '');
-	// Своя кнопка на экране: место — 100 px от правого края окна.
-	await win.getByRole('tab', {name: 'Кнопки на экране'}).click();
-	await win.getByPlaceholder('Название новой кнопки').fill('Тест');
-	await btn(/^Добавить кнопку$/).click();
-	await win.waitForTimeout(300);
-	const xField = win.getByLabel('От правого края окна влево, px');
-	await xField.fill('100');
-	await xField.press('Enter');
-	await win.waitForTimeout(300);
-	await win.screenshot({path: (process.env.SHOT || path.join(home, 'shot.png')).replace('.png', '-places.png')});
+	// С сессии 6 вкладки «Кнопки на экране» нет: место — у самого элемента.
+	check('окно видов: вкладки «Кнопки на экране» нет', (await win.getByRole('tab', {name: 'Кнопки на экране'}).count()) === 0);
 	await btn(/^Сохранить$/).click();
 	await win.waitForTimeout(1500);
 	await btn(/^Закрыть$/).last().click();
 	const saved2 = fs.readFileSync(path.join(lib, fs.readdirSync(lib).find(f => f.startsWith('27_03_2025'))), 'utf8');
-	check('блок видов сохранён в истории', saved2.includes('СИГНАЛЫ: виды кнопок и ссылок') && saved2.includes('.siniy a {') && saved2.includes('.sg-place-test {') && saved2.includes('+ 100px);') && !/^a \{\n    color: #00cc00;/m.test(saved2));
+	check('блок видов сохранён в истории', saved2.includes('СИГНАЛЫ: виды кнопок и ссылок') && saved2.includes('.siniy a {') && !/^a \{\n    color: #00cc00;/m.test(saved2));
 
 	// Панель форматирования над текстом пассажа и предпросмотр рядом.
 	await win.locator('.passage-card').filter({has: win.locator('h2', {hasText: /^Texttests$/})}).dblclick();
@@ -278,15 +270,24 @@ if (twee) {
 	check('панель: вид ссылки', (await cmValue()).endsWith('<span class="amber">[[Назад|Start]]</span>'), await cmValue());
 	const toolbarNames = await win.locator('.signaly-format-toolbar button').evaluateAll(els => els.map(e => e.getAttribute('aria-label') || e.textContent).join(' | '));
 	check('панель показывает вид под курсором', toolbarNames.includes('Вид: Янтарный'), toolbarNames);
-	// Кнопка на экране из панели: без выделения вставляется ссылка с названием.
+	// Кнопка на экране (сессия 6) — блок: без выделения вставляется ссылка-образец.
 	await win.evaluate(() => {
 		const doc = document.querySelector('.passage-edit-contents .CodeMirror').CodeMirror.getDoc();
 		doc.setCursor(doc.posFromIndex(doc.getValue().length));
 	});
-	await btn(/^Кнопка на экране$/).click();
-	await win.locator('.menu-button-menu').getByText('Тест', {exact: true}).click();
-	await win.waitForTimeout(300);
-	check('панель: кнопка на экране', (await cmValue()).endsWith('<span class="sg-place-test"><<link "Тест">><</link>></span>'), await cmValue());
+	await btn(/^Добавить блок$/).click();
+	await win.locator('.menu-button-menu').getByText('Кнопка на экране (выделенная ссылка или кнопка)', {exact: true}).click();
+	await win.waitForTimeout(400);
+	check('кнопка на экране: блок вставлен, форма открыта', (await cmValue()).endsWith('<<sg-place corner tr x 20 y 20>><<link "Кнопка">><</link>><</sg-place>>') && (await win.locator('.signaly-block-panel strong').textContent()) === 'Кнопка на экране', (await cmValue()).slice(-90));
+	await win.locator('.signaly-block-panel').getByLabel('Вид кнопки').selectOption('amber');
+	for (const [label, value] of [['Отступ от края по горизонтали, px', '100'], ['Отступ от края по вертикали, px', '600']]) {
+		const field = win.locator('.signaly-block-panel').getByLabel(label);
+		await field.fill(value);
+		await field.press('Enter');
+		await win.waitForTimeout(300);
+	}
+	check('кнопка на экране: форма пишет вид и место', (await cmValue()).endsWith('<<sg-place kind amber corner tr x 100 y 600>><<link "Кнопка">><</link>><</sg-place>>'), (await cmValue()).slice(-90));
+	await win.locator('.signaly-block-panel').getByRole('button', {name: 'Готово'}).click();
 	await btn(/^Предпросмотр$/).click();
 	await win.waitForSelector('.signaly-passage-preview');
 	const pframe = async fn => {
@@ -298,10 +299,11 @@ if (twee) {
 	check('предпросмотр пассажа: этот экран', shownPassage === 'Texttests', shownPassage);
 	const testPlace = await pframe(() => {
 		const p = document.querySelector('#passages').getBoundingClientRect();
-		const r = document.querySelector('.sg-place-test').getBoundingClientRect();
-		return {right: p.right - r.right, fixed: getComputedStyle(document.querySelector('.sg-place-test')).position};
+		const el = document.querySelector('.sg-place');
+		const r = el.getBoundingClientRect();
+		return {right: p.right - r.right, top: r.top - p.top, fixed: getComputedStyle(el).position, color: getComputedStyle(el.querySelector('a')).color};
 	});
-	check('кнопка на экране стоит на своём месте', testPlace.right === 100 && testPlace.fixed === 'fixed', JSON.stringify(testPlace));
+	check('кнопка на экране стоит на своём месте, вид янтарный', testPlace.right === 100 && testPlace.top === 600 && testPlace.fixed === 'fixed' && testPlace.color === 'rgb(255, 136, 0)', JSON.stringify(testPlace));
 	check('предпросмотр пассажа: свежий текст', await pframe(() => !!document.querySelector('#passages .amber a') && document.querySelector('#passages strong').textContent === 'жирного'));
 	await win.screenshot({path: (process.env.SHOT || path.join(home, 'shot.png')).replace('.png', '-passage.png')});
 
@@ -374,6 +376,14 @@ if (twee) {
 	const resized = /<<sg-image "media\/img\/radio.jpg" width (\d+)/.exec(await cmValue());
 	check('ширина за уголок', resized && Math.abs(Number(resized[1]) - (400 + Math.round(50 / scale))) <= 2, resized && resized[1]);
 	await win.waitForTimeout(4000);
+	const placeBox = await pframe(() => {
+		const r = document.querySelector('.sg-place').getBoundingClientRect();
+		return {x: r.left + r.width / 2, y: r.top + r.height / 2};
+	});
+	await dragBy(placeBox.x, placeBox.y, -40, 0);
+	const placeMoved = /<<sg-place kind amber corner tr x (\d+) y 600>>/.exec(await cmValue());
+	check('кнопку на экране двигают мышью в предпросмотре', placeMoved && Math.abs(Number(placeMoved[1]) - (100 + Math.round(40 / scale))) <= 2, placeMoved && placeMoved[1]);
+	await win.waitForTimeout(4000);
 	await win.locator('.signaly-passage-preview').getByLabel('Закрепить').check();
 	const beforeLock = await cmValue();
 	const imgBox3 = await pframe(() => {
@@ -416,6 +426,49 @@ if (twee) {
 	await toEnd();
 	await addBlock('Видео');
 	check('видео: вставлено', (await cmValue()).includes('<<sg-video "" width 1000 autoplay loop muted>>') && (await panel().locator('strong').textContent()) === 'Видео');
+	// Эффекты текста (шаг 2.1): кнопка «Эффект» на выделенный текст.
+	const appendSelected = text =>
+		win.evaluate(t => {
+			const doc = document.querySelector('.passage-edit-contents .CodeMirror').CodeMirror.getDoc();
+			const end = doc.getValue().length;
+			doc.replaceRange('\n' + t, doc.posFromIndex(end));
+			const from = doc.getValue().length - t.length;
+			doc.setSelection(doc.posFromIndex(from), doc.posFromIndex(doc.getValue().length));
+		}, text);
+	const addEffect = async name => {
+		await btn(/^Эффект$/).click();
+		await win.locator('.menu-button-menu').getByText(name, {exact: true}).click();
+		await win.waitForTimeout(500);
+	};
+	await appendSelected('Печать здесь');
+	await win.waitForTimeout(1300);
+	await addEffect('Печать по буквам');
+	check('эффект: печать вставлена, форма открыта', (await cmValue()).endsWith('<<type 40ms>>Печать здесь<</type>>') && (await panel().locator('strong').textContent()) === 'Печать по буквам', (await cmValue()).slice(-60));
+	const speed = panel().getByLabel('Скорость печати, мс на букву');
+	await speed.fill('80');
+	await speed.press('Enter');
+	await panel().getByLabel('Курсор').selectOption('none');
+	await win.waitForTimeout(300);
+	check('эффект: форма меняет скорость и курсор', (await cmValue()).endsWith('<<type 80ms none>>Печать здесь<</type>>'), (await cmValue()).slice(-60));
+	await appendSelected('Мысль');
+	await win.waitForTimeout(1300);
+	await addEffect('Глитч');
+	await panel().getByLabel('Подменный текст').fill('КУПИ');
+	await win.waitForTimeout(300);
+	check('эффект: глитч с подменным текстом', (await cmValue()).endsWith('<span class="glitchy" data-text="КУПИ">Мысль</span>'), (await cmValue()).slice(-60));
+	await toEnd();
+	await addEffect('Появление строк по очереди');
+	check('эффект: появление строк по очереди', (await cmValue()).endsWith('<<timed 1s>>Первая строка\n<<next>>Вторая строка\n<<next>>Третья строка<</timed>>') && (await panel().locator('strong').textContent()) === 'Появление', (await cmValue()).slice(-90));
+	await panel().getByRole('button', {name: 'Готово'}).click();
+	const typePoint = await win.evaluate(() => {
+		const cm = document.querySelector('.passage-edit-contents .CodeMirror').CodeMirror;
+		const doc = cm.getDoc();
+		const c = cm.charCoords(doc.posFromIndex(doc.getValue().indexOf('<<type 80ms') + 3), 'window');
+		return {x: c.left + 2, y: (c.top + c.bottom) / 2};
+	});
+	await win.mouse.click(typePoint.x, typePoint.y);
+	await win.waitForTimeout(400);
+	check('щелчок по команде эффекта открывает форму', (await panel().count()) === 1 && (await panel().locator('strong').textContent()) === 'Печать по буквам');
 	await win.screenshot({path: (process.env.SHOT || path.join(home, 'shot.png')).replace('.png', '-blocks.png')});
 	await win.waitForTimeout(5000);
 	const blockErrors = await pframe(() => [...document.querySelectorAll('.error-view, .error')].map(e => e.textContent));
@@ -439,6 +492,9 @@ if (twee) {
 	await win.waitForTimeout(300);
 	const kr2Text = await cmValue();
 	check('KR2: статус-ссылка и доли записаны', kr2Text.includes('<<kr2layout 50 65>>') && kr2Text.includes('<<kr2vars>>Здоровье: $health\n<<sg-dialog "Подробно" title "" passage "showPSGinfo">><</sg-dialog>><</kr2vars>>'.replace('title "" ', '')), kr2Text.slice(0, 220));
+	await panel().getByLabel('Показывать').first().selectOption('on');
+	await win.waitForTimeout(300);
+	check('KR2: условие у строки статуса', /<<kr2vars>><<if \$\w+>>Здоровье: \$health<br><<\/if>>\\\n<<sg-dialog/.test(await cmValue()), (await cmValue()).slice(0, 200));
 	await btn(/^Предпросмотр$/).click();
 	await win.waitForTimeout(6000);
 	const kr2Shown = await pframe(() => ({
@@ -464,34 +520,14 @@ if (twee) {
 	const dlg = await frameEval(() => ({open: SugarCube.Dialog.isOpen(), border: getComputedStyle(document.getElementById('ui-dialog')).borderTopColor, shadow: getComputedStyle(document.getElementById('ui-dialog')).boxShadow}));
 	check('окна-сообщения: образец в предпросмотре', dlg.open && dlg.border === 'rgb(0, 204, 0)' && dlg.shadow.includes('10px'), JSON.stringify(dlg));
 	await win.screenshot({path: (process.env.SHOT || path.join(home, 'shot.png')).replace('.png', '-dialogs.png')});
+	check('эффекты текста: галочки печати включены', (await win.getByLabel('Печать: щелчок допечатывает сразу').isChecked()) && (await win.getByLabel('Печать: на уже виденном экране — сразу весь текст').isChecked()));
+	check('глитч: значения из стилей автора', (await win.getByLabel('Сдвиг полос, px').inputValue()) === '5' && (await win.getByLabel('Скорость: один цикл за, с').inputValue()) === '2');
 	await btn(/^Сохранить$/).click();
 	await win.waitForTimeout(1500);
 	await btn(/^Закрыть$/).last().click();
 
-	// Окно видов: кнопку на экране тоже можно перетащить.
-	await win.getByRole('tab', {name: 'История'}).click();
-	await btn(/Виды кнопок и ссылок/).click();
-	await frame().locator('.sg-demo-table').waitFor({timeout: 20000});
-	await win.waitForTimeout(1000);
-	const placeBox = await frameEval(() => {
-		const r = document.querySelector('.sg-place-test').getBoundingClientRect();
-		return {x: r.left + r.width / 2, y: r.top + r.height / 2};
-	});
-	const kFrame = await win.locator('.signaly-preview-frame iframe').boundingBox();
-	const kScale = kFrame.width / 1920;
-	await win.mouse.move(kFrame.x + placeBox.x * kScale, kFrame.y + placeBox.y * kScale);
-	await win.mouse.down();
-	await win.mouse.move(kFrame.x + placeBox.x * kScale - 20, kFrame.y + placeBox.y * kScale, {steps: 4});
-	await win.mouse.move(kFrame.x + placeBox.x * kScale - 40, kFrame.y + placeBox.y * kScale, {steps: 4});
-	await win.mouse.up();
-	await win.waitForTimeout(800);
-	const newX = Number(await win.getByLabel('От правого края окна влево, px').inputValue());
-	check('окно видов: кнопку на экране двигают мышью', Math.abs(newX - (100 + Math.round(40 / kScale))) <= 2, `${newX}`);
-	await btn(/^Сохранить$/).click();
-	await win.waitForTimeout(1500);
-	await btn(/^Закрыть$/).last().click();
 	const saved3 = fs.readFileSync(path.join(lib, fs.readdirSync(lib).find(f => f.startsWith('27_03_2025'))), 'utf8');
-	check('история: движок 3, KR2 в движке, оформление окон', saved3.includes('Версия движка: 3') && saved3.includes('код окна KR2 перенесён в движок') && saved3.includes('#ui-dialog {') && saved3.includes('&lt;&lt;kr2layout 50 65&gt;&gt;') || saved3.includes('<<kr2layout 50 65>>'));
+	check('история: движок 4, KR2 в движке, оформление окон и эффектов', saved3.includes('Версия движка: 4') && saved3.includes('код окна KR2 перенесён в движок') && saved3.includes('#ui-dialog {') && saved3.includes('--sg-type-click: 1;') && saved3.includes('html .glitchy::after') && (saved3.includes('&lt;&lt;kr2layout 50 65&gt;&gt;') || saved3.includes('<<kr2layout 50 65>>')));
 }
 
 await win.screenshot({path: process.env.SHOT || path.join(home, 'shot.png')});

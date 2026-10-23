@@ -1,6 +1,9 @@
 // Проверка блоков экрана (шаг 1.4) в Chromium: картинка, видео, окно-сообщение,
 // поле кода, экран тревоги (щелчок, мастер Shift+Z+X), окно KR2 со статусами.
-// node blocks-play.mjs <история.twee с движком v3> <папка с media> <playwright>
+// С сессии 6: кнопка на экране <<sg-place>>, условия статусов KR2, эффекты
+// текста (печать: щелчок и повторный вход, появление по очереди, смена,
+// мигание, глитч).
+// node blocks-play.mjs <история.twee с движком v4> <папка с media> <playwright>
 // Скрипт добавляет к истории проверочные пассажи, публикует test.html в папку
 // и проверяет. Ошибки SugarCube и страницы — провал.
 import {createRequire} from 'module';
@@ -40,12 +43,33 @@ const extra = `
 <<kr2image "media/img/radio.jpg">>
 <<kr2layout 50 40>>
 <<kr2vars>>Реактор: $health
+<<if $flight>>Журнал полёта: найден<br><</if>>\\
+<<if $chapter is 2>>Глава 2<br><</if>>\\
 <<sg-dialog "Подробно" title "Реактор" passage "showPSGinfo">><</sg-dialog>><</kr2vars>>
 <<kr2main>>
 Текст комнаты.
 <</kr2main>>
 
 [[Start]]
+
+:: SGPlace {"position":"0,0","size":"100,100"}
+Текст<<sg-place kind amber corner tr x 5 y 20>><<link "РАД2">><<set $placeClicked to 1>><</link>><</sg-place>>\\
+<<sg-place corner bl x 10 y 30>><<button "Низ">><</button>><</sg-place>>
+
+:: SGType {"position":"0,0","size":"100,100"}
+<<type 60ms>>Длинный текст для печати по буквам, долго<</type>>
+
+:: SGLines {"position":"0,0","size":"100,100"}
+<<timed 0.3s>>Строка 1
+<<next>>Строка 2
+<<next 0.6s>>Строка 3<</timed>>
+
+:: SGSwap {"position":"0,0","size":"100,100"}
+<span id="sg-swap1">Старый</span><<timed 0.3s>><<replace "#sg-swap1">>Новый<</replace>><</timed>>
+
+:: SGEffects {"position":"0,0","size":"100,100"}
+<span class="sg-blink" style="animation-duration: 0.5s">Мигаю</span>
+<span class="glitchy" data-text="КУПИ">Мысль</span>
 `;
 
 const twee = fs.readFileSync(tweePath, 'utf8').replace(/\s*$/, '\n') + extra;
@@ -212,6 +236,79 @@ check('KR2: ссылка навигации, вид KR2 снят', (await page.e
 
 await go('Космические рейнджеры');
 check('KR2 шаблона: без ошибок', (await sugarErrors()).length === 0 && (await page.textContent('#kr2-vars')).includes('100'));
+
+/* Статусы KR2 с условием (сессия 6) */
+const kr2Text = () => page.evaluate(() => document.getElementById('kr2-vars').innerText);
+await go('SGKr2');
+let vars = await kr2Text();
+check('KR2: строки с условием скрыты без пустых строк', !vars.includes('Журнал') && !vars.includes('Глава') && /Реактор: 100\s*\nПодробно/.test(vars), JSON.stringify(vars));
+await page.evaluate(() => {
+	SugarCube.State.variables.flight = true;
+	SugarCube.State.variables.chapter = 2;
+});
+await go('SGKr2');
+vars = await kr2Text();
+check('KR2: строки с условием видны, когда переменная включена и равна', /Реактор: 100\s*\nЖурнал полёта: найден\s*\nГлава 2\s*\nПодробно/.test(vars), JSON.stringify(vars));
+
+/* Кнопка на экране (сессия 6) */
+await go('SGPlace');
+const places = await page.$$eval('.sg-place', els =>
+	els.map(e => {
+		const r = e.getBoundingClientRect();
+		const a = e.querySelector('a, button');
+		return {pos: getComputedStyle(e).position, cls: e.className, left: r.left, right: r.right, top: r.top, bottom: r.bottom, color: getComputedStyle(a).color};
+	})
+);
+check('кнопка на экране: от правого верхнего угла окна, вид «Янтарный»', places[0].pos === 'fixed' && Math.abs(places[0].right - 1480) < 1 && Math.abs(places[0].top - 35) < 1 && places[0].cls === 'sg-place amber' && places[0].color === 'rgb(255, 191, 0)', JSON.stringify(places[0]));
+check('кнопка на экране: от левого нижнего угла', Math.abs(places[1].left - 445) < 1 && Math.abs(places[1].bottom - 1035) < 1, JSON.stringify(places[1]));
+await page.locator('.sg-place a').first().click();
+await page.waitForTimeout(200);
+check('кнопка на экране: нажимается', (await page.evaluate(() => SugarCube.State.variables.placeClicked)) === 1);
+
+/* Печать: щелчок допечатывает, повторный вход — сразу весь текст */
+const full = 'Длинный текст для печати по буквам, долго';
+const typed = () => page.evaluate(() => document.querySelector('.macro-type')?.textContent ?? '');
+await go('SGType');
+await page.waitForTimeout(300);
+const partial = await typed();
+check('печать: печатает по буквам', partial.length > 0 && partial.length < full.length, JSON.stringify(partial));
+await page.mouse.click(700, 700);
+await page.waitForTimeout(150);
+check('печать: щелчок допечатывает сразу', (await typed()) === full, JSON.stringify(await typed()));
+await go('Start');
+await page.evaluate(() => SugarCube.Engine.play('SGType'));
+await page.waitForTimeout(80);
+check('печать: на уже виденном экране — сразу весь текст', (await typed()) === full, JSON.stringify(await typed()));
+
+/* Появление по очереди и смена текста */
+const passageText = () => page.evaluate(() => document.querySelector('.passage').innerText);
+await page.evaluate(() => SugarCube.Engine.play('SGLines'));
+await page.waitForTimeout(450);
+const t1 = await passageText();
+await page.waitForTimeout(450);
+const t2 = await passageText();
+await page.waitForTimeout(700);
+const t3 = await passageText();
+check('появление по очереди', t1.includes('Строка 1') && !t1.includes('Строка 2') && t2.includes('Строка 2') && !t2.includes('Строка 3') && t3.includes('Строка 3'), JSON.stringify([t1, t2, t3]));
+await page.evaluate(() => SugarCube.Engine.play('SGSwap'));
+await page.waitForTimeout(100);
+const s1 = await passageText();
+await page.waitForTimeout(500);
+const s2 = await passageText();
+check('смена текста через N секунд', s1.includes('Старый') && s2.includes('Новый') && !s2.includes('Старый'), JSON.stringify([s1, s2]));
+
+/* Мигание и глитч */
+await go('SGEffects');
+const fx = await page.evaluate(() => {
+	const blink = getComputedStyle(document.querySelector('.sg-blink'));
+	const glitch = document.querySelector('.glitchy');
+	const after = getComputedStyle(glitch, '::after');
+	const before = getComputedStyle(glitch, '::before');
+	return {blink: blink.animationName, period: blink.animationDuration, content: after.content, left: after.left, shadow: before.textShadow, anim: after.animationName};
+});
+check('мигание: анимация и период', fx.blink === 'sg-text-blink' && fx.period === '0.5s', JSON.stringify(fx));
+check('глитч: подменный текст, сдвиг, тени из оформления', fx.content === '"КУПИ"' && fx.left === '-5px' && fx.shadow.startsWith('rgb(0, 0, 255)') && fx.anim === 'sg-glitch-1', JSON.stringify(fx));
+check('эффекты: без ошибок SugarCube', (await sugarErrors()).length === 0, (await sugarErrors()).join(' | '));
 
 check('ошибок страницы нет', errors.length === 0, errors.join(' | '));
 await browser.close();

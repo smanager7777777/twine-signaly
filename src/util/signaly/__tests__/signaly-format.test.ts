@@ -2,12 +2,10 @@ import {
 	alignAt,
 	applyAlign,
 	applyKind,
-	applyPlace,
 	Edit,
 	insertRule,
 	kindAt,
 	missingAlignCss,
-	placeAt,
 	setStyle,
 	styleAt,
 	toggleHeading,
@@ -105,21 +103,6 @@ describe('signaly-format', () => {
 			text: '<span class="amber"><<link "Ссылка">><</link>></span>',
 			sel: 'Ссылка'
 		});
-	});
-
-	it('кнопка на экране', () => {
-		const place = {id: 'rad', kind: 'amber', name: 'РАД'};
-		const inserted = apply('', applyPlace('', 0, 0, place));
-
-		expect(inserted).toEqual({
-			text: '<span class="sg-place-rad amber"><<link "РАД">><</link>></span>',
-			sel: 'РАД'
-		});
-		expect(placeAt(inserted.text, 40, 40)).toBe('rad');
-
-		const moved = apply(inserted.text, applyPlace(inserted.text, 40, 40, {...place, id: 'atm'}));
-
-		expect(moved.text).toBe('<span class="sg-place-atm amber"><<link "РАД">><</link>></span>');
 	});
 
 	it('выравнивание', () => {

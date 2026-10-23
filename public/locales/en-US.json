@@ -492,7 +492,8 @@
 				"crt": "Old Monitor Effects",
 				"protect": "Screen Protection",
 				"start": "Start Screen",
-				"dialogs": "Message windows"
+				"dialogs": "Message windows",
+				"text": "Text effects"
 			},
 			"fields": {
 				"pageBg": "Screen background",
@@ -532,13 +533,23 @@
 				"dialogTitleBg": "Title background",
 				"dialogTitleColor": "Title color",
 				"dialogTitleSize": "Title size",
-				"dialogTitleLine": "Line under the title"
+				"dialogTitleLine": "Line under the title",
+				"typeClick": "Typewriter: a click finishes at once",
+				"typeSeen": "Typewriter: on a seen screen show all text at once",
+				"glitchColor": "Text color",
+				"glitchBg": "Stripe background",
+				"glitchShadow1": "First shadow",
+				"glitchShadow2": "Second shadow",
+				"glitchShift": "Stripe shift",
+				"glitchSpeed": "Speed: one cycle in"
 			},
 			"hints": {
 				"savedColors": "Colors of this story. In any color field: ★ adds the color here; a swatch applies it.",
 				"hideCursor": "0 means never hide.",
 				"lineScroll": "No smooth scrolling: one wheel notch, one line of text.",
-				"dialogOn": "Off — standard SugarCube windows. When turned on, values are taken from your .ui-dialog rules."
+				"dialogOn": "Off — standard SugarCube windows. When turned on, values are taken from your .ui-dialog rules.",
+				"typeClick": "A click outside links and buttons; space works too.",
+				"typeSeen": "Players came back to a screen — the text isn't typed again."
 			},
 			"preview": {
 				"title": "Terminal preview",
@@ -553,7 +564,9 @@
 			"updated": "The program was updated. Press Save to update the terminal engine and appearance in the story; your settings are kept.",
 			"sampleDialog": "Show a sample window in the preview",
 			"sampleDialogTitle": "Sample window",
-			"sampleDialogText": "This is how the game's message windows look."
+			"sampleDialogText": "This is how the game's message windows look.",
+			"glitch": "Glitch",
+			"glitchHint": "For every glitch. To see it, choose a screen with glitch in the preview."
 		},
 		"kinds": {
 			"button": "Button and Link Styles",
@@ -568,10 +581,6 @@
 			"code": "In passage text: {{code}}. Passages using it: {{count}}.",
 			"updated": "The program was updated. Press Save to update the terminal engine, appearance and styles in the story — your settings are kept.",
 			"migrated": "Link and button styles were moved from the stylesheet into styles: {{list}}. Unused duplicates (…-link, …-button) were removed. The game looks the same. Press Save to write the styles to the story.",
-			"tabs": {
-				"kinds": "Styles",
-				"places": "On-screen Buttons"
-			},
 			"targets": {
 				"link": "Links",
 				"button": "Buttons"
@@ -612,30 +621,8 @@
 				"button": "Button",
 				"hint": "Samples show hover and pressed states at once; on any screen you can hover with the mouse."
 			},
-			"places": {
-				"intro": "An on-screen button stays in place near the terminal window and does not scroll with the text. Its place is measured from a window corner. The passage toolbar puts it into a passage.",
-				"newName": "New button name",
-				"add": "Add Button",
-				"name": "Name",
-				"code": "In passage text: {{code}}",
-				"kind": "Button style",
-				"corner": "From terminal window corner",
-				"cornerHint": "Buttons near the right edge are easier to place from the right corner.",
-				"corners": {
-					"tl": "Top left",
-					"tr": "Top right",
-					"bl": "Bottom left",
-					"br": "Bottom right"
-				},
-				"xLeft": "From left edge, rightwards",
-				"xRight": "From right edge, leftwards",
-				"xHint": "Negative — outside the window.",
-				"yTop": "From top edge, downwards",
-				"yBottom": "From bottom edge, upwards",
-				"delete": "Delete Button",
-				"confirmDelete": "This button is used in {{count}} passage(s). After deletion it will appear inside the text. Delete?"
-			},
-			"migratedAppearance": "General settings (background, text, terminal window) were also moved into the appearance block, as in the Terminal Appearance window."
+			"migratedAppearance": "General settings (background, text, terminal window) were also moved into the appearance block, as in the Terminal Appearance window.",
+			"placesMoved": "On-screen buttons ({{count}}) are now screen elements: each one's place is set on the button itself — click its <<sg-place>> command in the passage window or drag it in the preview. Press Save to move them (the look won't change)."
 		},
 		"format": {
 			"bold": "Bold",
@@ -660,10 +647,7 @@
 			"kind": "Style",
 			"noKind": "No style (normal)",
 			"noKinds": "Styles are set up in the Button and Link Styles window on the Story tab",
-			"sampleLink": "Link",
-			"place": "On-screen button",
-			"noPlace": "Remove from place",
-			"noPlaces": "On-screen buttons are set up in the Button and Link Styles window"
+			"sampleLink": "Link"
 		},
 		"passagePreview": {
 			"button": "Preview",
@@ -677,7 +661,6 @@
 			"noSound": "No sound",
 			"stay": "Stay on this screen",
 			"seconds": "After how many seconds",
-			"place": "Placement",
 			"places": {
 				"text": "In the text",
 				"center": "Centered on its own line",
@@ -704,7 +687,8 @@
 				"code": "Code field",
 				"image": "Image",
 				"video": "Video",
-				"kr2": "KR2 window (this screen)"
+				"kr2": "KR2 window (this screen)",
+				"place": "On-screen button (selected link or button)"
 			},
 			"image": {
 				"title": "Image"
@@ -805,12 +789,85 @@
 				"addText": "Add a line",
 				"addWindow": "Add a window link",
 				"windowLabel": "Details",
-				"mainHint": "Main text — plain screen text or between <<kr2main>> and <</kr2main>>. All links go to the navigation zone."
-			}
+				"mainHint": "Main text — plain screen text or between <<kr2main>> and <</kr2main>>. All links go to the navigation zone.",
+				"show": "Show",
+				"shows": {
+					"always": "Always",
+					"on": "When the variable is on",
+					"equals": "When the variable equals a value"
+				},
+				"whenVar": "Variable",
+				"whenVarOther": "…or type a name",
+				"whenValue": "Value"
+			},
+			"corners": {
+				"tl": "Top left",
+				"tr": "Top right",
+				"bl": "Bottom left",
+				"br": "Bottom right"
+			},
+			"onscreen": {
+				"title": "On-screen button",
+				"kind": "Button kind",
+				"plain": "Plain",
+				"contentHint": "The button stays at its place by the terminal window and doesn't scroll with the text. Its label and action are in the passage text inside <<sg-place>>…<</sg-place>>."
+			},
+			"place": "Placement"
 		},
 		"drag": {
 			"lock": "Lock",
 			"lockHint": "When on, nothing can be moved with the mouse in the preview."
+		},
+		"effects": {
+			"button": "Effect",
+			"add": {
+				"type": "Typewriter",
+				"timed": "Appear after N seconds",
+				"lines": "Lines appear one by one",
+				"swap": "Replace text after N seconds",
+				"blink": "Blink",
+				"glitch": "Glitch"
+			},
+			"types": {
+				"type": "Typewriter",
+				"timed": "Appear",
+				"swap": "Replace text",
+				"blink": "Blink",
+				"glitch": "Glitch"
+			},
+			"sample": "Text",
+			"sampleNew": "New text",
+			"sampleLines": "First line\nSecond line\nThird line",
+			"ms": "ms per letter",
+			"speed": "Typing speed",
+			"speedHint": "Lower is faster.",
+			"start": "Pause before typing",
+			"startHint": "How long to wait after the screen appears.",
+			"cursor": "Cursor",
+			"cursors": {
+				"blink": "Blinks while typing",
+				"none": "No cursor",
+				"keep": "Stays after typing"
+			},
+			"inline": "Inline",
+			"inlineHint": "Continue the line instead of a separate paragraph.",
+			"typeHint": "Players can finish typing with a click; on an already seen screen the text shows at once — general settings in Terminal appearance.",
+			"after": "After how many seconds",
+			"firstAfter": "First line after",
+			"nextAfter": "Line",
+			"emptyLine": "(empty line)",
+			"fade": "Fade in",
+			"timedHint": "The text appears the given time after the screen is entered.",
+			"linesHint": "Each line appears after the previous one. Lines are in the passage text, separated by <<next>>.",
+			"target": "What changes",
+			"targetHint": "The id of the text on this screen to replace.",
+			"replacement": "New text",
+			"period": "Blink period",
+			"blinkHint": "The text disappears for half of the period.",
+			"glitchText": "Text",
+			"shadow": "Hidden text",
+			"shadowHint": "Shows through as noise over the text.",
+			"glitchHint": "Glitch colors, shift and speed are shared, in Terminal appearance."
 		}
 	}
 }

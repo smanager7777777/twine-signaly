@@ -150,7 +150,8 @@ a {
 	});
 
 	it('the template in the repository already has the block', () => {
-		expect(readAppearance(templateCss)).toEqual({...defaultAppearance});
+		// Окна-сообщения в шаблоне включены (ответ автора 1А, сессия 6).
+		expect(readAppearance(templateCss)).toEqual({...defaultAppearance, dialogOn: true});
 		expect(engineVersionIn(templateJs)).toBe(signalyEngineVersion);
 	});
 

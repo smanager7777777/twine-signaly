@@ -702,9 +702,9 @@ $(document).one(':passagedisplay', function () {
 
 
 :: audiobuttons {"position":"200,0","size":"100,100"}
-/* СИГНАЛЫ: каждая кнопка стоит на своём месте у окна терминала — места задаются в окне
-   «Виды кнопок и ссылок», вкладка «Кнопки на экране» (классы sg-place-…) */\
-<span class="sg-place-rad amber"><<link "РАД">>
+/* СИГНАЛЫ: каждая кнопка стоит на своём месте у окна терминала (<<sg-place>>) — место
+   задаётся щелчком по команде в окне пассажа или перетаскиванием в предпросмотре */\
+<<sg-place kind amber corner tr x 5 y 2.75>><<link "РАД">>
 <<if $radioplaying is 1>>
 <<set $radioplaying to 0>>
 <<audio ":RADIO" pause>>
@@ -714,8 +714,8 @@ $(document).one(':passagedisplay', function () {
 <<audio ":AMBIENT" pause>>
 <<audio ":paused:not(:AMBIENT)" play>>
 <</if>>
-<</link>></span>\
-<span class="sg-place-atm amber"><<link "АТМ">>
+<</link>><</sg-place>>\
+<<sg-place kind amber corner tr x 5 y 55.25>><<link "АТМ">>
 <<if $ambientplaying is 1>>
 <<set $ambientplaying to 0>>
 <<audio ":AMBIENT" pause>>
@@ -725,22 +725,22 @@ $(document).one(':passagedisplay', function () {
 <<audio ":RADIO" pause>>
 <<audio ":paused:not(:RADIO)" play>>
 <</if>>
-<</link>></span>\
-<span class="sg-place-a amber"><<link "A">>
+<</link>><</sg-place>>\
+<<sg-place kind amber corner tr x 41 y 239>><<link "A">>
 <<audio ":playing:not(:TERMINAL)" fadeto 0.1>>
-<</link>></span>\
-<span class="sg-place-b amber"><<link "B">>
+<</link>><</sg-place>>\
+<<sg-place kind amber corner tr x 41 y 291.5>><<link "B">>
 <<audio ":playing:not(:TERMINAL)" fadeto 0.2>>
-<</link>></span>\
-<span class="sg-place-c amber"><<link "C">>
+<</link>><</sg-place>>\
+<<sg-place kind amber corner tr x 41 y 344>><<link "C">>
 <<audio ":playing:not(:TERMINAL)" fadeto 0.3>>
-<</link>></span>\
-<span class="sg-place-d amber"><<link "D">>
+<</link>><</sg-place>>\
+<<sg-place kind amber corner tr x 41 y 396.5>><<link "D">>
 <<audio ":playing:not(:TERMINAL)" fadeto 0.5>>
-<</link>></span>\
-<span class="sg-place-e amber"><<link "E">>
+<</link>><</sg-place>>\
+<<sg-place kind amber corner tr x 41 y 449>><<link "E">>
 <<audio ":playing:not(:TERMINAL)" fadeto 1.0>>
-<</link>></span>
+<</link>><</sg-place>>
 \<<silent>>
 <<timed 1s>><<audio "loopcomputer" volume 0.05 loop play>><</timed>>
 <<if $radioplaying is 0>>
@@ -1083,7 +1083,7 @@ $(document).one(':passagedisplay', function() {
 
 :: StoryScript [script]
 /* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */
-/* Версия движка: 3. Обновляется программой «Twine СИГНАЛЫ».
+/* Версия движка: 4. Обновляется программой «Twine СИГНАЛЫ».
    Настройки — в окне «Оформление терминала» (они лежат в таблице стилей).
    Свой код пишите ниже конца этого блока. */
 (function () {
@@ -1119,13 +1119,16 @@ $(document).one(':passagedisplay', function() {
 		noContextMenu: opt('protect-menu', 0) === 1,
 		noZoom: opt('protect-zoom', 0) === 1,
 		hideCursorAfter: opt('hide-cursor', 0),
-		lineScroll: opt('line-scroll', 0) === 1
+		lineScroll: opt('line-scroll', 0) === 1,
+		// Печать текста (шаг 2.1): по умолчанию включено (ответ автора 6А).
+		typeClick: opt('type-click', 1) === 1,
+		typeSeen: opt('type-seen', 1) === 1
 	};
 
 	// Предпросмотр в программе: без стартового экрана, автокопии и защиты.
 	var preview = window.SIGNALY_PREVIEW;
 
-	setup.signaly = {engine: 3, preview: !!preview};
+	setup.signaly = {engine: 4, preview: !!preview};
 
 	function showStartScreen(onClick) {
 		var screen = document.createElement('div');
@@ -1234,7 +1237,12 @@ $(document).one(':passagedisplay', function() {
 	engineStyle.textContent =
 		'@keyframes sg-alarm-blink { 50% { filter: brightness(0.45); } }\n' +
 		'html[data-sg-dialog="noclose"] #ui-dialog-close { display: none; }\n' +
-		'.sg-dialog-ok { margin-top: 1em; text-align: center; }';
+		'.sg-dialog-ok { margin-top: 1em; text-align: center; }\n' +
+		// Эффекты текста (шаг 2.1): мигание; глитч — с нулевой силой (:where),
+		// его перекрывают и блок оформления, и стили автора.
+		'@keyframes sg-text-blink { 50% { opacity: 0; } }\n' +
+		'.sg-blink { animation: sg-text-blink 1s steps(1, end) infinite; }\n' +
+		":where(.glitchy) { color: #00cc00; position: relative; }\n:where(.glitchy)::before { content: attr(data-text); width: calc(100% + 0.5em); position: absolute; left: -9px; text-shadow: 1px 0 #0000ff; top: -5px; color: #00cc00; background: #111111; overflow: hidden; clip-path: polygon(0 0); animation: sg-glitch-2 3s infinite linear alternate-reverse; }\n:where(.glitchy)::after { content: attr(data-text); width: calc(100% + 0.5em); position: absolute; left: -5px; text-shadow: -1px 0 #ff0000; top: -5px; color: #00cc00; background: #111111; overflow: hidden; clip-path: polygon(0 0); animation: sg-glitch-1 2s infinite linear alternate-reverse; }\n@keyframes sg-glitch-1 { 0% { clip-path: polygon(0 80px, 100% 80px, 100% 16px, 0 16px); } 5% { clip-path: polygon(0 94px, 100% 94px, 100% 17px, 0 17px); } 10% { clip-path: polygon(0 9px, 100% 9px, 100% 92px, 0 92px); } 15.0% { clip-path: polygon(0 37px, 100% 37px, 100% 4px, 0 4px); } 20% { clip-path: polygon(0 53px, 100% 53px, 100% 47px, 0 47px); } 25% { clip-path: polygon(0 99px, 100% 99px, 100% 69px, 0 69px); } 30.0% { clip-path: polygon(0 15px, 100% 15px, 100% 49px, 0 49px); } 35% { clip-path: polygon(0 83px, 100% 83px, 100% 81px, 0 81px); } 40% { clip-path: polygon(0 55px, 100% 55px, 100% 43px, 0 43px); } 45% { clip-path: polygon(0 28px, 100% 28px, 100% 27px, 0 27px); } 50% { clip-path: polygon(0 64px, 100% 64px, 100% 28px, 0 28px); } 55.0% { clip-path: polygon(0 76px, 100% 76px, 100% 91px, 0 91px); } 60.0% { clip-path: polygon(0 29px, 100% 29px, 100% 72px, 0 72px); } 65% { clip-path: polygon(0 70px, 100% 70px, 100% 10px, 0 10px); } 70% { clip-path: polygon(0 5px, 100% 5px, 100% 84px, 0 84px); } 75% { clip-path: polygon(0 46px, 100% 46px, 100% 81px, 0 81px); } 80% { clip-path: polygon(0 7px, 100% 7px, 100% 85px, 0 85px); } 85.0% { clip-path: polygon(0 17px, 100% 17px, 100% 89px, 0 89px); } 90% { clip-path: polygon(0 41px, 100% 41px, 100% 59px, 0 59px); } 95% { clip-path: polygon(0 53px, 100% 53px, 100% 90px, 0 90px); } 100% { clip-path: polygon(0 10px, 100% 10px, 100% 30px, 0 30px); } }\n@keyframes sg-glitch-2 { 0% { clip-path: polygon(0 84px, 100% 84px, 100% 3px, 0 3px); } 5% { clip-path: polygon(0 31px, 100% 31px, 100% 69px, 0 69px); } 10% { clip-path: polygon(0 37px, 100% 37px, 100% 33px, 0 33px); } 15.0% { clip-path: polygon(0 18px, 100% 18px, 100% 6px, 0 6px); } 20% { clip-path: polygon(0 25px, 100% 25px, 100% 87px, 0 87px); } 25% { clip-path: polygon(0 100px, 100% 100px, 100% 8px, 0 8px); } 30.0% { clip-path: polygon(0 24px, 100% 24px, 100% 87px, 0 87px); } 35% { clip-path: polygon(0 39px, 100% 39px, 100% 16px, 0 16px); } 40% { clip-path: polygon(0 96px, 100% 96px, 100% 25px, 0 25px); } 45% { clip-path: polygon(0 16px, 100% 16px, 100% 100px, 0 100px); } 50% { clip-path: polygon(0 92px, 100% 92px, 100% 76px, 0 76px); } 55.0% { clip-path: polygon(0 29px, 100% 29px, 100% 40px, 0 40px); } 60.0% { clip-path: polygon(0 40px, 100% 40px, 100% 39px, 0 39px); } 65% { clip-path: polygon(0 94px, 100% 94px, 100% 44px, 0 44px); } 70% { clip-path: polygon(0 2px, 100% 2px, 100% 78px, 0 78px); } 75% { clip-path: polygon(0 86px, 100% 86px, 100% 50px, 0 50px); } 80% { clip-path: polygon(0 2px, 100% 2px, 100% 46px, 0 46px); } 85.0% { clip-path: polygon(0 41px, 100% 41px, 100% 71px, 0 71px); } 90% { clip-path: polygon(0 75px, 100% 75px, 100% 15px, 0 15px); } 95% { clip-path: polygon(0 41px, 100% 41px, 100% 8px, 0 8px); } 100% { clip-path: polygon(0 23px, 100% 23px, 100% 75px, 0 75px); } }";
 	document.head.appendChild(engineStyle);
 
 	// Слова команды: сначала значения по порядку, потом «имя значение» и галочки.
@@ -1412,6 +1420,89 @@ $(document).one(':passagedisplay', function() {
 			}
 		}
 	});
+
+	/* Кнопка на экране (сессия 6): содержимое стоит на месте от угла окна
+	   терминала и не прокручивается с текстом; kind — вид кнопок и ссылок. */
+
+	Macro.add('sg-place', {
+		tags: null,
+		handler: function () {
+			var a = blockArgs(this, [], ['kind', 'corner', 'x', 'y'], []);
+			var el = document.createElement('span');
+
+			el.className = 'sg-place' + (a.kind ? ' ' + a.kind : '');
+			placeStyle(el, {place: 'screen', corner: a.corner, x: a.x, y: a.y});
+			if (preview) {
+				el.setAttribute('data-sg-block', 'place');
+				el.setAttribute('data-sg-src', this.source);
+			}
+			$(el).wiki(this.payload[0].contents);
+			this.output.appendChild(el);
+		}
+	});
+
+	/* ----- Эффекты текста (шаг 2.1) ----- */
+
+	// Экраны, которые уже показывали: при возврате <<type>> печатает сразу
+	// весь текст (ответ 6А). Список попадает в автокопию.
+	var seen = {};
+	var seenNow = false;
+
+	setup.signaly.seen = seen;
+	$(document).on(':passagestart', function (ev) {
+		seenNow = settings.typeSeen && !preview && seen[ev.passage.title] === true;
+		skipAll = false;
+	});
+	$(document).on(':passagedisplay', function (ev) {
+		seen[ev.passage.title] = true;
+	});
+
+	var typeMacro = Macro.get('type');
+
+	if (typeMacro) {
+		var typeHandler = typeMacro.handler;
+
+		typeMacro.handler = function () {
+			if (seenNow && this.args.length) {
+				this.args[0] = '0s';
+			}
+			return typeHandler.apply(this, arguments);
+		};
+	}
+
+	// Щелчок мышью (не по ссылке, кнопке или полю) допечатывает текст сразу —
+	// и всё, что на этом экране ещё будет печататься.
+	var skipAll = false;
+
+	function skipTyping() {
+		setTimeout(function () {
+			document.body.dispatchEvent(
+				new KeyboardEvent('keydown', {key: Config.macros.typeSkipKey, bubbles: true})
+			);
+		}, 0);
+	}
+
+	$(document).on(':typingstart', function () {
+		if (skipAll) {
+			skipTyping();
+		}
+	});
+	if (settings.typeClick) {
+		document.addEventListener(
+			'click',
+			function (ev) {
+				if (
+					!document.querySelector('.macro-type:not(.macro-type-done):not(.macro-type-target)') ||
+					$(ev.target).closest('a, button, input, textarea, select, label, #ui-dialog').length
+				) {
+					return;
+				}
+				skipAll = true;
+				skipTyping();
+			},
+			true
+		);
+	}
 
 	/* Экран тревоги: поверх всего экрана, закрывается щелчком, через N секунд
 	   или только мастером (Shift+Z+X закрывает любой). */
@@ -1926,6 +2017,7 @@ $(document).one(':passagedisplay', function() {
 			v: 1,
 			passage: State.passage,
 			vars: serial.stringify(State.variables),
+			seen: Object.keys(seen).concat(State.passage),
 			time: Date.now()
 		};
 		writeCopy();
@@ -1967,6 +2059,9 @@ $(document).one(':passagedisplay', function() {
 		// Сеанс вкладки забываем — продолжаем по автокопии.
 		State.reset();
 		Config.passages.start = copy.passage;
+		(copy.seen || []).forEach(function (title) {
+			seen[title] = true;
+		});
 		$(document).one(':passageinit', function () {
 			var variables = State.variables;
 
@@ -2407,12 +2502,11 @@ setup.initXiaomi = function () {
 /* СИГНАЛЫ: код окна KR2 перенесён в движок терминала (шаг 1.4). */
 
 
-
 :: StoryStylesheet [stylesheet]
 /* ===== СИГНАЛЫ: оформление терминала — не редактировать вручную ===== */
 /* Меняется в окне «Оформление терминала» программы «Twine СИГНАЛЫ».
    В своих стилях можно брать эти значения: var(--sg-text), var(--sg-font-size) и т. д. */
-/* СИГНАЛЫ-настройки: {"v":1,"pageBg":"#000000","textColor":"#00cc00","font":"Courier New","fontFile":"","fontSize":25,"winWidth":1050,"winHeight":1050,"winPadding":20,"winOffsetX":0,"winOffsetY":0,"winBg":"#000000","borderWidth":2,"borderColor":"#00cc00","glowColor":"#00cc00","glowSize":10,"flicker":true,"flickerPeriod":0.1,"flickerDepth":5,"vignette":0,"noise":0,"noSelect":false,"noContextMenu":false,"noZoom":false,"hideCursor":0,"lineScroll":false,"startText":"Нажмите, чтобы запустить систему","startSound":"","startVolume":100,"savedColors":["#00cc00","#ffbf00","#cc0000","#cccc00","#cc00cc","#000000"]} */
+/* СИГНАЛЫ-настройки: {"v":1,"pageBg":"#000000","textColor":"#00cc00","font":"Courier New","fontFile":"","fontSize":25,"winWidth":1050,"winHeight":1050,"winPadding":20,"winOffsetX":0,"winOffsetY":0,"winBg":"#000000","borderWidth":2,"borderColor":"#00cc00","glowColor":"#00cc00","glowSize":10,"flicker":true,"flickerPeriod":0.1,"flickerDepth":5,"vignette":0,"noise":0,"noSelect":false,"noContextMenu":false,"noZoom":false,"hideCursor":0,"lineScroll":false,"startText":"Нажмите, чтобы запустить систему","startSound":"","startVolume":100,"savedColors":["#00cc00","#ffbf00","#cc0000","#cccc00","#cc00cc","#000000"],"dialogOn":true,"dialogBg":"#000000","dialogColor":"#00cc00","dialogSize":25,"dialogBorderColor":"#00cc00","dialogBorderWidth":2,"dialogGlow":10,"dialogTitleBg":"#000000","dialogTitleColor":"#00cc00","dialogTitleSize":25,"dialogTitleLine":1,"typeClick":true,"typeSeen":true,"glitchColor":"#00cc00","glitchBg":"#111111","glitchShadow1":"#0000ff","glitchShadow2":"#ff0000","glitchShift":5,"glitchSpeed":2} */
 :root {
 	--sg-page-bg: #000000;
 	--sg-text: #00cc00;
@@ -2435,6 +2529,8 @@ setup.initXiaomi = function () {
 	--sg-protect-zoom: 0;
 	--sg-hide-cursor: 0;
 	--sg-line-scroll: 0;
+	--sg-type-click: 1;
+	--sg-type-seen: 1;
 }
 body {
 	background-color: var(--sg-page-bg);
@@ -2495,13 +2591,39 @@ html.sg-cursor-hidden, html.sg-cursor-hidden * { cursor: none !important; }
 @keyframes sg-blink {
 	50% { opacity: 0; }
 }
+#ui-dialog {
+	background-color: #000000;
+	border: 2px solid #00cc00;
+	box-shadow: 0 0 10px #00cc00, 0 0 20px #00cc00;
+	color: #00cc00;
+	font-size: 25px;
+}
+#ui-dialog-titlebar {
+	background-color: #000000;
+	color: #00cc00;
+	border-bottom: 1px solid #00cc00;
+	font-size: 25px;
+}
+#ui-dialog-close {
+	color: #00cc00;
+}
+#ui-dialog-body {
+	background-color: #000000;
+	border: none;
+	color: #00cc00;
+	font-size: 25px;
+}
+html .glitchy { color: #00cc00; position: relative; }
+html .glitchy::before { content: attr(data-text); width: calc(100% + 0.5em); position: absolute; left: -9px; text-shadow: 1px 0 #0000ff; top: -5px; color: #00cc00; background: #111111; overflow: hidden; clip-path: polygon(0 0); animation: sg-glitch-2 3s infinite linear alternate-reverse; }
+html .glitchy::after { content: attr(data-text); width: calc(100% + 0.5em); position: absolute; left: -5px; text-shadow: -1px 0 #ff0000; top: -5px; color: #00cc00; background: #111111; overflow: hidden; clip-path: polygon(0 0); animation: sg-glitch-1 2s infinite linear alternate-reverse; }
+@keyframes sg-glitch-1 { 0% { clip-path: polygon(0 80px, 100% 80px, 100% 16px, 0 16px); } 5% { clip-path: polygon(0 94px, 100% 94px, 100% 17px, 0 17px); } 10% { clip-path: polygon(0 9px, 100% 9px, 100% 92px, 0 92px); } 15.0% { clip-path: polygon(0 37px, 100% 37px, 100% 4px, 0 4px); } 20% { clip-path: polygon(0 53px, 100% 53px, 100% 47px, 0 47px); } 25% { clip-path: polygon(0 99px, 100% 99px, 100% 69px, 0 69px); } 30.0% { clip-path: polygon(0 15px, 100% 15px, 100% 49px, 0 49px); } 35% { clip-path: polygon(0 83px, 100% 83px, 100% 81px, 0 81px); } 40% { clip-path: polygon(0 55px, 100% 55px, 100% 43px, 0 43px); } 45% { clip-path: polygon(0 28px, 100% 28px, 100% 27px, 0 27px); } 50% { clip-path: polygon(0 64px, 100% 64px, 100% 28px, 0 28px); } 55.0% { clip-path: polygon(0 76px, 100% 76px, 100% 91px, 0 91px); } 60.0% { clip-path: polygon(0 29px, 100% 29px, 100% 72px, 0 72px); } 65% { clip-path: polygon(0 70px, 100% 70px, 100% 10px, 0 10px); } 70% { clip-path: polygon(0 5px, 100% 5px, 100% 84px, 0 84px); } 75% { clip-path: polygon(0 46px, 100% 46px, 100% 81px, 0 81px); } 80% { clip-path: polygon(0 7px, 100% 7px, 100% 85px, 0 85px); } 85.0% { clip-path: polygon(0 17px, 100% 17px, 100% 89px, 0 89px); } 90% { clip-path: polygon(0 41px, 100% 41px, 100% 59px, 0 59px); } 95% { clip-path: polygon(0 53px, 100% 53px, 100% 90px, 0 90px); } 100% { clip-path: polygon(0 10px, 100% 10px, 100% 30px, 0 30px); } }
+@keyframes sg-glitch-2 { 0% { clip-path: polygon(0 84px, 100% 84px, 100% 3px, 0 3px); } 5% { clip-path: polygon(0 31px, 100% 31px, 100% 69px, 0 69px); } 10% { clip-path: polygon(0 37px, 100% 37px, 100% 33px, 0 33px); } 15.0% { clip-path: polygon(0 18px, 100% 18px, 100% 6px, 0 6px); } 20% { clip-path: polygon(0 25px, 100% 25px, 100% 87px, 0 87px); } 25% { clip-path: polygon(0 100px, 100% 100px, 100% 8px, 0 8px); } 30.0% { clip-path: polygon(0 24px, 100% 24px, 100% 87px, 0 87px); } 35% { clip-path: polygon(0 39px, 100% 39px, 100% 16px, 0 16px); } 40% { clip-path: polygon(0 96px, 100% 96px, 100% 25px, 0 25px); } 45% { clip-path: polygon(0 16px, 100% 16px, 100% 100px, 0 100px); } 50% { clip-path: polygon(0 92px, 100% 92px, 100% 76px, 0 76px); } 55.0% { clip-path: polygon(0 29px, 100% 29px, 100% 40px, 0 40px); } 60.0% { clip-path: polygon(0 40px, 100% 40px, 100% 39px, 0 39px); } 65% { clip-path: polygon(0 94px, 100% 94px, 100% 44px, 0 44px); } 70% { clip-path: polygon(0 2px, 100% 2px, 100% 78px, 0 78px); } 75% { clip-path: polygon(0 86px, 100% 86px, 100% 50px, 0 50px); } 80% { clip-path: polygon(0 2px, 100% 2px, 100% 46px, 0 46px); } 85.0% { clip-path: polygon(0 41px, 100% 41px, 100% 71px, 0 71px); } 90% { clip-path: polygon(0 75px, 100% 75px, 100% 15px, 0 15px); } 95% { clip-path: polygon(0 41px, 100% 41px, 100% 8px, 0 8px); } 100% { clip-path: polygon(0 23px, 100% 23px, 100% 75px, 0 75px); } }
 /* ===== СИГНАЛЫ: конец оформления терминала ===== */
 
 /* ===== СИГНАЛЫ: виды кнопок и ссылок — не редактировать вручную ===== */
 /* Меняется в окне «Виды кнопок и ссылок» программы «Twine СИГНАЛЫ».
-   В пассаже вид назначается обёрткой: <span class="amber">…ссылки и кнопки…</span>;
-   кнопка на экране — <span class="sg-place-…">…</span>. */
-/* СИГНАЛЫ-виды: {"v":1,"kinds":[{"cls":"","name":"Обычный","link":{"normal":{"color":"#00cc00","bg":"","borderWidth":0,"borderColor":"#00cc00","glow":0,"glowColor":"#00cc00","underline":false},"hover":{"color":"#00ff00","bg":"","borderWidth":0,"borderColor":"#00ff00","glow":0,"glowColor":"#00ff00","underline":true},"active":null,"padV":0,"padH":0,"size":100,"transition":0.2},"button":{"normal":{"color":"#00cc00","bg":"#000000","borderWidth":1,"borderColor":"#00cc00","glow":5,"glowColor":"#00cc00","underline":false},"hover":{"color":"#000000","bg":"#00cc00","borderWidth":0,"borderColor":"#00cc00","glow":5,"glowColor":"#00cc00","underline":false},"active":null,"padV":5,"padH":10,"size":100,"transition":0.3},"buttonAsLink":false},{"cls":"red-big","name":"Красный большой","link":{"normal":{"color":"#cc0000","bg":"","borderWidth":0,"borderColor":"#cc0000","glow":0,"glowColor":"#cc0000","underline":false},"hover":{"color":"#ff0000","bg":"","borderWidth":0,"borderColor":"#ff0000","glow":0,"glowColor":"#ff0000","underline":true},"active":null,"padV":0,"padH":0,"size":120,"transition":0.3},"button":{"normal":{"color":"#cc0000","bg":"#000000","borderWidth":1,"borderColor":"#cc0000","glow":5,"glowColor":"#cc0000","underline":false},"hover":{"color":"#000000","bg":"#cc0000","borderWidth":0,"borderColor":"#cc0000","glow":5,"glowColor":"#cc0000","underline":false},"active":null,"padV":10,"padH":20,"size":120,"transition":0.3},"buttonAsLink":false},{"cls":"yellow-small","name":"Жёлтый маленький","link":{"normal":{"color":"#cccc00","bg":"#000000","borderWidth":1,"borderColor":"#cccc00","glow":5,"glowColor":"#cccc00","underline":false},"hover":{"color":"#000000","bg":"#cccc00","borderWidth":0,"borderColor":"#cccc00","glow":5,"glowColor":"#cccc00","underline":true},"active":null,"padV":3,"padH":6,"size":80,"transition":0.3},"button":{"normal":{"color":"#cccc00","bg":"#000000","borderWidth":1,"borderColor":"#cccc00","glow":5,"glowColor":"#cccc00","underline":false},"hover":{"color":"#000000","bg":"#cccc00","borderWidth":0,"borderColor":"#cccc00","glow":5,"glowColor":"#cccc00","underline":false},"active":null,"padV":3,"padH":6,"size":80,"transition":0.3},"buttonAsLink":false},{"cls":"amber","name":"Янтарный","link":{"normal":{"color":"#ffbf00","bg":"#000000","borderWidth":2,"borderColor":"#ffbf00","glow":5,"glowColor":"#ffbf00","underline":false},"hover":{"color":"#000000","bg":"#ffbf00","borderWidth":2,"borderColor":"#ffbf00","glow":5,"glowColor":"#ffbf00","underline":false},"active":null,"padV":4,"padH":9,"size":120,"transition":0.3},"button":{"normal":{"color":"#ffbf00","bg":"#000000","borderWidth":2,"borderColor":"#ffbf00","glow":5,"glowColor":"#ffbf00","underline":false},"hover":{"color":"#000000","bg":"#ffbf00","borderWidth":2,"borderColor":"#ffbf00","glow":5,"glowColor":"#ffbf00","underline":false},"active":null,"padV":4,"padH":9,"size":120,"transition":0.3},"buttonAsLink":false},{"cls":"purple","name":"Фиолетовый","link":{"normal":{"color":"#cc00cc","bg":"","borderWidth":0,"borderColor":"#cc00cc","glow":0,"glowColor":"#cc00cc","underline":false},"hover":{"color":"#ff00ff","bg":"","borderWidth":0,"borderColor":"#ff00ff","glow":0,"glowColor":"#ff00ff","underline":true},"active":null,"padV":0,"padH":0,"size":100,"transition":0.3},"button":{"normal":{"color":"#cc00cc","bg":"#000000","borderWidth":1,"borderColor":"#cc00cc","glow":5,"glowColor":"#cc00cc","underline":false},"hover":{"color":"#000000","bg":"#cc00cc","borderWidth":1,"borderColor":"#cc00cc","glow":5,"glowColor":"#cc00cc","underline":false},"active":null,"padV":5,"padH":10,"size":100,"transition":0.3},"buttonAsLink":false}],"places":[{"id":"rad","name":"РАД","corner":"tr","x":5,"y":2.75,"kind":"amber"},{"id":"atm","name":"АТМ","corner":"tr","x":5,"y":55.25,"kind":"amber"},{"id":"a","name":"A","corner":"tr","x":41,"y":239,"kind":"amber"},{"id":"b","name":"B","corner":"tr","x":41,"y":291.5,"kind":"amber"},{"id":"c","name":"C","corner":"tr","x":41,"y":344,"kind":"amber"},{"id":"d","name":"D","corner":"tr","x":41,"y":396.5,"kind":"amber"},{"id":"e","name":"E","corner":"tr","x":41,"y":449,"kind":"amber"}]} */
+   В пассаже вид назначается обёрткой: <span class="amber">…ссылки и кнопки…</span>. */
+/* СИГНАЛЫ-виды: {"v":1,"kinds":[{"cls":"","name":"Обычный","link":{"normal":{"color":"#00cc00","bg":"","borderWidth":0,"borderColor":"#00cc00","glow":0,"glowColor":"#00cc00","underline":false},"hover":{"color":"#00ff00","bg":"","borderWidth":0,"borderColor":"#00ff00","glow":0,"glowColor":"#00ff00","underline":true},"active":null,"padV":0,"padH":0,"size":100,"transition":0.2},"button":{"normal":{"color":"#00cc00","bg":"#000000","borderWidth":1,"borderColor":"#00cc00","glow":5,"glowColor":"#00cc00","underline":false},"hover":{"color":"#000000","bg":"#00cc00","borderWidth":0,"borderColor":"#00cc00","glow":5,"glowColor":"#00cc00","underline":false},"active":null,"padV":5,"padH":10,"size":100,"transition":0.3},"buttonAsLink":false},{"cls":"red-big","name":"Красный большой","link":{"normal":{"color":"#cc0000","bg":"","borderWidth":0,"borderColor":"#cc0000","glow":0,"glowColor":"#cc0000","underline":false},"hover":{"color":"#ff0000","bg":"","borderWidth":0,"borderColor":"#ff0000","glow":0,"glowColor":"#ff0000","underline":true},"active":null,"padV":0,"padH":0,"size":120,"transition":0.3},"button":{"normal":{"color":"#cc0000","bg":"#000000","borderWidth":1,"borderColor":"#cc0000","glow":5,"glowColor":"#cc0000","underline":false},"hover":{"color":"#000000","bg":"#cc0000","borderWidth":0,"borderColor":"#cc0000","glow":5,"glowColor":"#cc0000","underline":false},"active":null,"padV":10,"padH":20,"size":120,"transition":0.3},"buttonAsLink":false},{"cls":"yellow-small","name":"Жёлтый маленький","link":{"normal":{"color":"#cccc00","bg":"#000000","borderWidth":1,"borderColor":"#cccc00","glow":5,"glowColor":"#cccc00","underline":false},"hover":{"color":"#000000","bg":"#cccc00","borderWidth":0,"borderColor":"#cccc00","glow":5,"glowColor":"#cccc00","underline":true},"active":null,"padV":3,"padH":6,"size":80,"transition":0.3},"button":{"normal":{"color":"#cccc00","bg":"#000000","borderWidth":1,"borderColor":"#cccc00","glow":5,"glowColor":"#cccc00","underline":false},"hover":{"color":"#000000","bg":"#cccc00","borderWidth":0,"borderColor":"#cccc00","glow":5,"glowColor":"#cccc00","underline":false},"active":null,"padV":3,"padH":6,"size":80,"transition":0.3},"buttonAsLink":false},{"cls":"amber","name":"Янтарный","link":{"normal":{"color":"#ffbf00","bg":"#000000","borderWidth":2,"borderColor":"#ffbf00","glow":5,"glowColor":"#ffbf00","underline":false},"hover":{"color":"#000000","bg":"#ffbf00","borderWidth":2,"borderColor":"#ffbf00","glow":5,"glowColor":"#ffbf00","underline":false},"active":null,"padV":4,"padH":9,"size":120,"transition":0.3},"button":{"normal":{"color":"#ffbf00","bg":"#000000","borderWidth":2,"borderColor":"#ffbf00","glow":5,"glowColor":"#ffbf00","underline":false},"hover":{"color":"#000000","bg":"#ffbf00","borderWidth":2,"borderColor":"#ffbf00","glow":5,"glowColor":"#ffbf00","underline":false},"active":null,"padV":4,"padH":9,"size":120,"transition":0.3},"buttonAsLink":false},{"cls":"purple","name":"Фиолетовый","link":{"normal":{"color":"#cc00cc","bg":"","borderWidth":0,"borderColor":"#cc00cc","glow":0,"glowColor":"#cc00cc","underline":false},"hover":{"color":"#ff00ff","bg":"","borderWidth":0,"borderColor":"#ff00ff","glow":0,"glowColor":"#ff00ff","underline":true},"active":null,"padV":0,"padH":0,"size":100,"transition":0.3},"button":{"normal":{"color":"#cc00cc","bg":"#000000","borderWidth":1,"borderColor":"#cc00cc","glow":5,"glowColor":"#cc00cc","underline":false},"hover":{"color":"#000000","bg":"#cc00cc","borderWidth":1,"borderColor":"#cc00cc","glow":5,"glowColor":"#cc00cc","underline":false},"active":null,"padV":5,"padH":10,"size":100,"transition":0.3},"buttonAsLink":false}],"places":[]} */
 a {
 	color: #00cc00;
 	text-decoration: none;
@@ -2640,41 +2762,6 @@ button:hover {
 .purple button:hover {
 	color: #000000;
 	background-color: #cc00cc;
-}
-.sg-place-rad {
-	position: fixed;
-	right: calc(50% - var(--sg-win-width, 1050px) / 2 - var(--sg-win-offset-x, 0px) + 5px);
-	top: calc(50% - var(--sg-win-height, 1050px) / 2 + var(--sg-win-offset-y, 0px) + 2.75px);
-}
-.sg-place-atm {
-	position: fixed;
-	right: calc(50% - var(--sg-win-width, 1050px) / 2 - var(--sg-win-offset-x, 0px) + 5px);
-	top: calc(50% - var(--sg-win-height, 1050px) / 2 + var(--sg-win-offset-y, 0px) + 55.25px);
-}
-.sg-place-a {
-	position: fixed;
-	right: calc(50% - var(--sg-win-width, 1050px) / 2 - var(--sg-win-offset-x, 0px) + 41px);
-	top: calc(50% - var(--sg-win-height, 1050px) / 2 + var(--sg-win-offset-y, 0px) + 239px);
-}
-.sg-place-b {
-	position: fixed;
-	right: calc(50% - var(--sg-win-width, 1050px) / 2 - var(--sg-win-offset-x, 0px) + 41px);
-	top: calc(50% - var(--sg-win-height, 1050px) / 2 + var(--sg-win-offset-y, 0px) + 291.5px);
-}
-.sg-place-c {
-	position: fixed;
-	right: calc(50% - var(--sg-win-width, 1050px) / 2 - var(--sg-win-offset-x, 0px) + 41px);
-	top: calc(50% - var(--sg-win-height, 1050px) / 2 + var(--sg-win-offset-y, 0px) + 344px);
-}
-.sg-place-d {
-	position: fixed;
-	right: calc(50% - var(--sg-win-width, 1050px) / 2 - var(--sg-win-offset-x, 0px) + 41px);
-	top: calc(50% - var(--sg-win-height, 1050px) / 2 + var(--sg-win-offset-y, 0px) + 396.5px);
-}
-.sg-place-e {
-	position: fixed;
-	right: calc(50% - var(--sg-win-width, 1050px) / 2 - var(--sg-win-offset-x, 0px) + 41px);
-	top: calc(50% - var(--sg-win-height, 1050px) / 2 + var(--sg-win-offset-y, 0px) + 449px);
 }
 /* ===== СИГНАЛЫ: конец видов кнопок и ссылок ===== */
 

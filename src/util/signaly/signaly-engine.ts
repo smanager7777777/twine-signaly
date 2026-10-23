@@ -15,11 +15,20 @@
 // - прокрутка колесом по одной строке (по галочке);
 // - история в один шаг (Config.history.maxStates = 1).
 //
+// - эффекты текста (шаг 2.1): печать — пропуск щелчком, на уже виденном экране
+//   сразу весь текст; мигание; глитч по умолчанию;
+// - кнопки на экране <<sg-place>> (сессия 6).
+//
 // Код написан без обратных кавычек и без «${», потому что хранится в шаблонной
 // строке.
 
+import {defaultGlitch, glitchKeyframes, glitchRules} from './signaly-glitch';
+
+/** Глитч по умолчанию — правила с нулевой силой (их перекрывает всё остальное). */
+const glitchBase = [...glitchRules(defaultGlitch, ':where(.glitchy)'), glitchKeyframes].join('\n');
+
 /** Версия движка. Увеличивать при каждом изменении кода ниже. */
-export const signalyEngineVersion = 3;
+export const signalyEngineVersion = 4;
 
 export const signalyEngineStart =
 	'/* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */';
@@ -62,7 +71,10 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		noContextMenu: opt('protect-menu', 0) === 1,
 		noZoom: opt('protect-zoom', 0) === 1,
 		hideCursorAfter: opt('hide-cursor', 0),
-		lineScroll: opt('line-scroll', 0) === 1
+		lineScroll: opt('line-scroll', 0) === 1,
+		// Печать текста (шаг 2.1): по умолчанию включено (ответ автора 6А).
+		typeClick: opt('type-click', 1) === 1,
+		typeSeen: opt('type-seen', 1) === 1
 	};
 
 	// Предпросмотр в программе: без стартового экрана, автокопии и защиты.
@@ -177,7 +189,12 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	engineStyle.textContent =
 		'@keyframes sg-alarm-blink { 50% { filter: brightness(0.45); } }\n' +
 		'html[data-sg-dialog="noclose"] #ui-dialog-close { display: none; }\n' +
-		'.sg-dialog-ok { margin-top: 1em; text-align: center; }';
+		'.sg-dialog-ok { margin-top: 1em; text-align: center; }\n' +
+		// Эффекты текста (шаг 2.1): мигание; глитч — с нулевой силой (:where),
+		// его перекрывают и блок оформления, и стили автора.
+		'@keyframes sg-text-blink { 50% { opacity: 0; } }\n' +
+		'.sg-blink { animation: sg-text-blink 1s steps(1, end) infinite; }\n' +
+		${JSON.stringify(glitchBase)};
 	document.head.appendChild(engineStyle);
 
 	// Слова команды: сначала значения по порядку, потом «имя значение» и галочки.
@@ -355,6 +372,89 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			}
 		}
 	});
+
+	/* Кнопка на экране (сессия 6): содержимое стоит на месте от угла окна
+	   терминала и не прокручивается с текстом; kind — вид кнопок и ссылок. */
+
+	Macro.add('sg-place', {
+		tags: null,
+		handler: function () {
+			var a = blockArgs(this, [], ['kind', 'corner', 'x', 'y'], []);
+			var el = document.createElement('span');
+
+			el.className = 'sg-place' + (a.kind ? ' ' + a.kind : '');
+			placeStyle(el, {place: 'screen', corner: a.corner, x: a.x, y: a.y});
+			if (preview) {
+				el.setAttribute('data-sg-block', 'place');
+				el.setAttribute('data-sg-src', this.source);
+			}
+			$(el).wiki(this.payload[0].contents);
+			this.output.appendChild(el);
+		}
+	});
+
+	/* ----- Эффекты текста (шаг 2.1) ----- */
+
+	// Экраны, которые уже показывали: при возврате <<type>> печатает сразу
+	// весь текст (ответ 6А). Список попадает в автокопию.
+	var seen = {};
+	var seenNow = false;
+
+	setup.signaly.seen = seen;
+	$(document).on(':passagestart', function (ev) {
+		seenNow = settings.typeSeen && !preview && seen[ev.passage.title] === true;
+		skipAll = false;
+	});
+	$(document).on(':passagedisplay', function (ev) {
+		seen[ev.passage.title] = true;
+	});
+
+	var typeMacro = Macro.get('type');
+
+	if (typeMacro) {
+		var typeHandler = typeMacro.handler;
+
+		typeMacro.handler = function () {
+			if (seenNow && this.args.length) {
+				this.args[0] = '0s';
+			}
+			return typeHandler.apply(this, arguments);
+		};
+	}
+
+	// Щелчок мышью (не по ссылке, кнопке или полю) допечатывает текст сразу —
+	// и всё, что на этом экране ещё будет печататься.
+	var skipAll = false;
+
+	function skipTyping() {
+		setTimeout(function () {
+			document.body.dispatchEvent(
+				new KeyboardEvent('keydown', {key: Config.macros.typeSkipKey, bubbles: true})
+			);
+		}, 0);
+	}
+
+	$(document).on(':typingstart', function () {
+		if (skipAll) {
+			skipTyping();
+		}
+	});
+	if (settings.typeClick) {
+		document.addEventListener(
+			'click',
+			function (ev) {
+				if (
+					!document.querySelector('.macro-type:not(.macro-type-done):not(.macro-type-target)') ||
+					$(ev.target).closest('a, button, input, textarea, select, label, #ui-dialog').length
+				) {
+					return;
+				}
+				skipAll = true;
+				skipTyping();
+			},
+			true
+		);
+	}
 
 	/* Экран тревоги: поверх всего экрана, закрывается щелчком, через N секунд
 	   или только мастером (Shift+Z+X закрывает любой). */
@@ -869,6 +969,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			v: 1,
 			passage: State.passage,
 			vars: serial.stringify(State.variables),
+			seen: Object.keys(seen).concat(State.passage),
 			time: Date.now()
 		};
 		writeCopy();
@@ -910,6 +1011,9 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		// Сеанс вкладки забываем — продолжаем по автокопии.
 		State.reset();
 		Config.passages.start = copy.passage;
+		(copy.seen || []).forEach(function (title) {
+			seen[title] = true;
+		});
 		$(document).one(':passageinit', function () {
 			var variables = State.variables;
 

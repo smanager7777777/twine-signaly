@@ -7,6 +7,7 @@
 //   стартовый экран, эффекты) — его читает браузер, поэтому история
 //   выглядит так же и в обычном Twine.
 
+import {cssColor, defaultGlitch, glitchKeyframes, glitchRules, GlitchSettings} from './signaly-glitch';
 import {BlockMarkers, findBlock, putBlock} from './signaly-blocks';
 import {
 	cutRanges,
@@ -25,7 +26,7 @@ import {
 	signalyEngineVersion
 } from './signaly-engine';
 
-export interface SignalyAppearance {
+export interface SignalyAppearance extends GlitchSettings {
 	/** Экран (вся страница). */
 	pageBg: string;
 	textColor: string;
@@ -86,6 +87,13 @@ export interface SignalyAppearance {
 	dialogTitleSize: number;
 	/** Линия под заголовком, px. */
 	dialogTitleLine: number;
+	/**
+	 * Печать текста (шаг 2.1, ответ 6А): щелчок мышью допечатывает сразу;
+	 * при возврате на уже виденный экран текст показывается целиком.
+	 * Глитч — поля GlitchSettings (ответ 7А).
+	 */
+	typeClick: boolean;
+	typeSeen: boolean;
 }
 
 /** Значения по умолчанию — как в шаблоне автора 27_03_2025. */
@@ -137,7 +145,10 @@ export const defaultAppearance: SignalyAppearance = {
 	dialogTitleBg: '#000000',
 	dialogTitleColor: '#00cc00',
 	dialogTitleSize: 25,
-	dialogTitleLine: 1
+	dialogTitleLine: 1,
+	typeClick: true,
+	typeSeen: true,
+	...defaultGlitch
 };
 
 /** Системные моноширинные шрифты Windows 11. */
@@ -240,6 +251,8 @@ export function appearanceCss(a: SignalyAppearance): string {
 		`\t--sg-protect-zoom: ${a.noZoom ? 1 : 0};`,
 		`\t--sg-hide-cursor: ${round(a.hideCursor)};`,
 		`\t--sg-line-scroll: ${a.lineScroll ? 1 : 0};`,
+		`\t--sg-type-click: ${a.typeClick ? 1 : 0};`,
+		`\t--sg-type-seen: ${a.typeSeen ? 1 : 0};`,
 		'}'
 	);
 
@@ -380,6 +393,9 @@ export function appearanceCss(a: SignalyAppearance): string {
 		lines.push(...dialogCss(a));
 	}
 
+	// Глитч-текст (шаг 2.1): правила сильнее правил .glitchy автора.
+	lines.push(...glitchRules(a, 'html .glitchy'), glitchKeyframes);
+
 	return lines.join('\n');
 }
 
@@ -472,6 +488,59 @@ export function dialogFromAuthor(css: string): Partial<SignalyAppearance> {
 		set('dialogTitleLine', Number(line[1]));
 	}
 	return result;
+}
+
+/**
+ * Настройки глитча из правил автора .glitchy, .glitchy::before, .glitchy::after
+ * (шаг 2.1). Правила автора остаются: блок оформления их перекрывает.
+ */
+export function glitchFromAuthor(css: string): Partial<SignalyAppearance> {
+	const result: Partial<SignalyAppearance> = {};
+	const rules = topLevelRules(css);
+	const read = (selector: string) => {
+		const rule = rules.find(r => !r.at && r.selector === selector);
+		const map: Record<string, string> = {};
+
+		if (rule) {
+			declarations(css, rule).forEach(d => (map[d.property] = d.value));
+		}
+		return map;
+	};
+	const main = read('.glitchy');
+	const before = read('.glitchy::before');
+	const after = read('.glitchy::after');
+	const shadow = (value: string | undefined) =>
+		cssColor(/^-?\d+px\s+0\s+(\S+)$/.exec(value ?? '')?.[1]);
+	const set = <K extends keyof SignalyAppearance>(key: K, value: SignalyAppearance[K] | undefined) => {
+		if (value !== undefined) {
+			result[key] = value;
+		}
+	};
+
+	set('glitchColor', cssColor(main.color ?? after.color));
+	set('glitchBg', cssColor(after.background ?? before.background));
+	set('glitchShadow1', shadow(before['text-shadow']));
+	set('glitchShadow2', shadow(after['text-shadow']));
+
+	const shift = parsePx(after.left ?? '');
+
+	if (shift !== undefined && shift < 0) {
+		set('glitchShift', -shift);
+	}
+
+	const speed = /\s(\d*\.?\d+)s\s/.exec(` ${after.animation ?? ''} `);
+
+	if (speed) {
+		set('glitchSpeed', Number(speed[1]));
+	}
+	return result;
+}
+
+/** Есть ли в строке настроек блока оформления поле key (блок новее шага key). */
+function blockHasKey(stylesheet: string, key: string) {
+	const block = findBlock(stylesheet, appearanceMarkers);
+
+	return !!block && block.inner.includes(`"${key}":`);
 }
 
 export function appearanceBlock(a: SignalyAppearance) {
@@ -901,7 +970,10 @@ export function prepareStory(script: string, stylesheet: string): AppliedStory {
 
 	if (existing) {
 		return {
-			appearance: existing,
+			// Блок старше шага 2.1 — глитч берём из стилей автора.
+			appearance: blockHasKey(stylesheet, 'glitchShift')
+				? existing
+				: {...existing, ...glitchFromAuthor(stylesheet)},
 			moved: [],
 			script: withEngine(script),
 			stylesheet
@@ -910,11 +982,13 @@ export function prepareStory(script: string, stylesheet: string): AppliedStory {
 
 	const migration = migrateStylesheet(stylesheet);
 
+	const appearance = {...migration.appearance, ...glitchFromAuthor(stylesheet)};
+
 	return {
-		appearance: migration.appearance,
+		appearance,
 		moved: migration.moved,
 		script: withEngine(script),
-		stylesheet: withAppearance(migration.stylesheet, migration.appearance)
+		stylesheet: withAppearance(migration.stylesheet, appearance)
 	};
 }
 

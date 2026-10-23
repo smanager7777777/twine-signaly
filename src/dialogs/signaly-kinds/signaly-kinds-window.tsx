@@ -1,7 +1,9 @@
 // «Twine СИГНАЛЫ»: окно «Виды кнопок и ссылок» (шаг 1.3; ответы автора 1а–4а,
-// 7а). Большое окно поверх карты: слева — виды (свои шаблоны с названием) и
-// кнопки на экране, справа — предпросмотр настоящим SugarCube: образцы всех
-// видов в трёх состояниях или любой экран истории.
+// 7а). Большое окно поверх карты: слева — виды (свои шаблоны с названием),
+// справа — предпросмотр настоящим SugarCube: образцы всех видов в трёх
+// состояниях или любой экран истории. Вкладки «Кнопки на экране» с сессии 6 нет:
+// место кнопки задаётся у самого элемента (<<sg-place>>); старые кнопки
+// переносятся в элементы при сохранении.
 //
 // Ничего не записывается в историю до «Сохранить». При сохранении в «Таблицу
 // стилей» ставится блок видов (сразу после блока оформления); блок оформления
@@ -9,9 +11,14 @@
 
 import * as React from 'react';
 import {useTranslation} from 'react-i18next';
-import {usePrefsContext} from '../../store/prefs';
 import {passageDefaults} from '../../store/stories/defaults';
-import {Passage, Story, updateStory, useStoriesContext} from '../../store/stories';
+import {
+	Passage,
+	Story,
+	updatePassage,
+	updateStory,
+	useStoriesContext
+} from '../../store/stories';
 import {useGameFolder} from '../../store/use-game-folder';
 import {
 	appearanceMarkers,
@@ -26,24 +33,20 @@ import {
 	demoStatesCss,
 	Kind,
 	Look,
-	placePrefix,
 	prepareKinds,
 	SignalyKinds,
 	slugify,
 	uniqueName,
 	withKinds
 } from '../../util/signaly/signaly-kinds';
+import {movePlacesInTexts, withoutPlaces} from '../../util/signaly/signaly-places';
 import {folderToFileUrl} from '../../util/signaly/signaly-preview';
 import {
 	CheckField,
 	TextField
 } from '../signaly-appearance/signaly-appearance-fields';
-import {
-	SignalyAppearancePreview,
-	SignalyDragLock
-} from '../signaly-appearance/signaly-appearance-preview';
+import {SignalyAppearancePreview} from '../signaly-appearance/signaly-appearance-preview';
 import {LookEditor} from './signaly-kinds-look';
-import {PlacesEditor} from './signaly-kinds-places';
 import '../signaly-appearance/signaly-appearance.css';
 import './signaly-kinds.css';
 
@@ -70,20 +73,32 @@ interface Prepared {
 	moved: string[];
 	/** Перенесено ли и оформление (окна оформления ещё не открывали). */
 	movedAppearance: boolean;
+	/** Старые кнопки на экране → элементы: новые тексты пассажей (по id). */
+	placeTexts: Map<string, string>;
+	placeCount: number;
 }
 
 function prepare(story: Story): Prepared {
 	const app = prepareStory(story.script, story.stylesheet);
 	const base = withAppearance(app.stylesheet, app.appearance);
 	const kinds = prepareKinds(base, passageTexts(story));
+	const moved = movePlacesInTexts(
+		story.passages.map(p => p.text),
+		kinds.kinds.places
+	);
+	const placeTexts = new Map<string, string>();
+
+	moved.texts.forEach((text, index) => placeTexts.set(story.passages[index].id, text));
 
 	return {
 		script: app.script,
 		stylesheet: kinds.stylesheet,
 		appearance: app.appearance,
-		kinds: kinds.kinds,
+		kinds: withoutPlaces(kinds.kinds),
 		moved: kinds.moved,
-		movedAppearance: app.moved.length > 0
+		movedAppearance: app.moved.length > 0,
+		placeTexts,
+		placeCount: moved.count
 	};
 }
 
@@ -98,7 +113,6 @@ function build(prepared: Prepared, kinds: SignalyKinds, savedColors: string[]) {
 export const SignalyKindsWindow: React.FC<SignalyKindsWindowProps> = props => {
 	const {onClose, story} = props;
 	const {t} = useTranslation();
-	const {prefs} = usePrefsContext();
 	const {dispatch, stories} = useStoriesContext();
 	const {available, chooseGameFolder, gameFolder} = useGameFolder();
 	const [prepared] = React.useState(() => prepare(story));
@@ -114,10 +128,8 @@ export const SignalyKindsWindow: React.FC<SignalyKindsWindowProps> = props => {
 	);
 	const [saved, setSaved] = React.useState(upToDate);
 	const [savedOnce, setSavedOnce] = React.useState(false);
-	const [tab, setTab] = React.useState<'kinds' | 'places'>('kinds');
 	const [selectedKind, setSelectedKind] = React.useState('');
 	const [target, setTarget] = React.useState<'link' | 'button'>('link');
-	const [selectedPlace, setSelectedPlace] = React.useState<string>();
 	const [newKindName, setNewKindName] = React.useState('');
 	const [screen, setScreen] = React.useState(demoId);
 	const [refresh, setRefresh] = React.useState(0);
@@ -133,10 +145,6 @@ export const SignalyKindsWindow: React.FC<SignalyKindsWindowProps> = props => {
 		hover: t('signaly.kinds.sections.hover'),
 		active: t('signaly.kinds.sections.active')
 	});
-	const highlight =
-		tab === 'places' && selectedPlace
-			? `\n.${placePrefix}${selectedPlace} { outline: 3px dashed #ffffff; outline-offset: 3px; }`
-			: '';
 	const previewStory = React.useMemo<Story>(() => {
 		const demo: Passage = {
 			...passageDefaults(),
@@ -148,11 +156,16 @@ export const SignalyKindsWindow: React.FC<SignalyKindsWindowProps> = props => {
 
 		return {
 			...story,
-			passages: [...story.passages, demo],
+			passages: [
+				...story.passages.map(p =>
+					prepared.placeTexts.has(p.id) ? {...p, text: prepared.placeTexts.get(p.id)!} : p
+				),
+				demo
+			],
 			script: prepared.script,
-			stylesheet: `${stylesheet}\n${demoStatesCss(kinds)}${highlight}`
+			stylesheet: `${stylesheet}\n${demoStatesCss(kinds)}`
 		};
-	}, [demoText, highlight, kinds, prepared.script, story, stylesheet]);
+	}, [demoText, kinds, prepared, story, stylesheet]);
 
 	// Образцы меняются (новый вид, название) — предпросмотр перезапускается.
 	React.useEffect(() => {
@@ -184,10 +197,7 @@ export const SignalyKindsWindow: React.FC<SignalyKindsWindowProps> = props => {
 			return;
 		}
 
-		const cls = uniqueName(slugify(name), [
-			...kinds.kinds.map(k => k.cls),
-			...kinds.places.map(p => placePrefix + p.id)
-		]);
+		const cls = uniqueName(slugify(name), kinds.kinds.map(k => k.cls));
 
 		change({
 			...kinds,
@@ -230,6 +240,16 @@ export const SignalyKindsWindow: React.FC<SignalyKindsWindowProps> = props => {
 		dispatch(
 			updateStory(stories, story, {script: prepared.script, stylesheet})
 		);
+		// Старые кнопки на экране становятся элементами пассажей (один раз).
+		if (!savedOnce) {
+			story.passages.forEach(p => {
+				const text = prepared.placeTexts.get(p.id);
+
+				if (text !== undefined) {
+					dispatch(updatePassage(story, p, {text}));
+				}
+			});
+		}
 		setSaved(true);
 		setSavedOnce(true);
 	}
@@ -299,23 +319,12 @@ export const SignalyKindsWindow: React.FC<SignalyKindsWindowProps> = props => {
 					{prepared.movedAppearance && !savedOnce && (
 						<div className="signaly-notice">{t('signaly.kinds.migratedAppearance')}</div>
 					)}
-					<div className="signaly-tabs" role="tablist">
-						{(['kinds', 'places'] as const).map(name => (
-							<button
-								aria-selected={tab === name}
-								className="signaly-tab"
-								key={name}
-								onClick={() => setTab(name)}
-								role="tab"
-								type="button"
-							>
-								{t(`signaly.kinds.tabs.${name}`)}
-							</button>
-						))}
-					</div>
-
-					{tab === 'kinds' && (
-						<>
+					{prepared.placeCount > 0 && !savedOnce && (
+						<div className="signaly-notice">
+							{t('signaly.kinds.placesMoved', {count: prepared.placeCount})}
+						</div>
+					)}
+					<>
 							<section>
 								<p className="signaly-field-hint">{t('signaly.kinds.intro')}</p>
 								<div className="signaly-kinds-list">
@@ -424,18 +433,6 @@ export const SignalyKindsWindow: React.FC<SignalyKindsWindowProps> = props => {
 								/>
 							)}
 						</>
-					)}
-
-					{tab === 'places' && (
-						<PlacesEditor
-							kinds={kinds.kinds}
-							onChange={places => change({...kinds, places})}
-							onSelect={setSelectedPlace}
-							places={kinds.places}
-							selected={selectedPlace}
-							useCount={id => classUseCount(placePrefix + id, texts)}
-						/>
-					)}
 				</div>
 
 				<div className="signaly-appearance-preview">
@@ -458,7 +455,6 @@ export const SignalyKindsWindow: React.FC<SignalyKindsWindowProps> = props => {
 						>
 							{t('signaly.appearance.preview.refresh')}
 						</button>
-						<SignalyDragLock />
 						<span className="signaly-field-hint">
 							{t('signaly.kinds.demo.hint')}
 						</span>
@@ -477,22 +473,6 @@ export const SignalyKindsWindow: React.FC<SignalyKindsWindowProps> = props => {
 					)}
 					<SignalyAppearancePreview
 						baseUrl={folder ? folderToFileUrl(folder) : undefined}
-						drag={{
-							locked: prefs.signalyDragLock,
-							place: id => kinds.places.find(p => p.id === id),
-							onDrop: result => {
-								if (result.kind === 'place') {
-									change({
-										...kinds,
-										places: kinds.places.map(p =>
-											p.id === result.id ? {...p, x: result.x, y: result.y} : p
-										)
-									});
-									setTab('places');
-									setSelectedPlace(result.id);
-								}
-							}
-						}}
 						mode="passage"
 						passageId={screen}
 						refresh={refresh}

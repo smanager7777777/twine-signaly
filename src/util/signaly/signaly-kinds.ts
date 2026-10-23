@@ -9,8 +9,9 @@
 //
 // Вид назначается в пассаже обёрткой: <span class="amber">…ссылки и
 // кнопки…</span>. Основной вид — правила для всех a и button.
-// Кнопка на экране — обёртка <span class="sg-place-rad">…</span>: она стоит
-// на месте, заданном от угла окна терминала, и не прокручивается с текстом.
+// Кнопки на экране (places, классы sg-place-…) были здесь до сессии 6; теперь
+// это элементы <<sg-place>> в пассажах, а места только читаются для переноса
+// (signaly-places.ts).
 
 import {BlockMarkers, findBlock, putBlock} from './signaly-blocks';
 import {
@@ -291,8 +292,7 @@ export function kindsCss(data: SignalyKinds): string {
 	const json = JSON.stringify({v: 1, ...data}).replace(/\*\//g, '*\\/');
 	const parts = [
 		'/* Меняется в окне «Виды кнопок и ссылок» программы «Twine СИГНАЛЫ».',
-		'   В пассаже вид назначается обёрткой: <span class="amber">…ссылки и кнопки…</span>;',
-		'   кнопка на экране — <span class="sg-place-…">…</span>. */',
+		'   В пассаже вид назначается обёрткой: <span class="amber">…ссылки и кнопки…</span>. */',
 		`${dataPrefix}${json} */`,
 		...data.kinds.map(kindCss),
 		...data.places.map(placeCss)
@@ -339,7 +339,7 @@ export function demoStatesCss(data: SignalyKinds) {
 	return result.join('\n');
 }
 
-/** Текст экрана-образца для предпросмотра: каждый вид в трёх состояниях и все кнопки на экране. */
+/** Текст экрана-образца для предпросмотра: каждый вид в трёх состояниях. */
 export function demoPassageText(data: SignalyKinds, labels: DemoLabels) {
 	const sample = `<<link "${labels.link}">><</link>><br><<button "${labels.button}">><</button>>`;
 	const cell = (kind: Kind, state: string) =>
@@ -352,18 +352,11 @@ export function demoPassageText(data: SignalyKinds, labels: DemoLabels) {
 			cell(kind, 'sg-demo-active') +
 			'</tr>'
 	);
-	const places = data.places.map(
-		place =>
-			`<span class="${placePrefix}${place.id}${place.kind ? ' ' + place.kind : ''}">` +
-			`<<link "${place.name.replace(/"/g, "'")}">><</link>></span>`
-	);
-
 	return (
 		'<table class="sg-demo-table"><tr><th></th>' +
 		`<th>${labels.normal}</th><th>${labels.hover}</th><th>${labels.active}</th></tr>` +
 		rows.join('') +
-		'</table>' +
-		places.join('')
+		'</table>'
 	);
 }
 

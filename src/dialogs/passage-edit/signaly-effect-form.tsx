@@ -1,0 +1,216 @@
+// «Twine СИГНАЛЫ»: форма эффекта текста (шаг 2.1, ответ автора 5А). Открывается
+// из кнопки «Эффект» или щелчком по команде эффекта в тексте; каждое изменение
+// сразу переписывает команду. Сам текст под эффектом правится в пассаже.
+
+import * as React from 'react';
+import {useTranslation} from 'react-i18next';
+import {
+	Effect,
+	idsIn,
+	replaceEffect,
+	TimedSection
+} from '../../util/signaly/signaly-effects';
+import {
+	CheckField,
+	ChoiceField,
+	RangeField,
+	TextField
+} from '../signaly-appearance/signaly-appearance-fields';
+
+export interface SignalyEffectFormProps {
+	effect: Effect;
+	text: string;
+	onText: (text: string) => void;
+}
+
+export function effectTitle(effect: Effect, t: (key: string) => string) {
+	return t(`signaly.effects.types.${effect.type}`);
+}
+
+export const SignalyEffectForm: React.FC<SignalyEffectFormProps> = props => {
+	const {effect, onText, text} = props;
+	const {t} = useTranslation();
+	const l = (key: string) => t(`signaly.effects.${key}`);
+	const seconds = t('signaly.appearance.units.seconds');
+	const write = (changed: Partial<Effect>) =>
+		onText(replaceEffect(text, effect, {...effect, ...changed}));
+	const content = text.slice(effect.contentFrom, effect.contentTo);
+
+	switch (effect.type) {
+		case 'type': {
+			const v = effect.type_!;
+			const set = (changes: Partial<typeof v>) => write({type_: {...v, ...changes}});
+
+			return (
+				<>
+					<RangeField
+						hint={l('speedHint')}
+						label={l('speed')}
+						max={300}
+						min={5}
+						onChange={speed => set({speed})}
+						unit={t('signaly.effects.ms')}
+						value={v.speed}
+					/>
+					<RangeField
+						hint={l('startHint')}
+						label={l('start')}
+						max={30}
+						min={0}
+						onChange={start => set({start})}
+						step={0.1}
+						unit={seconds}
+						value={v.start ?? 0.4}
+					/>
+					<ChoiceField
+						label={l('cursor')}
+						onChange={cursor => set({cursor: cursor as typeof v.cursor})}
+						options={['blink', 'none', 'keep'].map(value => ({
+							label: l(`cursors.${value}`),
+							value
+						}))}
+						value={v.cursor}
+					/>
+					<CheckField
+						hint={l('inlineHint')}
+						label={l('inline')}
+						onChange={inline => set({inline})}
+						value={v.inline}
+					/>
+					<div className="signaly-field-hint">{l('typeHint')}</div>
+				</>
+			);
+		}
+
+		case 'timed': {
+			const sections = effect.sections!;
+			const setDelay = (index: number, delay: number) =>
+				write({
+					sections: sections.map((s: TimedSection, i) => (i === index ? {...s, delay} : s))
+				});
+			let previous = sections[0].delay ?? 1;
+
+			return (
+				<>
+					{sections.map((section, index) => {
+						const delay = section.delay ?? previous;
+
+						previous = delay;
+						return (
+							<RangeField
+								hint={
+									index === 0
+										? undefined
+										: section.content.trim().slice(0, 60) || l('emptyLine')
+								}
+								key={index}
+								label={
+									index === 0
+										? sections.length > 1
+											? l('firstAfter')
+											: l('after')
+										: `${l('nextAfter')} ${index + 1}`
+								}
+								max={60}
+								min={0}
+								onChange={value => setDelay(index, value)}
+								step={0.1}
+								unit={seconds}
+								value={delay}
+							/>
+						);
+					})}
+					<CheckField label={l('fade')} onChange={fade => write({fade})} value={!!effect.fade} />
+					<div className="signaly-field-hint">
+						{sections.length > 1 ? l('linesHint') : l('timedHint')}
+					</div>
+				</>
+			);
+		}
+
+		case 'swap': {
+			const ids = idsIn(text);
+
+			return (
+				<>
+					<RangeField
+						label={l('after')}
+						max={120}
+						min={0}
+						onChange={delay =>
+							write({sections: [{...effect.sections![0], delay}]})
+						}
+						step={0.1}
+						unit={seconds}
+						value={effect.sections?.[0]?.delay ?? 3}
+					/>
+					<ChoiceField
+						hint={l('targetHint')}
+						label={l('target')}
+						onChange={target => write({target})}
+						options={[...new Set([effect.target ?? '', ...ids])].map(id => ({
+							label: id,
+							value: id
+						}))}
+						value={effect.target ?? ''}
+					/>
+					<div className="signaly-field">
+						<label className="signaly-field-label">
+							{l('replacement')}
+							<textarea
+								className="signaly-text signaly-area"
+								onChange={e => write({replacement: e.target.value})}
+								rows={3}
+								value={effect.replacement ?? ''}
+							/>
+						</label>
+						<div className="signaly-field-hint">{t('signaly.blocks.contentHint')}</div>
+					</div>
+					<CheckField
+						label={l('fade')}
+						onChange={replaceFade => write({replaceFade})}
+						value={!!effect.replaceFade}
+					/>
+				</>
+			);
+		}
+
+		case 'blink':
+			return (
+				<>
+					<RangeField
+						label={l('period')}
+						max={5}
+						min={0.2}
+						onChange={period => write({period})}
+						step={0.1}
+						unit={seconds}
+						value={effect.period ?? 1}
+					/>
+					<div className="signaly-field-hint">{l('blinkHint')}</div>
+				</>
+			);
+
+		case 'glitch':
+			return (
+				<>
+					<TextField
+						label={l('glitchText')}
+						onChange={value =>
+							onText(
+								text.slice(0, effect.contentFrom) + value + text.slice(effect.contentTo)
+							)
+						}
+						value={content}
+					/>
+					<TextField
+						hint={l('shadowHint')}
+						label={l('shadow')}
+						onChange={shadow => write({shadow})}
+						value={effect.shadow ?? ''}
+					/>
+					<div className="signaly-field-hint">{l('glitchHint')}</div>
+				</>
+			);
+	}
+};

@@ -9,13 +9,15 @@
 //   <<sg-case "11111" goto "gotoPSG">>
 //   <<sg-wrong title "Ошибка">>Неверный код
 //   <</sg-code>>
+//   <<sg-place kind amber corner tr x 5 y 20>><<link "РАД">>…<</link>><</sg-place>>
+//   (кнопка на экране — с сессии 6 место задаётся у самого элемента)
 // Окно KR2 — команды <<kr2image>>, <<kr2layout>>, <<kr2vars>>, <<kr2main>>.
 // Команды понимает движок (signaly-engine.ts) — и в обычном Twine тоже.
 //
 // Здесь — разбор команд и запись обратно. Всё, что формы не понимают
 // (неизвестные слова в команде), сохраняется как есть.
 
-export type BlockType = 'image' | 'video' | 'alarm' | 'dialog' | 'code';
+export type BlockType = 'image' | 'video' | 'alarm' | 'dialog' | 'code' | 'place';
 export type CaseKind = 'case' | 'wrong';
 export type Value = string | number | boolean;
 export type Values = Record<string, Value | undefined>;
@@ -25,7 +27,8 @@ export const blockMacros: Record<BlockType, string> = {
 	video: 'sg-video',
 	alarm: 'sg-alarm',
 	dialog: 'sg-dialog',
-	code: 'sg-code'
+	code: 'sg-code',
+	place: 'sg-place'
 };
 
 const caseMacros: Record<CaseKind, string> = {case: 'sg-case', wrong: 'sg-wrong'};
@@ -95,6 +98,12 @@ const specs: Record<BlockType | CaseKind, ArgSpec> = {
 		flags: ['password', 'focus', 'clear'],
 		container: true
 	},
+	place: {
+		pos: [],
+		keys: {kind: 'string', corner: 'string', x: 'number', y: 'number'},
+		flags: [],
+		container: true
+	},
 	case: {pos: ['code'], keys: actionKeys, flags: [], container: false},
 	wrong: {pos: [], keys: actionKeys, flags: [], container: false}
 };
@@ -112,6 +121,8 @@ export interface ScreenBlock {
 	/** Где блок в тексте (вместе с закрывающей командой). */
 	from: number;
 	to: number;
+	/** Конец открывающей команды. */
+	headTo?: number;
 	values: Values;
 	/** Непонятые слова команды — сохраняются как есть. */
 	extra: string[];
@@ -238,7 +249,7 @@ function writeValue(value: Value) {
 	return typeof value === 'number' ? round(value) : quote(String(value));
 }
 
-const bareKeys = ['place', 'corner', 'close'];
+const bareKeys = ['place', 'corner', 'close', 'kind'];
 
 function writeArgs(values: Values, extra: string[], spec: ArgSpec) {
 	const parts: string[] = [];
@@ -255,7 +266,7 @@ function writeArgs(values: Values, extra: string[], spec: ArgSpec) {
 		if (value === undefined || value === false || (value === '' && name !== 'passage')) {
 			return;
 		}
-		// Слова place, corner, close пишутся без кавычек — так читается легче.
+		// Слова place, corner, close, kind пишутся без кавычек — так читается легче.
 		parts.push(
 			name,
 			typeof value === 'string' && bareKeys.includes(name) && /^[a-z]+$/.test(value)
@@ -274,7 +285,7 @@ function writeArgs(values: Values, extra: string[], spec: ArgSpec) {
 
 /* ----- Поиск блоков в тексте ----- */
 
-const openRe = /<<sg-(image|video|alarm|dialog|code)(?=[\s>])/g;
+const openRe = /<<sg-(image|video|alarm|dialog|code|place)(?=[\s>])/g;
 
 function macroType(name: string): BlockType | undefined {
 	return blockTypes.find(type => blockMacros[type] === 'sg-' + name);
@@ -348,7 +359,14 @@ export function findBlocks(text: string): ScreenBlock[] {
 		}
 
 		const {values, extra} = readValues(scan.tokens, spec);
-		const block: ScreenBlock = {type, from: match.index, to: scan.end, values, extra};
+		const block: ScreenBlock = {
+			type,
+			from: match.index,
+			to: scan.end,
+			headTo: scan.end,
+			values,
+			extra
+		};
 
 		if (spec.container) {
 			const close = findClose(text, blockMacros[type], scan.end);
@@ -369,14 +387,30 @@ export function findBlocks(text: string): ScreenBlock[] {
 			}
 		}
 		blocks.push(block);
-		openRe.lastIndex = block.to;
+		// Внутри тревоги, окна и кнопки на экране могут стоять другие блоки и
+		// эффекты — их тоже ищем (у поля кода внутри — таблица кодов).
+		openRe.lastIndex = type === 'code' ? block.to : scan.end;
 	}
 	return blocks;
 }
 
+/** Самый внутренний из диапазонов, внутри которого стоит курсор (номер или -1). */
+export function innermostAt(ranges: Array<{from: number; to: number}>, index: number) {
+	let best = -1;
+
+	ranges.forEach((r, i) => {
+		if (index > r.from && index < r.to && (best === -1 || r.from >= ranges[best].from)) {
+			best = i;
+		}
+	});
+	return best;
+}
+
 /** Блок, внутри которого стоит курсор (смещение), или undefined. */
 export function blockAt(text: string, index: number) {
-	return findBlocks(text).find(b => index >= b.from && index < b.to);
+	const blocks = findBlocks(text);
+
+	return blocks[innermostAt(blocks, index)];
 }
 
 /** Текст блока для вставки в пассаж. */
@@ -440,6 +474,13 @@ export function newBlock(type: BlockType): Omit<ScreenBlock, 'from' | 'to'> {
 				extra: [],
 				content: 'Текст сообщения'
 			};
+		case 'place':
+			return {
+				type,
+				values: {corner: 'tr', x: 20, y: 20},
+				extra: [],
+				content: '<<link "Кнопка">><</link>>'
+			};
 		case 'code':
 			return {
 				type,
@@ -459,9 +500,20 @@ export const kr2Tag = 'kr2';
 export const kr2DefaultCols = 65;
 export const kr2DefaultRows = 65;
 
-export type Kr2Row =
+/**
+ * Когда показывать строку статуса (ответ автора 3Б, сессия 6): переменная
+ * «включена» (не пустая, не 0, не false) или равна значению.
+ */
+export interface Kr2When {
+	name: string;
+	/** Значение, как его ввёл автор; undefined — «переменная включена». */
+	value?: string;
+}
+
+export type Kr2Row = (
 	| {kind: 'text'; text: string}
-	| {kind: 'window'; label: string; title: string; passage: string; button: boolean};
+	| {kind: 'window'; label: string; title: string; passage: string; button: boolean}
+) & {when?: Kr2When};
 
 export interface Kr2 {
 	image: string;
@@ -510,7 +562,25 @@ function findKr2(text: string, name: string, container: boolean): Found | undefi
 		: undefined;
 }
 
+// Строка с условием: <<if $имя>>…<br><</if>>\ или <<if $имя is значение>>…
+// <br> внутри условия и «\» в конце — скрытая строка не оставляет пустого места.
+const whenRow = /^<<if\s+(\$[A-Za-z_]\w*)(?:\s+is\s+(.+?))?>>([^]*)<br><<\/if>>(?:\\)?$/;
+
 function readRow(line: string): Kr2Row {
+	const when = whenRow.exec(line);
+
+	if (when && !/<<(?:if|else|elseif|\/if)[\s>]/.test(when[3])) {
+		const value = when[2] === undefined ? undefined : unquote(when[2].trim());
+
+		return {
+			...readPlainRow(when[3]),
+			when: {name: when[1], value: value === undefined ? undefined : String(value)}
+		};
+	}
+	return readPlainRow(line);
+}
+
+function readPlainRow(line: string): Kr2Row {
 	const blocks = findBlocks(line);
 	const only = blocks.length === 1 ? blocks[0] : undefined;
 
@@ -534,7 +604,30 @@ function readRow(line: string): Kr2Row {
 	return {kind: 'text', text: line};
 }
 
-function writeRow(row: Kr2Row) {
+/** Значение для условия: числа и true/false — как есть, остальное в кавычках. */
+function conditionValue(value: string) {
+	const v = value.trim();
+
+	return /^-?\d+(\.\d+)?$/.test(v) || v === 'true' || v === 'false' ? v : quote(v);
+}
+
+function writeRow(row: Kr2Row, last = false) {
+	const body = writePlainRow(row);
+
+	if (!row.when || !/^\$[A-Za-z_]\w*$/.test(row.when.name)) {
+		return body;
+	}
+
+	const cond =
+		row.when.value === undefined
+			? row.when.name
+			: `${row.when.name} is ${conditionValue(row.when.value)}`;
+
+	// У последней строки «\\» не нужен: за ней не перенос, а <</kr2vars>>.
+	return `<<if ${cond}>>${body}<br><</if>>${last ? '' : '\\'}`;
+}
+
+function writePlainRow(row: Kr2Row) {
 	if (row.kind === 'text') {
 		return row.text;
 	}
@@ -603,7 +696,7 @@ export function writeKr2(text: string, kr2: Omit<Kr2, 'present'>) {
 	put(
 		'kr2vars',
 		true,
-		kr2.status.length ? `<<kr2vars>>${kr2.status.map(writeRow).join('\n')}<</kr2vars>>` : undefined
+		kr2.status.length ? `<<kr2vars>>${kr2.status.map((row, i) => writeRow(row, i === kr2.status.length - 1)).join('\n')}<</kr2vars>>` : undefined
 	);
 
 	return inserts.length ? inserts.join('\n') + '\n' + result : result;

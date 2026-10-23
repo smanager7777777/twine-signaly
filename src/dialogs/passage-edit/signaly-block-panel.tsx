@@ -13,6 +13,8 @@ import {
 	defaultAppearance,
 	readAppearance
 } from '../../util/signaly/signaly-appearance';
+import {findEffects} from '../../util/signaly/signaly-effects';
+import {readKinds} from '../../util/signaly/signaly-kinds';
 import {
 	CodeCase,
 	findBlocks,
@@ -34,8 +36,12 @@ import {
 	RangeField,
 	TextField
 } from '../signaly-appearance/signaly-appearance-fields';
+import {effectTitle, SignalyEffectForm} from './signaly-effect-form';
 
-export type PanelTarget = {kind: 'block'; index: number} | {kind: 'kr2'};
+export type PanelTarget =
+	| {kind: 'block'; index: number}
+	| {kind: 'effect'; index: number}
+	| {kind: 'kr2'};
 
 export interface SignalyBlockPanelProps {
 	/** Текст пассажа, как он сейчас в редакторе. */
@@ -119,6 +125,10 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 		() => (readAppearance(story.stylesheet) ?? defaultAppearance).savedColors,
 		[story.stylesheet]
 	);
+	const kinds = React.useMemo(
+		() => readKinds(story.stylesheet)?.kinds ?? [{cls: '', name: t('signaly.blocks.onscreen.plain')}],
+		[story.stylesheet, t]
+	);
 	const l = (key: string) => t(`signaly.blocks.${key}`);
 	const px = t('signaly.appearance.units.px');
 	const seconds = t('signaly.appearance.units.seconds');
@@ -158,7 +168,15 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 	let title = '';
 	let body: React.ReactNode = null;
 
-	if (target.kind === 'kr2') {
+	if (target.kind === 'effect') {
+		const effect = findEffects(text)[target.index];
+
+		if (!effect) {
+			return null;
+		}
+		title = effectTitle(effect, t);
+		body = <SignalyEffectForm effect={effect} onText={onText} text={text} />;
+	} else if (target.kind === 'kr2') {
 		title = l('kr2.title');
 		body = (
 			<Kr2Form
@@ -244,7 +262,7 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 							label={l('corner')}
 							onChange={value => set('corner', value)}
 							options={['tl', 'tr', 'bl', 'br'].map(value => ({
-								label: t(`signaly.kinds.places.corners.${value}`),
+								label: l(`corners.${value}`),
 								value
 							}))}
 							value={str('corner', 'tl')}
@@ -386,6 +404,32 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 				);
 				break;
 			}
+
+			case 'place':
+				title = l('onscreen.title');
+				body = (
+					<>
+						<ChoiceField
+							label={l('onscreen.kind')}
+							onChange={value => set('kind', value === '' ? undefined : value)}
+							options={kinds.map(k => ({label: k.name, value: k.cls}))}
+							value={str('kind')}
+						/>
+						<ChoiceField
+							label={l('corner')}
+							onChange={value => set('corner', value)}
+							options={['tl', 'tr', 'bl', 'br'].map(value => ({
+								label: l(`corners.${value}`),
+								value
+							}))}
+							value={str('corner', 'tl')}
+						/>
+						{range('x', l('x'), -900, 1900, 0)}
+						{range('y', l('y'), -500, 1080, 0, px, 1, l('dragHint'))}
+						<div className="signaly-field-hint">{l('onscreen.contentHint')}</div>
+					</>
+				);
+				break;
 
 			case 'code':
 				title = l('code.title');
@@ -667,11 +711,11 @@ const Kr2Form: React.FC<Kr2FormProps> = props => {
 					</legend>
 					{row.kind === 'text' ? (
 						<>
-							<TextField label={l('kr2.line')} onChange={value => changeRow(index, {kind: 'text', text: value})} value={row.text} />
+							<TextField label={l('kr2.line')} onChange={value => changeRow(index, {...row, text: value})} value={row.text} />
 							<ChoiceField
 								label={l('kr2.insertVar')}
 								onChange={value =>
-									value && changeRow(index, {kind: 'text', text: `${row.text}${row.text && !row.text.endsWith(' ') ? ' ' : ''}${value}`})
+									value && changeRow(index, {...row, text: `${row.text}${row.text && !row.text.endsWith(' ') ? ' ' : ''}${value}`})
 								}
 								options={[{label: '—', value: ''}, ...variables.map(name => ({label: name, value: name}))]}
 								value=""
@@ -691,6 +735,52 @@ const Kr2Form: React.FC<Kr2FormProps> = props => {
 							/>
 							<TextField label={l('dialog.heading')} onChange={value => changeRow(index, {...row, title: value})} value={row.title} />
 							{passageChoice(l('kr2.windowPassage'), row.passage, value => changeRow(index, {...row, passage: value}), l('code.choosePassage'))}
+						</>
+					)}
+					<ChoiceField
+						label={l('kr2.show')}
+						onChange={value =>
+							changeRow(index, {
+								...row,
+								when:
+									value === 'always'
+										? undefined
+										: {
+												name: row.when?.name ?? variables[0] ?? '$found',
+												value: value === 'equals' ? row.when?.value ?? '1' : undefined
+										  }
+							})
+						}
+						options={['always', 'on', 'equals'].map(value => ({
+							label: l(`kr2.shows.${value}`),
+							value
+						}))}
+						value={!row.when ? 'always' : row.when.value === undefined ? 'on' : 'equals'}
+					/>
+					{row.when && (
+						<>
+							<ChoiceField
+								label={l('kr2.whenVar')}
+								onChange={value => changeRow(index, {...row, when: {...row.when!, name: value}})}
+								options={[...new Set([row.when.name, ...variables])].map(name => ({label: name, value: name}))}
+								value={row.when.name}
+							/>
+							<TextField
+								label={l('kr2.whenVarOther')}
+								onChange={value => {
+									const name = value.trim().replace(/^\$?/, '$');
+
+									changeRow(index, {...row, when: {...row.when!, name}});
+								}}
+								value={row.when.name}
+							/>
+							{row.when.value !== undefined && (
+								<TextField
+									label={l('kr2.whenValue')}
+									onChange={value => changeRow(index, {...row, when: {...row.when!, value}})}
+									value={row.when.value}
+								/>
+							)}
 						</>
 					)}
 				</fieldset>

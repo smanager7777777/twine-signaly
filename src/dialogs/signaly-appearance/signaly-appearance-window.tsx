@@ -7,7 +7,8 @@
 
 import * as React from 'react';
 import {useTranslation} from 'react-i18next';
-import {Story, updateStory, useStoriesContext} from '../../store/stories';
+import {Story, useStoriesContext} from '../../store/stories';
+import {saveStoryWithUpgrade} from '../signaly-upgrade';
 import {useGameFolder} from '../../store/use-game-folder';
 import {
 	prepareStory,
@@ -112,9 +113,10 @@ export const SignalyAppearanceWindow: React.FC<
 	}
 
 	function save() {
-		dispatch(
-			updateStory(stories, story, {script: prepared.script, stylesheet})
-		);
+		saveStoryWithUpgrade(dispatch, stories, story, {
+			script: prepared.script,
+			stylesheet
+		});
 		setSaved(true);
 		setSavedOnce(true);
 	}
@@ -376,6 +378,20 @@ export const SignalyAppearanceWindow: React.FC<
 						>
 							{t('signaly.appearance.sampleDialog')}
 						</button>
+					</section>
+
+					<section>
+						<h3>{t('signaly.appearance.sections.text')}</h3>
+						{check('typeClick')}
+						{check('typeSeen')}
+						<h4 className="signaly-block-subtitle">{t('signaly.appearance.glitch')}</h4>
+						<p className="signaly-field-hint">{t('signaly.appearance.glitchHint')}</p>
+						{color('glitchColor')}
+						{color('glitchBg')}
+						{color('glitchShadow1')}
+						{color('glitchShadow2')}
+						{range('glitchShift', 0, 30, px, 0.5)}
+						{range('glitchSpeed', 0.2, 10, seconds, 0.1)}
 					</section>
 				</div>
 

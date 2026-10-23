@@ -49,7 +49,7 @@ export interface SignalyAppearancePreviewProps {
 	/** История с готовыми блоками (JavaScript и таблица стилей). */
 	story: Story;
 	/** Перетаскивание мышью (шаг 1.4): что делать, когда элемент отпустили. */
-	drag?: {locked: boolean} & Pick<DragOptions, 'onDrop' | 'place'>;
+	drag?: {locked: boolean} & Pick<DragOptions, 'onDrop'>;
 }
 
 export const SignalyAppearancePreview: React.FC<
@@ -178,8 +178,7 @@ export const SignalyAppearancePreview: React.FC<
 		if (doc && dragRef.current) {
 			dragControl.current = attachDrag(doc, {
 				locked: () => dragRef.current?.locked ?? true,
-				onDrop: result => dragRef.current?.onDrop(result),
-				place: id => dragRef.current?.place(id)
+				onDrop: result => dragRef.current?.onDrop(result)
 			});
 		}
 	}

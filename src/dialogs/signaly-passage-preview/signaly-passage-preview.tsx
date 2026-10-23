@@ -12,12 +12,10 @@ import {usePrefsContext} from '../../store/prefs';
 import {
 	Story,
 	updatePassage,
-	updateStory,
 	useStoriesContext
 } from '../../store/stories';
 import {useGameFolder} from '../../store/use-game-folder';
 import {blockAfterDrop, DragResult} from '../../util/signaly/signaly-drag';
-import {readKinds, withKinds} from '../../util/signaly/signaly-kinds';
 import {folderToFileUrl} from '../../util/signaly/signaly-preview';
 import {writeBlock} from '../../util/signaly/signaly-screen-blocks';
 import {
@@ -78,7 +76,7 @@ export const SignalyPreviewButton: React.FC<{passageId: string}> = ({
 export const SignalyPassagePreview: React.FC<{story: Story}> = ({story}) => {
 	const {t} = useTranslation();
 	const {prefs} = usePrefsContext();
-	const {dispatch, stories} = useStoriesContext();
+	const {dispatch} = useStoriesContext();
 	const {gameFolder} = useGameFolder();
 	const passageId = usePreviewPassage();
 	const [refresh, setRefresh] = React.useState(0);
@@ -137,25 +135,6 @@ export const SignalyPassagePreview: React.FC<{story: Story}> = ({story}) => {
 
 	// Элемент перетащили мышью — записываем новые числа (шаг 1.4).
 	function drop(result: DragResult) {
-		if (result.kind === 'place') {
-			const data = readKinds(story.stylesheet);
-
-			if (!data) {
-				return;
-			}
-			dispatch(
-				updateStory(stories, story, {
-					stylesheet: withKinds(story.stylesheet, {
-						...data,
-						places: data.places.map(p =>
-							p.id === result.id ? {...p, x: result.x, y: result.y} : p
-						)
-					})
-				})
-			);
-			return;
-		}
-
 		// Сначала этот пассаж, потом остальные (блок мог прийти из <<include>>).
 		const candidates = [passage!, ...story.passages.filter(p => p !== passage)];
 
@@ -214,8 +193,7 @@ export const SignalyPassagePreview: React.FC<{story: Story}> = ({story}) => {
 				baseUrl={folder ? folderToFileUrl(folder) : undefined}
 				drag={{
 					locked: prefs.signalyDragLock,
-					onDrop: drop,
-					place: id => readKinds(story.stylesheet)?.places.find(p => p.id === id)
+					onDrop: drop
 				}}
 				mode="passage"
 				passageId={passage.id}

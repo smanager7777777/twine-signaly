@@ -5,13 +5,11 @@
 //   @@color:#cc0000;текст@@  @@font-size:150%;текст@@
 //   <div class="center-text">…</div>  <div class="side-text">…</div>
 //   !Заголовок  * пункт списка  ----
-//   <span class="amber">…</span> — вид кнопок и ссылок,
-//   <span class="sg-place-rad amber">…</span> — кнопка на экране.
+//   <span class="amber">…</span> — вид кнопок и ссылок.
+// Кнопка на экране — блок <<sg-place>> (signaly-screen-blocks.ts).
 //
 // Функции получают текст и выделение (смещения) и возвращают правку: какой
 // кусок заменить и что выделить после.
-
-import {placePrefix} from './signaly-kinds';
 
 export interface Edit {
 	from: number;
@@ -305,49 +303,6 @@ export function applyKind(
 		const at = from + open.length + '<<link "'.length;
 
 		return replace(from, to, open + link + '</span>', at, at + sample.length);
-	}
-	return replace(from, to, open + text.slice(from, to) + '</span>', from + open.length, to + open.length);
-}
-
-/* ----- Кнопка на экране ----- */
-
-export function placeAt(text: string, from: number, to: number) {
-	const run = enclosingTag(text, from, to, r => r.classes.some(c => c.startsWith(placePrefix)));
-
-	return run ? run.classes.find(c => c.startsWith(placePrefix))!.slice(placePrefix.length) : '';
-}
-
-/**
- * Поставить выделенное на место «кнопки на экране» (id === '' — убрать с
- * места). Без выделения вставляет кнопку-ссылку с названием места.
- */
-export function applyPlace(
-	text: string,
-	from: number,
-	to: number,
-	place: {id: string; kind: string; name: string} | null
-): Edit | undefined {
-	const run = enclosingTag(text, from, to, r => r.classes.some(c => c.startsWith(placePrefix)));
-
-	if (run) {
-		const classes = run.classes.filter(c => !c.startsWith(placePrefix));
-
-		if (place) {
-			classes.unshift(placePrefix + place.id);
-		}
-		return retag(text, run, classes, from, to);
-	}
-	if (!place) {
-		return undefined;
-	}
-
-	const open = `<span class="${placePrefix}${place.id}${place.kind ? ' ' + place.kind : ''}">`;
-
-	if (from === to) {
-		const name = place.name.replace(/"/g, "'");
-		const at = from + open.length + '<<link "'.length;
-
-		return replace(from, to, `${open}<<link "${name}">><</link>></span>`, at, at + name.length);
 	}
 	return replace(from, to, open + text.slice(from, to) + '</span>', from + open.length, to + open.length);
 }

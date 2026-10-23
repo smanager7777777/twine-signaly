@@ -2,6 +2,7 @@ import {fireEvent, render, screen} from '@testing-library/react';
 import * as React from 'react';
 import {useStoriesContext} from '../../../store/stories';
 import {FakeStateProvider, fakeStory, StoryInspector} from '../../../test-util';
+import {sanitizeKinds, withKinds} from '../../../util/signaly/signaly-kinds';
 import {SignalyKindsWindow} from '../signaly-kinds-window';
 
 const TestWindow: React.FC = () => {
@@ -54,15 +55,31 @@ describe('<SignalyKindsWindow>', () => {
 		expect(stylesheet()).toContain('"name":"Синий"');
 	});
 
-	it('добавляет кнопку на экране', () => {
-		renderWindow();
-		fireEvent.click(screen.getByText('signaly.kinds.tabs.places'));
-		fireEvent.change(screen.getByPlaceholderText('signaly.kinds.places.newName'), {
-			target: {value: 'Звук'}
-		});
-		fireEvent.click(screen.getByText('signaly.kinds.places.add'));
+	it('переносит старые кнопки на экране в элементы пассажей (сессия 6)', () => {
+		const story = fakeStory(1);
+
+		story.stylesheet = withKinds(
+			'',
+			sanitizeKinds({
+				kinds: [],
+				places: [{id: 'rad', name: 'РАД', corner: 'tr', x: 5, y: 2.75, kind: 'amber'}]
+			})
+		);
+		story.script = '';
+		story.passages[0].text = 'Текст <span class="sg-place-rad amber"><<link "РАД">><</link>></span>';
+		render(
+			<FakeStateProvider stories={[story]}>
+				<TestWindow />
+				<StoryInspector />
+			</FakeStateProvider>
+		);
+		expect(screen.getByText(/signaly\.kinds\.placesMoved/)).toBeInTheDocument();
+		expect(screen.queryByText('signaly.kinds.tabs.places')).not.toBeInTheDocument();
 		fireEvent.click(screen.getByText('signaly.appearance.save'));
-		expect(stylesheet()).toContain('.sg-place-zvuk {');
-		expect(stylesheet()).toContain('position: fixed;');
+		expect(screen.getByTestId(`passage-${story.passages[0].id}`).textContent).toContain(
+			'Текст <<sg-place kind amber corner tr x 5 y 2.75>><<link "РАД">><</link>><</sg-place>>'
+		);
+		expect(stylesheet()).not.toContain('.sg-place-rad');
+		expect(stylesheet()).toContain('"places":[]');
 	});
 });

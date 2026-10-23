@@ -182,3 +182,51 @@ describe('variablesIn', () => {
 		expect(variablesIn(['$b и $a', '<<set $a to 1>>'])).toEqual(['$a', '$b']);
 	});
 });
+
+describe('кнопка на экране и вложенные блоки (сессия 6)', () => {
+	it('читает и пишет <<sg-place>>', () => {
+		const text = '<<sg-place kind amber corner tr x 5 y 2.75>><<link "РАД">><</link>><</sg-place>>';
+		const [block] = findBlocks(text);
+
+		expect(block.type).toBe('place');
+		expect(block.values).toEqual({kind: 'amber', corner: 'tr', x: 5, y: 2.75});
+		expect(block.content).toBe('<<link "РАД">><</link>>');
+		expect(writeBlock(block)).toBe(text);
+		expect(writeBlock({...block, values: {...block.values, kind: 'red-big'}})).toBe(
+			'<<sg-place kind "red-big" corner tr x 5 y 2.75>><<link "РАД">><</link>><</sg-place>>'
+		);
+	});
+
+	it('находит блоки внутри тревоги и выбирает самый внутренний', () => {
+		const text = '<<sg-alarm close click>>А <<sg-dialog "Подробно">>Б<</sg-dialog>><</sg-alarm>>';
+		const blocks = findBlocks(text);
+
+		expect(blocks.map(b => b.type)).toEqual(['alarm', 'dialog']);
+		expect(blockAt(text, text.indexOf('Подробно'))?.type).toBe('dialog');
+		expect(blockAt(text, text.indexOf('А '))?.type).toBe('alarm');
+	});
+
+	it('условия у статусов KR2', () => {
+		const text = writeKr2('', {
+			image: '',
+			cols: 65,
+			rows: 65,
+			status: [
+				{kind: 'text', text: 'Журнал полёта: найден', when: {name: '$flightlog1'}},
+				{kind: 'text', text: 'Глава 2', when: {name: '$chapter', value: '2'}},
+				{kind: 'window', label: 'Реактор', title: '', passage: 'REACTOR', button: false, when: {name: '$room', value: 'реакторная'}}
+			]
+		});
+
+		expect(text).toBe(
+			'<<kr2vars>><<if $flightlog1>>Журнал полёта: найден<br><</if>>\\\n' +
+				'<<if $chapter is 2>>Глава 2<br><</if>>\\\n' +
+				'<<if $room is "реакторная">><<sg-dialog "Реактор" passage "REACTOR">><</sg-dialog>><br><</if>><</kr2vars>>\n'
+		);
+		expect(readKr2(text).status).toEqual([
+			{kind: 'text', text: 'Журнал полёта: найден', when: {name: '$flightlog1', value: undefined}},
+			{kind: 'text', text: 'Глава 2', when: {name: '$chapter', value: '2'}},
+			{kind: 'window', label: 'Реактор', title: '', passage: 'REACTOR', button: false, when: {name: '$room', value: 'реакторная'}}
+		]);
+	});
+});
