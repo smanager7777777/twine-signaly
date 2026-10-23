@@ -49,7 +49,7 @@ function findTarget(start: EventTarget | null): Target | undefined {
 		if (source) {
 			const block = findBlocks(source)[0];
 
-			if (!block || !['image', 'video', 'place'].includes(block.type)) {
+			if (!block || !['image', 'video', 'place', 'chain'].includes(block.type)) {
 				return undefined;
 			}
 
@@ -74,9 +74,15 @@ function findTarget(start: EventTarget | null): Target | undefined {
 }
 
 /** Ширина без рамки — то, что пишется в команду. */
-function contentWidth(el: HTMLElement) {
+function contentWidth(el: HTMLElement): number {
 	if (el.tagName === 'VIDEO') {
 		return Number(el.getAttribute('width')) || el.clientWidth;
+	}
+	// Цепочка видео (шаг 2.3) — по видимому видео внутри.
+	const video = [...el.querySelectorAll('video')].find(v => v.style.display !== 'none');
+
+	if (video) {
+		return contentWidth(video as HTMLElement);
 	}
 	return parseFloat(el.ownerDocument.defaultView!.getComputedStyle(el).width) || el.clientWidth;
 }

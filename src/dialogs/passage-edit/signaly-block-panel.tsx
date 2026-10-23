@@ -17,6 +17,7 @@ import {
 import {findEffects} from '../../util/signaly/signaly-effects';
 import {readKinds} from '../../util/signaly/signaly-kinds';
 import {
+	ChainStep,
 	CodeCase,
 	findBlocks,
 	Kr2,
@@ -25,6 +26,7 @@ import {
 	Kr2Row,
 	readKr2,
 	ScreenBlock,
+	timerDefaults,
 	Value,
 	variablesIn,
 	writeBlock,
@@ -85,7 +87,8 @@ function useLists(story: Story) {
 		img: string[];
 		video: string[];
 		audio: string[];
-	}>({img: [], video: [], audio: []});
+		fonts: string[];
+	}>({img: [], video: [], audio: [], fonts: []});
 
 	React.useEffect(() => {
 		let cancelled = false;
@@ -93,10 +96,11 @@ function useLists(story: Story) {
 		Promise.all([
 			listMedia(story.id, 'img'),
 			listMedia(story.id, 'video'),
-			listMedia(story.id, 'audio')
-		]).then(([img, video, audio]) => {
+			listMedia(story.id, 'audio'),
+			listMedia(story.id, 'fonts')
+		]).then(([img, video, audio, fonts]) => {
 			if (!cancelled) {
-				setMedia({img, video, audio});
+				setMedia({img, video, audio, fonts});
 			}
 		});
 		return () => {
@@ -450,6 +454,132 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 				);
 				break;
 
+			case 'timer': {
+				// Шаг 2.3 (ответы 1А–4А).
+				const running = v.start === 'running';
+				const end = v.goto !== undefined ? 'goto' : v.sound !== undefined ? 'sound' : v.title !== undefined || v.passage !== undefined || v.text !== undefined ? 'dialog' : 'none';
+				const fromPassage = v.passage !== undefined;
+				const setEnd = (value: string) =>
+					write({
+						...block,
+						values: {
+							...v,
+							goto: value === 'goto' ? passages.find(p => p !== passage.name) ?? '' : undefined,
+							title: value === 'dialog' ? l('timer.endTitle') : undefined,
+							text: value === 'dialog' ? l('timer.endText') : undefined,
+							passage: undefined,
+							sound: value === 'sound' ? media.audio[0] ?? '' : undefined
+						}
+					});
+
+				title = l('timer.title');
+				body = (
+					<>
+						<TextField hint={l('timer.nameHint')} label={l('timer.name')} onChange={value => set('name', value)} value={str('name')} />
+						<ChoiceField
+							label={l('timer.start')}
+							onChange={value => set('start', value === 'enter' ? undefined : value)}
+							options={['enter', 'running'].map(value => ({label: l(`timer.starts.${value}`), value}))}
+							value={running ? 'running' : 'enter'}
+						/>
+						{!running && (
+							<>
+								{range('hours', l('timer.hours'), 0, 23, 0, l('timer.h'))}
+								{range('minutes', l('timer.minutes'), 0, 59, 0, l('timer.m'))}
+								{range('seconds', l('timer.seconds'), 0, 59, 0, l('timer.s'))}
+								<ChoiceField
+									label={l('timer.end')}
+									onChange={setEnd}
+									options={['goto', 'dialog', 'sound', 'none'].map(value => ({label: l(`timer.ends.${value}`), value}))}
+									value={end}
+								/>
+								{end === 'goto' && passageChoice(l('timer.goto'), str('goto'), value => set('goto', value), l('code.choosePassage'))}
+								{end === 'dialog' && (
+									<>
+										<TextField label={l('dialog.heading')} onChange={value => set('title', value)} value={str('title')} />
+										<ChoiceField
+											label={l('dialog.content')}
+											onChange={value =>
+												write({
+													...block,
+													values: {
+														...v,
+														passage: value === 'passage' ? passages.find(p => p !== passage.name) ?? '' : undefined,
+														text: value === 'passage' ? undefined : str('text')
+													}
+												})
+											}
+											options={[
+												{label: l('dialog.ownText'), value: 'text'},
+												{label: l('dialog.fromPassage'), value: 'passage'}
+											]}
+											value={fromPassage ? 'passage' : 'text'}
+										/>
+										{fromPassage ? (
+											<ChoiceField
+												label={l('dialog.passage')}
+												onChange={value => set('passage', value)}
+												options={passages.map(p => ({label: p, value: p}))}
+												value={str('passage')}
+											/>
+										) : (
+											<AreaField hint={l('contentHint')} label={l('dialog.text')} onChange={value => set('text', value)} value={str('text')} />
+										)}
+									</>
+								)}
+								{end === 'sound' && fileChoice(l('timer.sound'), str('sound'), media.audio, value => set('sound', value))}
+								{check('hidden', l('timer.hidden'), l('timer.hiddenHint'))}
+							</>
+						)}
+						{running && <div className="signaly-field-hint">{l('timer.runningHint')}</div>}
+						{(running || v.hidden !== true) && (
+							<>
+								<h4 className="signaly-block-subtitle">{l('timer.look')}</h4>
+								<ChoiceField
+									label={l('timer.font')}
+									onChange={value => set('font', value === timerDefaults.font ? undefined : value)}
+									options={[
+										{label: l('timer.terminalFont'), value: 'none'},
+										...[...new Set([timerDefaults.font, ...media.fonts])].map(f => ({label: f, value: f}))
+									]}
+									value={str('font', timerDefaults.font)}
+								/>
+								{color('color', l('timer.color'), timerDefaults.color)}
+								{color('bg', l('timer.bg'), timerDefaults.bg)}
+								{range('size', l('timer.size'), 10, 400, timerDefaults.size)}
+								{range('border', l('border'), 0, 20, timerDefaults.border)}
+								{range('glow', l('glow'), 0, 60, timerDefaults.glow)}
+								<ChoiceField
+									label={l('timer.format')}
+									onChange={value => set('format', value === 'ms' ? undefined : value)}
+									options={['ms', 'hms'].map(value => ({label: l(`timer.formats.${value}`), value}))}
+									value={str('format', 'ms')}
+								/>
+							</>
+						)}
+					</>
+				);
+				break;
+			}
+
+			case 'chain':
+				title = l('chain.title');
+				body = (
+					<ChainForm
+						block={block}
+						fileChoice={fileChoice}
+						l={l}
+						passageChoice={passageChoice}
+						place={place}
+						range={range}
+						set={set}
+						str={str}
+						videos={media.video}
+						write={write}
+					/>
+				);
+				break;
+
 			case 'code':
 				title = l('code.title');
 				body = (
@@ -643,6 +773,96 @@ const CodeForm: React.FC<CodeFormProps> = props => {
 					</button>
 				)}
 			</fieldset>
+		</>
+	);
+};
+
+/* ----- Цепочка видео (шаг 2.3, ответы 6А, 7А) ----- */
+
+interface ChainFormProps {
+	block: ScreenBlock;
+	fileChoice: CodeFormProps['fileChoice'];
+	l: (key: string) => string;
+	passageChoice: CodeFormProps['passageChoice'];
+	place: () => React.ReactNode;
+	range: CodeFormProps['range'];
+	set: CodeFormProps['set'];
+	str: CodeFormProps['str'];
+	videos: string[];
+	write: CodeFormProps['write'];
+}
+
+const ChainForm: React.FC<ChainFormProps> = props => {
+	const {block, fileChoice, l, passageChoice, place, range, set, str, videos, write} = props;
+	const {t} = useTranslation();
+	const steps = block.steps ?? [];
+	const update = (next: ChainStep[]) => write({...block, steps: next});
+	const setStep = (index: number, key: string, value: Value | undefined) =>
+		update(
+			steps.map((s, i) =>
+				i === index ? {...s, values: {...s.values, [key]: value === false ? undefined : value}} : s
+			)
+		);
+	const move = (index: number, by: number) => {
+		const next = [...steps];
+		const [step] = next.splice(index, 1);
+
+		next.splice(Math.max(0, Math.min(next.length, index + by)), 0, step);
+		update(next);
+	};
+
+	return (
+		<>
+			{range('width', l('width'), 20, 1920, 1000, t('signaly.appearance.units.px'), 1, l('resizeHint'))}
+			{range('height', l('video.height'), 0, 1080, 0, t('signaly.appearance.units.px'), 1, l('video.heightHint'))}
+			{place()}
+			<h4 className="signaly-block-subtitle">{l('chain.steps')}</h4>
+			{steps.map((step, index) => {
+				const v = step.values;
+				const last = index === steps.length - 1;
+				const next = String(v.next ?? 'end');
+
+				return (
+					<fieldset className="signaly-block-row" key={index}>
+						<legend>
+							{l('chain.step')} {index + 1}
+							<IconButton disabled={index === 0} icon={<IconArrowUp />} iconOnly label={l('up')} onClick={() => move(index, -1)} />
+							<IconButton disabled={last} icon={<IconArrowDown />} iconOnly label={l('down')} onClick={() => move(index, 1)} />
+							<IconButton disabled={steps.length < 2} icon={<IconTrash />} iconOnly label={l('remove')} onClick={() => update(steps.filter((_, i) => i !== index))} />
+						</legend>
+						{fileChoice(l('file'), String(v.src ?? ''), videos, value => setStep(index, 'src', value))}
+						<CheckField label={l('chain.loop')} onChange={value => setStep(index, 'loop', value)} value={v.loop === true} />
+						<CheckField label={l('video.muted')} onChange={value => setStep(index, 'muted', value)} value={v.muted === true} />
+						<ChoiceField
+							hint={v.loop === true && next === 'end' ? l('chain.loopEndHint') : undefined}
+							label={last ? l('chain.lastNext') : l('chain.next')}
+							onChange={value => setStep(index, 'next', value)}
+							options={['click', 'end', 'time'].map(value => ({label: l(`chain.nexts.${value}`), value}))}
+							value={next}
+						/>
+						{next === 'time' && (
+							<RangeField
+								label={l('seconds')}
+								max={600}
+								min={0}
+								onChange={value => setStep(index, 'seconds', value)}
+								step={0.5}
+								unit={t('signaly.appearance.units.seconds')}
+								value={typeof v.seconds === 'number' ? v.seconds : 5}
+							/>
+						)}
+					</fieldset>
+				);
+			})}
+			<button
+				className="signaly-button"
+				onClick={() => update([...steps, {values: {src: '', next: 'end'}, extra: []}])}
+				type="button"
+			>
+				{l('chain.add')}
+			</button>
+			{passageChoice(l('chain.goto'), str('goto'), value => set('goto', value), l('stay'))}
+			<div className="signaly-field-hint">{l('chain.hint')}</div>
 		</>
 	);
 };

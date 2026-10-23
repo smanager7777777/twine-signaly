@@ -148,7 +148,7 @@ check('TERRAFORM: отметка ремонта сохраняется', await p
 
 // 9. Таймер идёт в фоне и по окончании ведёт на Start.
 await go('Clocktest5', 1000);
-const shown = await page.evaluate(() => document.querySelector('#countdown')?.textContent);
+const shown = await page.evaluate(() => (document.querySelector('.sg-timer') || document.querySelector('#countdown'))?.textContent);
 check('таймер: табло мм:сс', /^\d\d:\d\d$/.test(shown || ''), shown);
 await go('Texttests', 500);
 await page.waitForTimeout(5500);

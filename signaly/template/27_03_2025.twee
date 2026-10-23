@@ -60,31 +60,21 @@ $(document).one(':passagedisplay', function () {
 [[Проверка выполнения таймера при уходе со страницы|Clocktest5]]
 
 
-<<if $timerstarted is 1>>
-<<include "Clocktimer">>
-<</if>>
+
+<<sg-timer "Clocks" start running>>
+
 
 
 
 
 :: Clocktest5 {"position":"75,350","size":"100,100"}
-<<silent>>
-<<set $timerstarted to 1>>
-<<set $minutes to 0>>
-<<set $seconds to 5>>
-/* СИГНАЛЫ: таймер идёт в фоне — запоминаем время окончания */
-<<set $timerEnd to Date.now() + ($minutes * 60 + $seconds) * 1000>>
-<</silent>>
-\<<include "Clocktimer">>
+<<sg-timer "Clocks" minutes 0 seconds 5 goto "Start">>
 
 [[Clocks]]
 
 
 :: Clocktimer {"position":"200,350","size":"100,100"}
-/* СИГНАЛЫ: отсчёт ведёт StoryScript (блок «Таймер»), здесь только табло */\
-<div id="timer-display">
-\<span id="countdown"><<print setup.timerText()>></span>
-\</div>
+<<sg-timer "Clocks" start running>>
 
 
 :: Failure {"position":"550,625","size":"100,100"}
@@ -308,8 +298,6 @@ Dialog.open();
 <<set $radioplaying to 0>>
 <<set $ambientplaying to 0>>
 <<set $bigtimer to 0>>
-<<set $timerstarted to 0>>
-<<set $timerEnd to 0>>
 <<set $visitCount to 0>>
 <<set $playingtrack to "Ничего">>
 <<set $health to 100>>
@@ -363,10 +351,7 @@ Success
 <<timed 3s>><<replace "#blockscreeen1">><<type 120ms none>>НЕСООТВЕТСТВИЕ СХЕМ. ПЕРЕЗАПУСК ЧЕРЕЗ 30 СЕКУНД.<</type>><</replace>><</timed>>
 </div>
 
-/* СИГНАЛЫ: скрытый таймер 30 с — без общих $minutes/$seconds, чтобы не сбивать таймер Clocks */\
-<<silent>>
-<<timed 30s>><<goto "TERRAFORM">><</timed>>
-<</silent>>
+<<sg-timer "TERRAFORM_FAIL" seconds 30 goto "TERRAFORM" hidden>>
 
 
 :: TERRAFORM_FRAME {"position":"850,850","size":"100,100"}
@@ -480,7 +465,7 @@ Success
     Это текст сбоку (по правому краю).
 </div>
 
-	<<timed 2s t8b>>
+	<<timed 2s t8n>>
 Появлюсь через 2 секунды <<next>>
 Ещё через 2 секунды <<next 4s>>
 Через 4 секунды
@@ -529,148 +514,30 @@ Success
 
 :: Videotest2 {"position":"700,25","size":"100,100"}
 <div class="center-text">\
-<video id="vid1" loop autoplay muted width="1000" height="1000">
-    <source src="media/video/SHUTTERS.mp4" type="video/mp4">
-</video>\
-<video id="vid2" preload="auto" width="1000" height="1000" style="display:none;">
-    <source src="media/video/SHUTTERS_DESSERT_OPEN_SOUND.mp4" type="video/mp4">
-</video>\
-<video id="vid3" loop preload="auto" width="1000" height="1000" style="display:none;">
-    <source src="media/video/DESERT_RAIN.mp4" type="video/mp4">
-</video>\
-<video id="vid4" preload="auto" width="1000" height="1000" style="display:none;">
-    <source src="media/video/SHUTTERS_DESSET_CLOSE_SOUND.mp4" type="video/mp4">
-</video>
+<<sg-chain width 1000 height 1000 goto "Start">>
+<<sg-step "media/video/SHUTTERS.mp4" next click loop muted>>
+<<sg-step "media/video/SHUTTERS_DESSERT_OPEN_SOUND.mp4" next end>>
+<<sg-step "media/video/DESERT_RAIN.mp4" next click loop>>
+<<sg-step "media/video/SHUTTERS_DESSET_CLOSE_SOUND.mp4" next end>>
+<</sg-chain>>
 </div>
-
-<<script>>
-$(document).one(':passagedisplay', function () {
-
-    var v1 = document.getElementById('vid1');
-    var v2 = document.getElementById('vid2');
-    var v3 = document.getElementById('vid3');
-    var v4 = document.getElementById('vid4');
-
-    v2.load();
-    v3.load();
-    v4.load();
-
-    // Клик по первому (loop) → второе
-    v1.addEventListener('click', function () {
-
-        v1.pause();
-        v1.style.display = "none";
-
-        v2.style.display = "block";
-        v2.play().catch(function(){});
-    });
-
-    // После второго → третье (loop дождя)
-    v2.addEventListener('ended', function () {
-
-        v2.style.display = "none";
-        v3.style.display = "block";
-
-        v3.play().catch(function(){});
-    });
-
-    // Клик по третьему → четвёртое
-    v3.addEventListener('click', function () {
-
-        v3.pause();
-        v3.style.display = "none";
-
-        v4.style.display = "block";
-        v4.play().catch(function(){});
-    });
-
-    // После четвёртого → переход
-    v4.addEventListener('ended', function () {
-        Engine.play("Start");
-    });
-
-});
-<</script>>
 
 
 :: WINDOWDESSERT {"position":"1375,400","size":"100,100"}
-<video id="vid1" loop autoplay muted width="1000" height="1000">
-    <source src="media/video/SHUTTERS.mp4" type="video/mp4">
-</video>\
-<video id="vid2" preload="auto" width="1000" height="1000" style="display:none;">
-    <source src="media/video/SHUTTERS_DESSERT_OPEN_SOUND.mp4" type="video/mp4">
-</video>\
-<video id="vid3" loop preload="auto" width="1000" height="1000" style="display:none;">
-    <source src="media/video/DESERT_RAIN.mp4" type="video/mp4">
-</video>\
-<video id="vid4" preload="auto" width="1000" height="1000" style="display:none;">
-    <source src="media/video/SHUTTERS_DESSET_CLOSE_SOUND.mp4" type="video/mp4">
-</video>\
-<<script>>
-$(document).one(':passagedisplay', function () {
-
-    var v1 = document.getElementById('vid1');
-    var v2 = document.getElementById('vid2');
-    var v3 = document.getElementById('vid3');
-    var v4 = document.getElementById('vid4');
-
-    v2.load();
-    v3.load();
-    v4.load();
-
-    // Клик по первому (loop) → второе
-    v1.addEventListener('click', function () {
-
-        v1.pause();
-        v1.style.display = "none";
-
-        v2.style.display = "block";
-        v2.play().catch(function(){});
-    });
-
-    // После второго → третье (loop дождя)
-    v2.addEventListener('ended', function () {
-
-        v2.style.display = "none";
-        v3.style.display = "block";
-
-        v3.play().catch(function(){});
-    });
-
-    // Клик по третьему → четвёртое
-    v3.addEventListener('click', function () {
-
-        v3.pause();
-        v3.style.display = "none";
-
-        v4.style.display = "block";
-        v4.play().catch(function(){});
-    });
-
-    // После четвёртого → переход
-    v4.addEventListener('ended', function () {
-        Engine.play("Start");
-    });
-
-});
-<</script>>
+<<sg-chain width 1000 height 1000 goto "Start">>
+<<sg-step "media/video/SHUTTERS.mp4" next click loop muted>>
+<<sg-step "media/video/SHUTTERS_DESSERT_OPEN_SOUND.mp4" next end>>
+<<sg-step "media/video/DESERT_RAIN.mp4" next click loop>>
+<<sg-step "media/video/SHUTTERS_DESSET_CLOSE_SOUND.mp4" next end>>
+<</sg-chain>>
 
 
 :: WINDOWSSHUTTERS {"position":"1375,625","size":"100,100"}
 <div class="center-text">\
-<video id="vid1" loop autoplay muted width="1000" height="1000">
-    <source src="media/video/SHUTTERS.mp4" type="video/mp4">
-</video>\
+<<sg-chain width 1000 height 1000 goto "Start">>
+<<sg-step "media/video/SHUTTERS.mp4" next click loop muted>>
+<</sg-chain>>\
 </div>
-
-<<script>>
-$(document).one(':passagedisplay', function () {
-    var v1 = document.getElementById('vid1');
-    v1.addEventListener('click', function () {
-        Engine.play("Start");
-    });
-});
-<</script>>
 
 
 :: XIAOMICAM {"position":"300,500","size":"100,100"}
@@ -1118,7 +985,7 @@ setup.signalySounds = {
 
 
 /* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */
-/* Версия движка: 5. Обновляется программой «Twine СИГНАЛЫ».
+/* Версия движка: 6. Обновляется программой «Twine СИГНАЛЫ».
    Настройки — в окне «Оформление терминала» (они лежат в таблице стилей).
    Свой код пишите ниже конца этого блока. */
 (function () {
@@ -1163,7 +1030,7 @@ setup.signalySounds = {
 	// Предпросмотр в программе: без стартового экрана, автокопии и защиты.
 	var preview = window.SIGNALY_PREVIEW;
 
-	setup.signaly = {engine: 5, preview: !!preview};
+	setup.signaly = {engine: 6, preview: !!preview};
 
 	function showStartScreen(onClick) {
 		var screen = document.createElement('div');
@@ -1485,6 +1352,284 @@ setup.signalySounds = {
 			}
 			$(el).wiki(this.payload[0].contents);
 			this.output.appendChild(el);
+		}
+	});
+
+	/* ----- Таймеры (шаг 2.3) ----- */
+
+	// Таймер именной и идёт в фоне: время окончания лежит в переменной
+	// $sgTimers (попадает в автокопию), табло того же таймера можно поставить
+	// на несколько экранов. По окончании — переход, окно-сообщение или звук.
+	var timerDefaults = {"font":"media/fonts/DSEG7Classic-Regular.woff2","color":"#cc0000","bg":"#000000","size":125,"border":2,"glow":10};
+	var timerFonts = {};
+	var restoring = false;
+
+	function timerStore() {
+		var v = State.variables;
+
+		if (!v.sgTimers || typeof v.sgTimers !== 'object') {
+			v.sgTimers = {};
+		}
+		return v.sgTimers;
+	}
+
+	function timersChanged() {
+		if (setup.signaly.saveTimers) {
+			setup.signaly.saveTimers();
+		}
+	}
+
+	function pad(n) {
+		return n < 10 ? '0' + n : String(n);
+	}
+
+	function timerText(end, format) {
+		var left = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+
+		if (format === 'hms') {
+			return pad(Math.floor(left / 3600)) + ':' + pad(Math.floor(left / 60) % 60) + ':' + pad(left % 60);
+		}
+		return pad(Math.floor(left / 60)) + ':' + pad(left % 60);
+	}
+
+	// Шрифт табло — файл из папки игры (свой @font-face на каждый файл).
+	function timerFont(file) {
+		if (file === 'none') {
+			return '';
+		}
+		if (!timerFonts[file]) {
+			var family = 'sg-timer-font-' + (Object.keys(timerFonts).length + 1);
+			var style = document.createElement('style');
+
+			style.textContent =
+				'@font-face { font-family: "' + family + '"; src: url(' + JSON.stringify(file) +
+				'); font-weight: normal; font-style: normal; }';
+			document.head.appendChild(style);
+			timerFonts[file] = family;
+		}
+		return '"' + timerFonts[file] + '", monospace';
+	}
+
+	function timerEnded(name, t) {
+		var store = timerStore();
+
+		delete store[name];
+		timersChanged();
+		if (t.sound) {
+			try {
+				new Audio(t.sound).play().catch(function () {});
+			} catch (e) {
+				console.error('СИГНАЛЫ: звук таймера', e);
+			}
+		}
+		if (t.passage || t.text || t.title) {
+			setup.signaly.openDialog({title: t.title, passage: t.passage, text: t.text});
+		}
+		if (t.goto && Story.has(t.goto)) {
+			Engine.play(t.goto);
+		}
+	}
+
+	function tickTimers() {
+		var store = State.variables && State.variables.sgTimers;
+
+		if (!store || restoring || (Engine.isIdle && !Engine.isIdle())) {
+			return;
+		}
+		$('.sg-timer[data-sg-timer]').each(function () {
+			var t = store[this.getAttribute('data-sg-timer')];
+
+			if (t) {
+				this.firstChild.textContent = timerText(t.end, this.getAttribute('data-sg-format'));
+			}
+		});
+		Object.keys(store).forEach(function (name) {
+			var t = store[name];
+
+			if (t && Date.now() >= t.end && State.variables.sgTimers === store && store[name] === t) {
+				timerEnded(name, t);
+			}
+		});
+	}
+
+	setInterval(tickTimers, 250);
+
+	Macro.add('sg-timer', {
+		handler: function () {
+			var a = blockArgs(
+				this,
+				['name'],
+				['hours', 'minutes', 'seconds', 'start', 'goto', 'title', 'passage', 'text', 'sound',
+					'font', 'color', 'bg', 'size', 'border', 'glow', 'format'],
+				['hidden']
+			);
+			var name = String(a.name || State.passage);
+			var store = timerStore();
+
+			if (a.start !== 'running' && !(restoring && store[name])) {
+				var total =
+					(Number(a.hours) || 0) * 3600 + (Number(a.minutes) || 0) * 60 + (Number(a.seconds) || 0);
+				var t = {end: Date.now() + total * 1000};
+
+				['goto', 'title', 'passage', 'text', 'sound'].forEach(function (key) {
+					if (a[key] !== undefined && a[key] !== '') {
+						t[key] = String(a[key]);
+					}
+				});
+				store[name] = t;
+				timersChanged();
+			}
+
+			var running = store[name];
+
+			// Табло не видно: скрытый таймер или таймер ещё не идёт.
+			if (a.hidden || !running) {
+				return;
+			}
+
+			var color = a.color || timerDefaults.color;
+			var border = a.border === undefined ? timerDefaults.border : Number(a.border) || 0;
+			var glow = a.glow === undefined ? timerDefaults.glow : Number(a.glow) || 0;
+			var el = document.createElement('div');
+			var text = document.createElement('span');
+			var s = el.style;
+			var font = timerFont(a.font === undefined ? timerDefaults.font : String(a.font));
+
+			el.className = 'sg-timer';
+			el.setAttribute('data-sg-timer', name);
+			if (a.format === 'hms') {
+				el.setAttribute('data-sg-format', 'hms');
+			}
+			if (font) {
+				s.fontFamily = font;
+			}
+			s.fontSize = (a.size === undefined ? timerDefaults.size : Number(a.size) || 0) + 'px';
+			s.color = color;
+			s.backgroundColor = a.bg || timerDefaults.bg;
+			if (border > 0) {
+				s.border = border + 'px solid ' + color;
+			}
+			if (glow > 0) {
+				s.boxShadow = '0 0 ' + glow + 'px ' + color + ', 0 0 ' + glow * 2 + 'px ' + color;
+			}
+			s.padding = '10px 20px';
+			s.width = 'fit-content';
+			s.margin = '20px auto';
+			s.textAlign = 'center';
+			s.display = 'flex';
+			s.justifyContent = 'center';
+			s.alignItems = 'center';
+			text.textContent = timerText(running.end, a.format);
+			el.appendChild(text);
+			this.output.appendChild(el);
+		}
+	});
+
+	/* ----- Цепочка видео (шаг 2.3) ----- */
+
+	// Шаги по порядку; следующий включает щелчок по видео, окончание видео или
+	// N секунд. Все видео загружаются сразу — переход мгновенный (ответ 7А).
+	Macro.add('sg-chain', {
+		tags: ['sg-step'],
+		handler: function () {
+			var a = blockArgs(this, [], ['width', 'height', 'goto'].concat(placeKeys), []);
+			var steps = this.payload.slice(1).map(function (part) {
+				return blockArgs({args: part.args}, ['src'], ['next', 'seconds'], ['loop', 'muted']);
+			});
+			var box = document.createElement('span');
+			var current = 0;
+			var stepTimer = null;
+			var done = false;
+			var look = {border: a.border, glow: a.glow, color: a.color};
+
+			box.className = 'sg-chain';
+
+			var videos = steps.map(function (step, index) {
+				var video = document.createElement('video');
+				var source = document.createElement('source');
+
+				['loop', 'muted'].forEach(function (flag) {
+					if (step[flag]) {
+						video.setAttribute(flag, '');
+						video[flag] = true;
+					}
+				});
+				if (index === 0) {
+					video.setAttribute('autoplay', '');
+					video.autoplay = true;
+				} else {
+					video.setAttribute('preload', 'auto');
+					video.style.display = 'none';
+				}
+				if (Number(a.width) > 0) {
+					video.setAttribute('width', Number(a.width));
+				}
+				if (Number(a.height) > 0) {
+					video.setAttribute('height', Number(a.height));
+				}
+				source.src = step.src || '';
+				source.type = videoType(step.src || '');
+				video.appendChild(source);
+				placeStyle(video, look);
+				video.addEventListener('click', function () {
+					if ((step.next || 'end') === 'click') {
+						advance(index);
+					}
+				});
+				video.addEventListener('ended', function () {
+					if ((step.next || 'end') === 'end') {
+						advance(index);
+					}
+				});
+				box.appendChild(video);
+				if (index > 0) {
+					video.load();
+				}
+				return video;
+			});
+
+			function arm(index) {
+				var step = steps[index];
+
+				clearTimeout(stepTimer);
+				if (step && step.next === 'time') {
+					stepTimer = setTimeout(function () {
+						advance(index);
+					}, Math.max(0, Number(step.seconds) || 0) * 1000);
+				}
+			}
+
+			function advance(index) {
+				if (index !== current || done || !box.isConnected) {
+					return;
+				}
+				clearTimeout(stepTimer);
+				if (index + 1 < videos.length) {
+					var old = videos[index];
+					var next = videos[index + 1];
+
+					old.pause();
+					old.style.display = 'none';
+					current = index + 1;
+					next.style.display = '';
+					next.currentTime = 0;
+					next.play().catch(function () {});
+					arm(current);
+					return;
+				}
+				done = true;
+				if (a.goto && Story.has(a.goto)) {
+					Engine.play(a.goto);
+				}
+			}
+
+			placeStyle(box, {place: a.place, corner: a.corner, x: a.x, y: a.y});
+			putPlaced(this, box, a, 'chain');
+			if (videos.length) {
+				$(document).one(':passagedisplay', function () {
+					arm(0);
+				});
+			}
 		}
 	});
 
@@ -2549,6 +2694,18 @@ setup.signalySounds = {
 	}
 
 	function startAutocopy() {
+		// Шаг 2.3: таймеры меняются не только при переходе — пишем их отдельно.
+		setup.signaly.saveTimers = function () {
+			if (!record) {
+				return;
+			}
+			try {
+				record.timers = JSON.parse(JSON.stringify(State.variables.sgTimers || {}));
+			} catch (e) {
+				record.timers = {};
+			}
+			writeCopy();
+		};
 		$(document).on(':passageinit', function () {
 			navCount++;
 		});
@@ -2584,6 +2741,15 @@ setup.signalySounds = {
 			} catch (e) {
 				console.error('СИГНАЛЫ: переменные не восстановлены', e);
 			}
+			// Таймеры — как были в момент сбоя: идущий таймер не начинается
+			// заново, а продолжает по времени окончания.
+			if (copy.timers) {
+				variables.sgTimers = copy.timers;
+			}
+			restoring = true;
+		});
+		$(document).one(':passagedisplay', function () {
+			restoring = false;
 		});
 	}
 
@@ -2759,27 +2925,7 @@ break;
 
 UIBar.destroy();
 
-
-/* ===== Таймер (экран Clocks) =====
-   СИГНАЛЫ: таймер идёт в фоне по времени окончания $timerEnd.
-   Когда время вышло — переход на Start, где бы ни были игроки. */
-setup.timerText = function () {
-    var left = Math.max(0, Math.ceil(((State.variables.timerEnd || 0) - Date.now()) / 1000));
-    return ('0' + Math.floor(left / 60)).slice(-2) + ':' + ('0' + (left % 60)).slice(-2);
-};
-
-setInterval(function () {
-    var v = State.variables;
-    if (v.timerstarted !== 1 || !v.timerEnd) {
-        return;
-    }
-    $('#countdown').text(setup.timerText());
-    if (Date.now() >= v.timerEnd) {
-        v.timerstarted = 0;
-        v.timerEnd = 0;
-        Engine.play("Start");
-    }
-}, 250);
+/* СИГНАЛЫ: таймер экрана Clocks перенесён в блок «Таймер» (шаг 2.3). */
 
 
 /* hovertip v2.0 - Старт*/

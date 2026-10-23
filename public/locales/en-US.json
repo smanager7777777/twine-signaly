@@ -689,7 +689,9 @@
 				"image": "Image",
 				"video": "Video",
 				"kr2": "KR2 window (this screen)",
-				"place": "On-screen button (selected link or button)"
+				"place": "On-screen button (selected link or button)",
+				"timer": "Timer",
+				"chain": "Video chain (porthole)"
 			},
 			"image": {
 				"title": "Image"
@@ -813,7 +815,65 @@
 				"plain": "Plain",
 				"contentHint": "The button stays at its place by the terminal window and doesn't scroll with the text. Its label and action are in the passage text inside <<sg-place>>…<</sg-place>>."
 			},
-			"place": "Placement"
+			"place": "Placement",
+			"timer": {
+				"title": "Timer",
+				"name": "Timer name",
+				"nameHint": "A display with the same name on another screen shows this same timer. The timer keeps running when players leave the screen.",
+				"start": "When it starts",
+				"starts": {
+					"enter": "On entering this screen",
+					"running": "Already running — display only"
+				},
+				"runningHint": "The display is visible only while the timer with this name is running. Time and the end action are set where the timer starts.",
+				"hours": "Hours",
+				"minutes": "Minutes",
+				"seconds": "Seconds",
+				"h": "h",
+				"m": "min",
+				"s": "s",
+				"end": "When time is up",
+				"ends": {
+					"goto": "Go to screen",
+					"dialog": "Message window",
+					"sound": "Sound",
+					"none": "Nothing"
+				},
+				"goto": "Go to screen",
+				"sound": "Sound",
+				"endTitle": "Time is up",
+				"endText": "Time is up.",
+				"hidden": "Hide the display",
+				"hiddenHint": "Hidden timer: players don't see the countdown.",
+				"look": "Display look",
+				"font": "Font",
+				"terminalFont": "Terminal font",
+				"color": "Digits, border and glow colour",
+				"bg": "Display background",
+				"size": "Digit size",
+				"format": "Format",
+				"formats": {
+					"ms": "MM:SS",
+					"hms": "HH:MM:SS"
+				}
+			},
+			"chain": {
+				"title": "Video chain",
+				"steps": "Steps in order",
+				"step": "Step",
+				"loop": "Loop",
+				"next": "Next step starts on",
+				"lastNext": "Chain ends on",
+				"nexts": {
+					"click": "Click on the video",
+					"end": "Video end",
+					"time": "After N seconds"
+				},
+				"loopEndHint": "A looping video never ends — choose click or seconds.",
+				"add": "Add step",
+				"goto": "After the last step",
+				"hint": "All videos of the chain load at once — the next one starts instantly, in the same place."
+			}
 		},
 		"drag": {
 			"lock": "Lock",

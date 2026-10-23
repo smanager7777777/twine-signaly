@@ -188,6 +188,14 @@ if (twee) {
 	const storyFile = fs.readdirSync(lib).find(f => f.startsWith('27_03_2025'));
 	const saved = fs.readFileSync(path.join(lib, storyFile), 'utf8');
 	check('блок оформления и движок сохранены в истории', saved.includes('СИГНАЛЫ: оформление терминала') && saved.includes('СИГНАЛЫ: движок терминала') && saved.includes('--sg-text: #ffbf00;'));
+	{
+		// Шаг 2.3: при «Сохранить» таймеры и иллюминатор шаблона стали блоками.
+		const t = saved.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+		check('шаг 2.3: таймер, скрытый таймер и иллюминатор шаблона — блоки, код таймера убран',
+			!t.includes('setup.timerText = function') && t.includes('<<sg-timer "Clocks" minutes 0 seconds 5 goto "Start">>') &&
+			t.includes('<<sg-timer "Clocks" start running>>') && t.includes('<<sg-timer "TERRAFORM_FAIL" seconds 30 goto "TERRAFORM" hidden>>') &&
+			(t.match(/<<sg-chain width 1000 height 1000 goto "Start">>/g) || []).length === 3 && !t.includes("getElementById('vid1')"));
+	}
 	await win.getByRole('tab', {name: 'Сборка'}).click();
 	await btn(/Опубликовать в папку игры/).click();
 	await win.waitForTimeout(1500);
@@ -435,6 +443,29 @@ if (twee) {
 	await toEnd();
 	await addBlock('Видео');
 	check('видео: вставлено', (await cmValue()).includes('<<sg-video "" width 1000 autoplay loop muted>>') && (await panel().locator('strong').textContent()) === 'Видео');
+	// Шаг 2.3: таймер и цепочка видео.
+	await toEnd();
+	await addBlock('Таймер');
+	check('таймер: вставлен, форма открыта', (await cmValue()).includes('<<sg-timer "Таймер" minutes 5 seconds 0>>') && (await panel().locator('strong').textContent()) === 'Таймер', (await cmValue()).slice(-60));
+	await panel().getByLabel('Что по окончании').selectOption('dialog');
+	await win.waitForTimeout(300);
+	await panel().getByLabel('Формат').selectOption('hms');
+	await win.waitForTimeout(300);
+	check('таймер: окно-сообщение по окончании, формат ЧЧ:ММ:СС', (await cmValue()).includes('<<sg-timer "Таймер" minutes 5 seconds 0 title "Время вышло" text "Время вышло." format hms>>'), (await cmValue()).slice(-110));
+	await win.screenshot({path: (process.env.SHOT || path.join(home, 'shot.png')).replace('.png', '-timer.png')});
+	check('таймер: в форме вид табло (шрифт DSEG7 по умолчанию)', (await panel().getByLabel('Шрифт').inputValue()) === 'media/fonts/DSEG7Classic-Regular.woff2');
+	await panel().getByLabel('Не показывать табло').check();
+	await win.waitForTimeout(300);
+	check('таймер: скрытый — без настроек табло', (await cmValue()).includes('format hms hidden>>') && (await panel().getByLabel('Шрифт').count()) === 0);
+	await toEnd();
+	await addBlock('Цепочка видео (иллюминатор)');
+	check('цепочка видео: вставлена с двумя шагами', (await cmValue()).endsWith('<<sg-chain width 1000 height 1000>>\n<<sg-step "" next click loop muted>>\n<<sg-step "" next end>>\n<</sg-chain>>') && (await panel().locator('strong').textContent()) === 'Цепочка видео', (await cmValue()).slice(-140));
+	await panel().getByRole('button', {name: 'Добавить шаг'}).click();
+	await win.waitForTimeout(300);
+	await panel().getByLabel('Цепочка заканчивается').selectOption('time');
+	await win.waitForTimeout(300);
+	await win.screenshot({path: (process.env.SHOT || path.join(home, 'shot.png')).replace('.png', '-chain.png')});
+	check('цепочка видео: третий шаг «через N секунд»', (await cmValue()).endsWith('<<sg-step "" next end>>\n<<sg-step "" next time>>\n<</sg-chain>>'), (await cmValue()).slice(-90));
 	// Эффекты текста (шаг 2.1): кнопка «Эффект» на выделенный текст.
 	const appendSelected = text =>
 		win.evaluate(t => {
@@ -559,7 +590,7 @@ if (twee) {
 	await btn(/^Закрыть$/).last().click();
 
 	const saved3 = fs.readFileSync(path.join(lib, fs.readdirSync(lib).find(f => f.startsWith('27_03_2025'))), 'utf8');
-	check('история: движок 5, KR2 в движке, оформление окон и эффектов', saved3.includes('Версия движка: 5') && saved3.includes('код окна KR2 перенесён в движок') && saved3.includes('#ui-dialog {') && saved3.includes('--sg-type-click: 1;') && saved3.includes('html .glitchy::after') && (saved3.includes('&lt;&lt;kr2layout 50 65&gt;&gt;') || saved3.includes('<<kr2layout 50 65>>')));
+	check('история: движок 6, KR2 в движке, оформление окон и эффектов', saved3.includes('Версия движка: 6') && saved3.includes('код окна KR2 перенесён в движок') && saved3.includes('#ui-dialog {') && saved3.includes('--sg-type-click: 1;') && saved3.includes('html .glitchy::after') && (saved3.includes('&lt;&lt;kr2layout 50 65&gt;&gt;') || saved3.includes('<<kr2layout 50 65>>')));
 	check('история: звуки шаблона стали наборами, кода звуков нет', saved3.includes('setup.signalySounds') && saved3.includes('звуки наведения и нажатия перенесены в наборы') && !saved3.includes('var hoverSounds'));
 
 	// Шаг 2.2: окно «Виды кнопок и ссылок» → «Звуки».

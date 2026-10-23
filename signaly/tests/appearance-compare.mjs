@@ -61,6 +61,12 @@ async function shot(page, name, wait = 1500) {
 	if (name) {
 		await page.evaluate(n => {
 			SugarCube.Dialog.close();
+			// Таймеры идут в фоне (шаг 2.3): проверка ходит по экранам прыжками,
+			// поэтому перед каждым экраном таймеры обеих версий сбрасываются.
+			const v = SugarCube.State.variables;
+			v.sgTimers = {};
+			v.timerstarted = 0;
+			v.timerEnd = 0;
 			SugarCube.Engine.play(n);
 		}, name);
 	}

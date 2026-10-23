@@ -21,18 +21,21 @@
 // - сессия 7: эффекты «после эффектов выше» (слово after, data-sg-after),
 //   начало глитча и мигания (data-sg-start), ссылки в печатающемся тексте
 //   нажимаются после допечатки, «тени» глитча печатаются вместе с текстом;
-// - шаг 2.2: звуки наведения и нажатия по наборам (setup.signalySounds).
+// - шаг 2.2: звуки наведения и нажатия по наборам (setup.signalySounds);
+// - шаг 2.3: таймеры <<sg-timer>> (идут в фоне, переживают сбой) и цепочка
+//   видео <<sg-chain>>.
 //
 // Код написан без обратных кавычек и без «${», потому что хранится в шаблонной
 // строке.
 
 import {defaultGlitch, glitchKeyframes, glitchRules} from './signaly-glitch';
+import {timerDefaults} from './signaly-screen-blocks';
 
 /** Глитч по умолчанию — правила с нулевой силой (их перекрывает всё остальное). */
 const glitchBase = [...glitchRules(defaultGlitch, ':where(.glitchy)'), glitchKeyframes].join('\n');
 
 /** Версия движка. Увеличивать при каждом изменении кода ниже. */
-export const signalyEngineVersion = 5;
+export const signalyEngineVersion = 6;
 
 export const signalyEngineStart =
 	'/* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */';
@@ -406,6 +409,284 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			}
 			$(el).wiki(this.payload[0].contents);
 			this.output.appendChild(el);
+		}
+	});
+
+	/* ----- Таймеры (шаг 2.3) ----- */
+
+	// Таймер именной и идёт в фоне: время окончания лежит в переменной
+	// $sgTimers (попадает в автокопию), табло того же таймера можно поставить
+	// на несколько экранов. По окончании — переход, окно-сообщение или звук.
+	var timerDefaults = ${JSON.stringify(timerDefaults)};
+	var timerFonts = {};
+	var restoring = false;
+
+	function timerStore() {
+		var v = State.variables;
+
+		if (!v.sgTimers || typeof v.sgTimers !== 'object') {
+			v.sgTimers = {};
+		}
+		return v.sgTimers;
+	}
+
+	function timersChanged() {
+		if (setup.signaly.saveTimers) {
+			setup.signaly.saveTimers();
+		}
+	}
+
+	function pad(n) {
+		return n < 10 ? '0' + n : String(n);
+	}
+
+	function timerText(end, format) {
+		var left = Math.max(0, Math.ceil((end - Date.now()) / 1000));
+
+		if (format === 'hms') {
+			return pad(Math.floor(left / 3600)) + ':' + pad(Math.floor(left / 60) % 60) + ':' + pad(left % 60);
+		}
+		return pad(Math.floor(left / 60)) + ':' + pad(left % 60);
+	}
+
+	// Шрифт табло — файл из папки игры (свой @font-face на каждый файл).
+	function timerFont(file) {
+		if (file === 'none') {
+			return '';
+		}
+		if (!timerFonts[file]) {
+			var family = 'sg-timer-font-' + (Object.keys(timerFonts).length + 1);
+			var style = document.createElement('style');
+
+			style.textContent =
+				'@font-face { font-family: "' + family + '"; src: url(' + JSON.stringify(file) +
+				'); font-weight: normal; font-style: normal; }';
+			document.head.appendChild(style);
+			timerFonts[file] = family;
+		}
+		return '"' + timerFonts[file] + '", monospace';
+	}
+
+	function timerEnded(name, t) {
+		var store = timerStore();
+
+		delete store[name];
+		timersChanged();
+		if (t.sound) {
+			try {
+				new Audio(t.sound).play().catch(function () {});
+			} catch (e) {
+				console.error('СИГНАЛЫ: звук таймера', e);
+			}
+		}
+		if (t.passage || t.text || t.title) {
+			setup.signaly.openDialog({title: t.title, passage: t.passage, text: t.text});
+		}
+		if (t.goto && Story.has(t.goto)) {
+			Engine.play(t.goto);
+		}
+	}
+
+	function tickTimers() {
+		var store = State.variables && State.variables.sgTimers;
+
+		if (!store || restoring || (Engine.isIdle && !Engine.isIdle())) {
+			return;
+		}
+		$('.sg-timer[data-sg-timer]').each(function () {
+			var t = store[this.getAttribute('data-sg-timer')];
+
+			if (t) {
+				this.firstChild.textContent = timerText(t.end, this.getAttribute('data-sg-format'));
+			}
+		});
+		Object.keys(store).forEach(function (name) {
+			var t = store[name];
+
+			if (t && Date.now() >= t.end && State.variables.sgTimers === store && store[name] === t) {
+				timerEnded(name, t);
+			}
+		});
+	}
+
+	setInterval(tickTimers, 250);
+
+	Macro.add('sg-timer', {
+		handler: function () {
+			var a = blockArgs(
+				this,
+				['name'],
+				['hours', 'minutes', 'seconds', 'start', 'goto', 'title', 'passage', 'text', 'sound',
+					'font', 'color', 'bg', 'size', 'border', 'glow', 'format'],
+				['hidden']
+			);
+			var name = String(a.name || State.passage);
+			var store = timerStore();
+
+			if (a.start !== 'running' && !(restoring && store[name])) {
+				var total =
+					(Number(a.hours) || 0) * 3600 + (Number(a.minutes) || 0) * 60 + (Number(a.seconds) || 0);
+				var t = {end: Date.now() + total * 1000};
+
+				['goto', 'title', 'passage', 'text', 'sound'].forEach(function (key) {
+					if (a[key] !== undefined && a[key] !== '') {
+						t[key] = String(a[key]);
+					}
+				});
+				store[name] = t;
+				timersChanged();
+			}
+
+			var running = store[name];
+
+			// Табло не видно: скрытый таймер или таймер ещё не идёт.
+			if (a.hidden || !running) {
+				return;
+			}
+
+			var color = a.color || timerDefaults.color;
+			var border = a.border === undefined ? timerDefaults.border : Number(a.border) || 0;
+			var glow = a.glow === undefined ? timerDefaults.glow : Number(a.glow) || 0;
+			var el = document.createElement('div');
+			var text = document.createElement('span');
+			var s = el.style;
+			var font = timerFont(a.font === undefined ? timerDefaults.font : String(a.font));
+
+			el.className = 'sg-timer';
+			el.setAttribute('data-sg-timer', name);
+			if (a.format === 'hms') {
+				el.setAttribute('data-sg-format', 'hms');
+			}
+			if (font) {
+				s.fontFamily = font;
+			}
+			s.fontSize = (a.size === undefined ? timerDefaults.size : Number(a.size) || 0) + 'px';
+			s.color = color;
+			s.backgroundColor = a.bg || timerDefaults.bg;
+			if (border > 0) {
+				s.border = border + 'px solid ' + color;
+			}
+			if (glow > 0) {
+				s.boxShadow = '0 0 ' + glow + 'px ' + color + ', 0 0 ' + glow * 2 + 'px ' + color;
+			}
+			s.padding = '10px 20px';
+			s.width = 'fit-content';
+			s.margin = '20px auto';
+			s.textAlign = 'center';
+			s.display = 'flex';
+			s.justifyContent = 'center';
+			s.alignItems = 'center';
+			text.textContent = timerText(running.end, a.format);
+			el.appendChild(text);
+			this.output.appendChild(el);
+		}
+	});
+
+	/* ----- Цепочка видео (шаг 2.3) ----- */
+
+	// Шаги по порядку; следующий включает щелчок по видео, окончание видео или
+	// N секунд. Все видео загружаются сразу — переход мгновенный (ответ 7А).
+	Macro.add('sg-chain', {
+		tags: ['sg-step'],
+		handler: function () {
+			var a = blockArgs(this, [], ['width', 'height', 'goto'].concat(placeKeys), []);
+			var steps = this.payload.slice(1).map(function (part) {
+				return blockArgs({args: part.args}, ['src'], ['next', 'seconds'], ['loop', 'muted']);
+			});
+			var box = document.createElement('span');
+			var current = 0;
+			var stepTimer = null;
+			var done = false;
+			var look = {border: a.border, glow: a.glow, color: a.color};
+
+			box.className = 'sg-chain';
+
+			var videos = steps.map(function (step, index) {
+				var video = document.createElement('video');
+				var source = document.createElement('source');
+
+				['loop', 'muted'].forEach(function (flag) {
+					if (step[flag]) {
+						video.setAttribute(flag, '');
+						video[flag] = true;
+					}
+				});
+				if (index === 0) {
+					video.setAttribute('autoplay', '');
+					video.autoplay = true;
+				} else {
+					video.setAttribute('preload', 'auto');
+					video.style.display = 'none';
+				}
+				if (Number(a.width) > 0) {
+					video.setAttribute('width', Number(a.width));
+				}
+				if (Number(a.height) > 0) {
+					video.setAttribute('height', Number(a.height));
+				}
+				source.src = step.src || '';
+				source.type = videoType(step.src || '');
+				video.appendChild(source);
+				placeStyle(video, look);
+				video.addEventListener('click', function () {
+					if ((step.next || 'end') === 'click') {
+						advance(index);
+					}
+				});
+				video.addEventListener('ended', function () {
+					if ((step.next || 'end') === 'end') {
+						advance(index);
+					}
+				});
+				box.appendChild(video);
+				if (index > 0) {
+					video.load();
+				}
+				return video;
+			});
+
+			function arm(index) {
+				var step = steps[index];
+
+				clearTimeout(stepTimer);
+				if (step && step.next === 'time') {
+					stepTimer = setTimeout(function () {
+						advance(index);
+					}, Math.max(0, Number(step.seconds) || 0) * 1000);
+				}
+			}
+
+			function advance(index) {
+				if (index !== current || done || !box.isConnected) {
+					return;
+				}
+				clearTimeout(stepTimer);
+				if (index + 1 < videos.length) {
+					var old = videos[index];
+					var next = videos[index + 1];
+
+					old.pause();
+					old.style.display = 'none';
+					current = index + 1;
+					next.style.display = '';
+					next.currentTime = 0;
+					next.play().catch(function () {});
+					arm(current);
+					return;
+				}
+				done = true;
+				if (a.goto && Story.has(a.goto)) {
+					Engine.play(a.goto);
+				}
+			}
+
+			placeStyle(box, {place: a.place, corner: a.corner, x: a.x, y: a.y});
+			putPlaced(this, box, a, 'chain');
+			if (videos.length) {
+				$(document).one(':passagedisplay', function () {
+					arm(0);
+				});
+			}
 		}
 	});
 
@@ -1470,6 +1751,18 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	}
 
 	function startAutocopy() {
+		// Шаг 2.3: таймеры меняются не только при переходе — пишем их отдельно.
+		setup.signaly.saveTimers = function () {
+			if (!record) {
+				return;
+			}
+			try {
+				record.timers = JSON.parse(JSON.stringify(State.variables.sgTimers || {}));
+			} catch (e) {
+				record.timers = {};
+			}
+			writeCopy();
+		};
 		$(document).on(':passageinit', function () {
 			navCount++;
 		});
@@ -1505,6 +1798,15 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			} catch (e) {
 				console.error('СИГНАЛЫ: переменные не восстановлены', e);
 			}
+			// Таймеры — как были в момент сбоя: идущий таймер не начинается
+			// заново, а продолжает по времени окончания.
+			if (copy.timers) {
+				variables.sgTimers = copy.timers;
+			}
+			restoring = true;
+		});
+		$(document).one(':passagedisplay', function () {
+			restoring = false;
 		});
 	}
 

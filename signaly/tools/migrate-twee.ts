@@ -9,7 +9,8 @@
 // переноса; четвёртый — данные видов кнопок. Старые «кнопки на экране» (места
 // в блоке видов, <span class="sg-place-…">) становятся элементами <<sg-place>>
 // (сессия 6). С шага 2.2 — звуки наведения и нажатия шаблона → наборы, звуковые
-// команды StoryInit → раздел окна «Звуки».
+// команды StoryInit → раздел окна «Звуки». С шага 2.3 — таймеры и иллюминатор
+// шаблона → блоки «Таймер» и «Цепочка видео».
 
 import {readFileSync, writeFileSync} from 'fs';
 import {
@@ -25,6 +26,7 @@ import {
 } from '../../src/util/signaly/signaly-kinds';
 import {movePlacesInTexts, withoutPlaces} from '../../src/util/signaly/signaly-places';
 import {findAudioInit, readSounds, templateSounds, withAudioInit} from '../../src/util/signaly/signaly-sounds';
+import {moveTemplateTimers} from '../../src/util/signaly/signaly-timers';
 
 function section(source: string, header: RegExp) {
 	const match = header.exec(source);
@@ -141,6 +143,32 @@ if (init && findAudioInit(init.text).ranges.length) {
 		twee = replaceSection(twee, init, text, init.to >= twee.length);
 		result.moved.push('звуки StoryInit → раздел окна «Звуки»');
 	}
+}
+
+// Таймеры и иллюминатор (шаг 2.3) — блоками.
+{
+	const chunks = twee.split(/^(?=:: )/m);
+	const heads = chunks.map(chunk => chunk.slice(0, chunk.indexOf('\n') + 1));
+	const names = heads.map(head => /^:: ((?:\\.|[^\\\[{\n])*?)\s*(?:\[|\{|\n)/.exec(head)?.[1] ?? '');
+	// Текст пассажа без пустых строк в конце (они — разделитель .twee).
+	const bodies = chunks.map((chunk, i) => chunk.slice(heads[i].length).replace(/\s+$/, ''));
+	const scriptIndex = chunks.findIndex(chunk => /^:: StoryScript \[script\]/.test(chunk));
+	const list = names.map((name, i) => ({index: i, name, text: bodies[i]})).filter(
+		p => p.name && !/^:: Story(Script|Stylesheet) /.test(chunks[p.index]) && !/^:: Story(Title|Data)\b/.test(chunks[p.index])
+	);
+	const timers = moveTemplateTimers(bodies[scriptIndex], list.map(p => ({name: p.name, text: p.text})));
+	const put = (index: number, text: string) => {
+		const tail = chunks[index].slice(heads[index].length + bodies[index].length);
+
+		chunks[index] = heads[index] + text + tail;
+	};
+
+	timers.texts.forEach((text, i) => put(list[i].index, text));
+	if (timers.script !== bodies[scriptIndex]) {
+		put(scriptIndex, timers.script);
+	}
+	twee = chunks.join('');
+	result.moved.push(...timers.moved);
 }
 
 writeFileSync(output, twee);

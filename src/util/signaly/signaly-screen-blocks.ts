@@ -11,14 +11,28 @@
 //   <</sg-code>>
 //   <<sg-place kind amber corner tr x 5 y 20>><<link "РАД">>…<</link>><</sg-place>>
 //   (кнопка на экране — с сессии 6 место задаётся у самого элемента)
+//   <<sg-timer "Clocks" minutes 5 goto "Start">>          (шаг 2.3: таймер)
+//   <<sg-chain width 1000 height 1000 goto "Start">>      (шаг 2.3: цепочка видео)
+//   <<sg-step "media/video/a.mp4" loop muted next click>>
+//   <<sg-step "media/video/b.mp4" next end>>
+//   <</sg-chain>>
 // Окно KR2 — команды <<kr2image>>, <<kr2layout>>, <<kr2vars>>, <<kr2main>>.
 // Команды понимает движок (signaly-engine.ts) — и в обычном Twine тоже.
 //
 // Здесь — разбор команд и запись обратно. Всё, что формы не понимают
 // (неизвестные слова в команде), сохраняется как есть.
 
-export type BlockType = 'image' | 'video' | 'alarm' | 'dialog' | 'code' | 'place';
+export type BlockType =
+	| 'image'
+	| 'video'
+	| 'alarm'
+	| 'dialog'
+	| 'code'
+	| 'place'
+	| 'timer'
+	| 'chain';
 export type CaseKind = 'case' | 'wrong';
+type PartKind = CaseKind | 'step';
 export type Value = string | number | boolean;
 export type Values = Record<string, Value | undefined>;
 
@@ -28,10 +42,12 @@ export const blockMacros: Record<BlockType, string> = {
 	alarm: 'sg-alarm',
 	dialog: 'sg-dialog',
 	code: 'sg-code',
-	place: 'sg-place'
+	place: 'sg-place',
+	timer: 'sg-timer',
+	chain: 'sg-chain'
 };
 
-const caseMacros: Record<CaseKind, string> = {case: 'sg-case', wrong: 'sg-wrong'};
+const partMacros: Record<PartKind, string> = {case: 'sg-case', wrong: 'sg-wrong', step: 'sg-step'};
 
 export const blockTypes = Object.keys(blockMacros) as BlockType[];
 
@@ -62,7 +78,20 @@ const actionKeys = {
 	sound: 'string'
 } as const;
 
-const specs: Record<BlockType | CaseKind, ArgSpec> = {
+/**
+ * Вид табло таймера по умолчанию (шаг 2.3, ответ 3А) — как #timer-display
+ * в стилях автора. Движок берёт те же значения.
+ */
+export const timerDefaults = {
+	font: 'media/fonts/DSEG7Classic-Regular.woff2',
+	color: '#cc0000',
+	bg: '#000000',
+	size: 125,
+	border: 2,
+	glow: 10
+};
+
+const specs: Record<BlockType | PartKind, ArgSpec> = {
 	image: {pos: ['src'], keys: {width: 'number', ...placeKeys}, flags: [], container: false},
 	video: {
 		pos: ['src'],
@@ -105,8 +134,40 @@ const specs: Record<BlockType | CaseKind, ArgSpec> = {
 		flags: [],
 		container: true
 	},
+	// Шаг 2.3: таймер. start running — только табло уже идущего таймера;
+	// goto / title + text или passage / sound — что по окончании; hidden — без
+	// табло; font none — шрифт терминала; format hms — ЧЧ:ММ:СС.
+	timer: {
+		pos: ['name'],
+		keys: {
+			hours: 'number',
+			minutes: 'number',
+			seconds: 'number',
+			start: 'string',
+			...actionKeys,
+			text: 'string',
+			font: 'string',
+			color: 'string',
+			bg: 'string',
+			size: 'number',
+			border: 'number',
+			glow: 'number',
+			format: 'string'
+		},
+		flags: ['hidden'],
+		container: false
+	},
+	// Шаг 2.3: цепочка видео — шаги <<sg-step>> внутри.
+	chain: {
+		pos: [],
+		keys: {width: 'number', height: 'number', ...placeKeys, goto: 'string'},
+		flags: [],
+		container: true
+	},
 	case: {pos: ['code'], keys: actionKeys, flags: [], container: false},
-	wrong: {pos: [], keys: actionKeys, flags: [], container: false}
+	wrong: {pos: [], keys: actionKeys, flags: [], container: false},
+	// next: click (щелчок по видео) / end (видео закончилось) / time (через seconds).
+	step: {pos: ['src'], keys: {next: 'string', seconds: 'number'}, flags: ['loop', 'muted'], container: false}
 };
 
 export interface CodeCase {
@@ -131,6 +192,13 @@ export interface ScreenBlock {
 	content?: string;
 	/** Таблица «код → действие» (поле кода). */
 	cases?: CodeCase[];
+	/** Шаги цепочки видео. */
+	steps?: ChainStep[];
+}
+
+export interface ChainStep {
+	values: Values;
+	extra: string[];
 }
 
 /* ----- Разбор аргументов, как в SugarCube ----- */
@@ -250,7 +318,7 @@ function writeValue(value: Value) {
 	return typeof value === 'number' ? round(value) : quote(String(value));
 }
 
-const bareKeys = ['place', 'corner', 'close', 'kind', 'hover', 'click'];
+const bareKeys = ['place', 'corner', 'close', 'kind', 'hover', 'click', 'start', 'format', 'next', 'font'];
 
 function writeArgs(values: Values, extra: string[], spec: ArgSpec) {
 	const parts: string[] = [];
@@ -286,7 +354,7 @@ function writeArgs(values: Values, extra: string[], spec: ArgSpec) {
 
 /* ----- Поиск блоков в тексте ----- */
 
-const openRe = /<<sg-(image|video|alarm|dialog|code|place)(?=[\s>])/g;
+const openRe = /<<sg-(image|video|alarm|dialog|code|place|timer|chain)(?=[\s>])/g;
 
 function macroType(name: string): BlockType | undefined {
 	return blockTypes.find(type => blockMacros[type] === 'sg-' + name);
@@ -310,9 +378,8 @@ function findClose(text: string, name: string, from: number) {
 	return undefined;
 }
 
-function parseCases(content: string): CodeCase[] {
+function parseCases(content: string, re = /<<sg-(case|wrong)(?=[\s>])/g): CodeCase[] {
 	const cases: CodeCase[] = [];
-	const re = /<<sg-(case|wrong)(?=[\s>])/g;
 	const heads: Array<{kind: CaseKind; at: number; end: number; tokens: string[]}> = [];
 	let match: RegExpExecArray | null;
 
@@ -383,14 +450,21 @@ export function findBlocks(text: string): ScreenBlock[] {
 			block.to = close.end;
 			if (type === 'code') {
 				block.cases = parseCases(content);
+			} else if (type === 'chain') {
+				// Текст между шагами не показывается — его не храним.
+				block.steps = parseCases(content, /<<sg-(step)(?=[\s>])/g).map(step => ({
+					values: step.values,
+					extra: step.extra
+				}));
 			} else {
 				block.content = content;
 			}
 		}
 		blocks.push(block);
 		// Внутри тревоги, окна и кнопки на экране могут стоять другие блоки и
-		// эффекты — их тоже ищем (у поля кода внутри — таблица кодов).
-		openRe.lastIndex = type === 'code' ? block.to : scan.end;
+		// эффекты — их тоже ищем (у поля кода внутри — таблица кодов, у цепочки —
+		// шаги).
+		openRe.lastIndex = type === 'code' || type === 'chain' ? block.to : scan.end;
 	}
 	return blocks;
 }
@@ -426,11 +500,18 @@ export function writeBlock(block: Omit<ScreenBlock, 'from' | 'to'>) {
 	if (block.type === 'code') {
 		const lines = (block.cases ?? []).map(
 			c =>
-				`<<${caseMacros[c.kind]}${writeArgs(c.values, c.extra, specs[c.kind])}>>` +
+				`<<${partMacros[c.kind]}${writeArgs(c.values, c.extra, specs[c.kind])}>>` +
 				c.content
 		);
 
 		return `${head}\n${lines.join('\n')}\n<</${name}>>`;
+	}
+	if (block.type === 'chain') {
+		const lines = (block.steps ?? []).map(
+			s => `<<${partMacros.step}${writeArgs(s.values, s.extra, specs.step)}>>`
+		);
+
+		return `${head}\n${lines.map(line => line + '\n').join('')}<</${name}>>`;
 	}
 	return `${head}${block.content ?? ''}<</${name}>>`;
 }
@@ -481,6 +562,18 @@ export function newBlock(type: BlockType): Omit<ScreenBlock, 'from' | 'to'> {
 				values: {corner: 'tr', x: 20, y: 20},
 				extra: [],
 				content: '<<link "Кнопка">><</link>>'
+			};
+		case 'timer':
+			return {type, values: {name: 'Таймер', minutes: 5, seconds: 0}, extra: []};
+		case 'chain':
+			return {
+				type,
+				values: {width: 1000, height: 1000},
+				extra: [],
+				steps: [
+					{values: {src: '', loop: true, muted: true, next: 'click'}, extra: []},
+					{values: {src: '', next: 'end'}, extra: []}
+				]
 			};
 		case 'code':
 			return {

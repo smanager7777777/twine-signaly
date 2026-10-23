@@ -94,7 +94,17 @@ interface CursorInfo {
 const sizes = ['50%', '75%', '125%', '150%', '200%', '300%'];
 
 /** Порядок пунктов «Добавить блок» (решение 52). */
-const addable: Array<BlockType | 'kr2'> = ['alarm', 'dialog', 'code', 'image', 'video', 'place', 'kr2'];
+const addable: Array<BlockType | 'kr2'> = [
+	'alarm',
+	'dialog',
+	'code',
+	'image',
+	'video',
+	'chain',
+	'timer',
+	'place',
+	'kr2'
+];
 
 /** Пункты «Эффект» (шаг 2.1, ответ 5А); lines — появление строк по очереди. */
 const effectItems: Array<EffectType | 'lines'> = ['type', 'timed', 'lines', 'swap', 'blink', 'glitch'];
@@ -323,7 +333,7 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 	function ensureEngine() {
 		if (engineVersionIn(story.script) < signalyEngineVersion) {
 			// Заодно старые кнопки на экране становятся элементами (сессия 6).
-			saveStoryWithUpgrade(dispatch, stories, story, {script: withEngine(story.script)});
+			saveStoryWithUpgrade(dispatch, stories, story, {script: withEngine(story.script)}, passage.name);
 			setEngineUpdated(true);
 		}
 	}
