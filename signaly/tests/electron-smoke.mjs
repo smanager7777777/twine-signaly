@@ -287,6 +287,14 @@ if (twee) {
 		await win.waitForTimeout(300);
 	}
 	check('кнопка на экране: форма пишет вид и место', (await cmValue()).endsWith('<<sg-place kind amber corner tr x 100 y 600>><<link "Кнопка">><</link>><</sg-place>>'), (await cmValue()).slice(-90));
+	// Шаг 2.2: свой звук у кнопки на экране (наборы — из кода звуков шаблона).
+	await win.locator('.signaly-block-panel').getByLabel('Звук наведения').selectOption('none');
+	await win.locator('.signaly-block-panel').getByLabel('Звук нажатия').selectOption('Нажатие');
+	await win.waitForTimeout(300);
+	check('кнопка на экране: свой звук (без звука / набор)', (await cmValue()).includes('<<sg-place kind amber corner tr x 100 y 600 hover none click "Нажатие">>'), (await cmValue()).slice(-110));
+	await win.locator('.signaly-block-panel').getByLabel('Звук наведения').selectOption('');
+	await win.locator('.signaly-block-panel').getByLabel('Звук нажатия').selectOption('');
+	await win.waitForTimeout(300);
 	await win.locator('.signaly-block-panel').getByRole('button', {name: 'Готово'}).click();
 	await btn(/^Предпросмотр$/).click();
 	await win.waitForSelector('.signaly-passage-preview');
@@ -297,6 +305,7 @@ if (twee) {
 	await win.waitForTimeout(4000);
 	const shownPassage = await pframe(() => SugarCube.State.passage);
 	check('предпросмотр пассажа: этот экран', shownPassage === 'Texttests', shownPassage);
+	check('предпросмотр: галочка «Без звука», звуки наведения включены', (await win.locator('.signaly-passage-preview').getByLabel('Без звука').count()) === 1 && (await pframe(() => window.SIGNALY_UI_SOUND === true && !!SugarCube.setup.signalySounds)));
 	const testPlace = await pframe(() => {
 		const p = document.querySelector('#passages').getBoundingClientRect();
 		const el = document.querySelector('.sg-place');
@@ -459,6 +468,29 @@ if (twee) {
 	await toEnd();
 	await addEffect('Появление строк по очереди');
 	check('эффект: появление строк по очереди', (await cmValue()).endsWith('<<timed 1s>>Первая строка\n<<next>>Вторая строка\n<<next>>Третья строка<</timed>>') && (await panel().locator('strong').textContent()) === 'Появление', (await cmValue()).slice(-90));
+	// Сессия 7: несколько эффектов на один текст и «после эффектов выше».
+	const selectLast = text =>
+		win.evaluate(t => {
+			const doc = document.querySelector('.passage-edit-contents .CodeMirror').CodeMirror.getDoc();
+			const at = doc.getValue().lastIndexOf(t);
+			doc.setSelection(doc.posFromIndex(at), doc.posFromIndex(at + t.length));
+		}, text);
+	await appendSelected('Слой');
+	await win.waitForTimeout(1300);
+	await addEffect('Печать по буквам');
+	await panel().getByLabel('Когда начинать').selectOption('after');
+	await win.waitForTimeout(300);
+	check('эффект: печать «после эффектов выше»', (await cmValue()).endsWith('<<type 40ms after>>Слой<</type>>'), (await cmValue()).slice(-60));
+	await selectLast('Слой');
+	await addEffect('Глитч');
+	check('эффект: глитч на напечатанный текст — внутрь печати', (await cmValue()).endsWith('<<type 40ms after>><span class="glitchy" data-text="Слой">Слой</span><</type>>'), (await cmValue()).slice(-90));
+	await panel().getByLabel('Когда включить').selectOption('open');
+	await win.waitForTimeout(300);
+	check('эффект: глитч включается через N секунд', (await cmValue()).includes('data-sg-start="2s">Слой'), (await cmValue()).slice(-90));
+	await selectLast('Слой');
+	await addEffect('Появление через N секунд');
+	check('эффект: появление — снаружи печати', (await cmValue()).endsWith('<<timed 3s>><<type 40ms after>><span class="glitchy" data-text="Слой" data-sg-start="2s">Слой</span><</type>><</timed>>'), (await cmValue()).slice(-120));
+	check('форма: подсказка про несколько эффектов', (await panel().textContent()).includes('Ещё один эффект на этот же текст'));
 	await panel().getByRole('button', {name: 'Готово'}).click();
 	const typePoint = await win.evaluate(() => {
 		const cm = document.querySelector('.passage-edit-contents .CodeMirror').CodeMirror;
@@ -527,7 +559,48 @@ if (twee) {
 	await btn(/^Закрыть$/).last().click();
 
 	const saved3 = fs.readFileSync(path.join(lib, fs.readdirSync(lib).find(f => f.startsWith('27_03_2025'))), 'utf8');
-	check('история: движок 4, KR2 в движке, оформление окон и эффектов', saved3.includes('Версия движка: 4') && saved3.includes('код окна KR2 перенесён в движок') && saved3.includes('#ui-dialog {') && saved3.includes('--sg-type-click: 1;') && saved3.includes('html .glitchy::after') && (saved3.includes('&lt;&lt;kr2layout 50 65&gt;&gt;') || saved3.includes('<<kr2layout 50 65>>')));
+	check('история: движок 5, KR2 в движке, оформление окон и эффектов', saved3.includes('Версия движка: 5') && saved3.includes('код окна KR2 перенесён в движок') && saved3.includes('#ui-dialog {') && saved3.includes('--sg-type-click: 1;') && saved3.includes('html .glitchy::after') && (saved3.includes('&lt;&lt;kr2layout 50 65&gt;&gt;') || saved3.includes('<<kr2layout 50 65>>')));
+	check('история: звуки шаблона стали наборами, кода звуков нет', saved3.includes('setup.signalySounds') && saved3.includes('звуки наведения и нажатия перенесены в наборы') && !saved3.includes('var hoverSounds'));
+
+	// Шаг 2.2: окно «Виды кнопок и ссылок» → «Звуки».
+	await win.getByRole('tab', {name: 'История'}).click();
+	await btn(/Виды кнопок и ссылок/).click();
+	await win.waitForSelector('.signaly-kinds-window');
+	await win.locator('.signaly-kinds-item').filter({hasText: 'Янтарный'}).click();
+	await win.locator('.signaly-kinds-window').getByRole('tab', {name: 'Звуки'}).click();
+	const kindHover = win.locator('.signaly-kinds-window').getByLabel('Звук наведения');
+	check('вид: звук «как у Обычного» по умолчанию', (await kindHover.inputValue()) === '__base__');
+	await kindHover.selectOption('');
+	check('окно видов: галочка «Без звука» у предпросмотра', (await win.locator('.signaly-kinds-window').getByLabel('Без звука').count()) === 1);
+	await btn(/^Сохранить$/).click();
+	await win.waitForTimeout(1500);
+	await btn(/^Закрыть$/).last().click();
+	await win.waitForTimeout(500);
+
+	// Окно «Звуки»: наборы из шаблона, файлы StoryInit, новая группа.
+	await win.getByRole('tab', {name: 'История'}).click();
+	await btn(/^Звуки$/).click();
+	await win.waitForSelector('.signaly-sounds-window');
+	const items = () => win.locator('.signaly-sounds-window .signaly-kinds-item').allTextContents();
+	check('окно «Звуки»: наборы «Наведение» и «Нажатие»', JSON.stringify(await items()) === JSON.stringify(['Наведение', 'Нажатие']), JSON.stringify(await items()));
+	check('набор: 6 файлов, 5 %, без задержки', (await win.locator('.signaly-sounds-editor select').count()) === 6 && (await win.locator('.signaly-sounds-editor').getByLabel('Громкость, %').inputValue()) === '5' && (await win.locator('.signaly-sounds-editor').getByLabel('Задержка, мс').inputValue()) === '0');
+	check('набор: звучит у видов (Обычный, без звука у amber не считается)', (await win.locator('.signaly-sounds-editor').textContent()).includes('Звучит у видов: Обычный'));
+	await win.locator('.signaly-sounds-window').getByRole('tab', {name: 'Файлы'}).click();
+	check('окно «Звуки»: 17 файлов из StoryInit', (await items()).length === 17, String((await items()).length));
+	await win.locator('.signaly-sounds-window').getByRole('tab', {name: 'Группы'}).click();
+	await btn(/^Добавить группу$/).click();
+	await win.locator('.signaly-sounds-editor').getByLabel('Звуки группы', {exact: false}).count();
+	await win.locator('.signaly-sounds-editor label').filter({hasText: /^ ?msgsoundA$/}).locator('input').check();
+	await win.locator('.signaly-sounds-window').getByRole('tab', {name: 'Плейлисты'}).click();
+	check('окно «Звуки»: 3 плейлиста', (await items()).length === 3);
+	await win.screenshot({path: (process.env.SHOT || path.join(home, 'shot.png')).replace('.png', '-sounds.png')});
+	await btn(/^Сохранить$/).click();
+	await win.waitForTimeout(1500);
+	await btn(/^Закрыть$/).last().click();
+	await win.waitForTimeout(500);
+	const saved4 = fs.readFileSync(path.join(lib, fs.readdirSync(lib).find(f => f.startsWith('27_03_2025'))), 'utf8').replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+	check('история: вид «Янтарный» без звука наведения', /"amber":\s*\{\s*"hover":\s*""\s*\}/.test(saved4));
+	check('история: StoryInit — раздел окна «Звуки» с новой группой', saved4.includes('СИГНАЛЫ: звуки — правьте в окне «Звуки»') && saved4.includes('<<createaudiogroup ":ГРУППА">>\n<<track "msgsoundA">>\n<</createaudiogroup>>'), saved4.slice(saved4.indexOf('СИГНАЛЫ: звуки — правьте'), saved4.indexOf('СИГНАЛЫ: звуки — правьте') + 200));
 }
 
 await win.screenshot({path: process.env.SHOT || path.join(home, 'shot.png')});

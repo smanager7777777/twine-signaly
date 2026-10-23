@@ -3,6 +3,7 @@
 // панелью и текстом. Каждое изменение сразу переписывает команду в тексте —
 // предпросмотр обновляется вместе с текстом.
 
+import {readSounds} from '../../util/signaly/signaly-sounds';
 import {IconArrowDown, IconArrowUp, IconTrash, IconX} from '@tabler/icons';
 import * as React from 'react';
 import {useTranslation} from 'react-i18next';
@@ -128,6 +129,10 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 	const kinds = React.useMemo(
 		() => readKinds(story.stylesheet)?.kinds ?? [{cls: '', name: t('signaly.blocks.onscreen.plain')}],
 		[story.stylesheet, t]
+	);
+	const soundSets = React.useMemo(
+		() => (readSounds(story.script)?.sets ?? []).map(s => s.name),
+		[story.script]
 	);
 	const l = (key: string) => t(`signaly.blocks.${key}`);
 	const px = t('signaly.appearance.units.px');
@@ -426,6 +431,20 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 						/>
 						{range('x', l('x'), -900, 1900, 0)}
 						{range('y', l('y'), -500, 1080, 0, px, 1, l('dragHint'))}
+						{/* Шаг 2.2 (ответ 1А): свой звук или без звука. */}
+						{(['hover', 'click'] as const).map(which => (
+							<ChoiceField
+								key={which}
+								label={t(`signaly.sounds.place.${which}`)}
+								onChange={value => set(which, value === '' ? undefined : value)}
+								options={[
+									{label: t('signaly.sounds.place.kind'), value: ''},
+									{label: t('signaly.sounds.kind.none'), value: 'none'},
+									...soundSets.map(name => ({label: name, value: name}))
+								]}
+								value={str(which)}
+							/>
+						))}
 						<div className="signaly-field-hint">{l('onscreen.contentHint')}</div>
 					</>
 				);

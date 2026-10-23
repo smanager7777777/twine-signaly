@@ -17,7 +17,11 @@
 //
 // - эффекты текста (шаг 2.1): печать — пропуск щелчком, на уже виденном экране
 //   сразу весь текст; мигание; глитч по умолчанию;
-// - кнопки на экране <<sg-place>> (сессия 6).
+// - кнопки на экране <<sg-place>> (сессия 6);
+// - сессия 7: эффекты «после эффектов выше» (слово after, data-sg-after),
+//   начало глитча и мигания (data-sg-start), ссылки в печатающемся тексте
+//   нажимаются после допечатки, «тени» глитча печатаются вместе с текстом;
+// - шаг 2.2: звуки наведения и нажатия по наборам (setup.signalySounds).
 //
 // Код написан без обратных кавычек и без «${», потому что хранится в шаблонной
 // строке.
@@ -28,7 +32,7 @@ import {defaultGlitch, glitchKeyframes, glitchRules} from './signaly-glitch';
 const glitchBase = [...glitchRules(defaultGlitch, ':where(.glitchy)'), glitchKeyframes].join('\n');
 
 /** Версия движка. Увеличивать при каждом изменении кода ниже. */
-export const signalyEngineVersion = 4;
+export const signalyEngineVersion = 5;
 
 export const signalyEngineStart =
 	'/* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */';
@@ -194,6 +198,12 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		// его перекрывают и блок оформления, и стили автора.
 		'@keyframes sg-text-blink { 50% { opacity: 0; } }\n' +
 		'.sg-blink { animation: sg-text-blink 1s steps(1, end) infinite; }\n' +
+		// Сессия 7: ссылка в печатающемся тексте ждёт конца своей надписи;
+		// глитч и мигание до своего начала — обычный текст.
+		'.sg-type-wait { pointer-events: none !important; }\n' +
+		'.sg-blink.sg-off { animation: none; }\n' +
+		'html .glitchy.sg-off { color: inherit; }\n' +
+		'html .glitchy.sg-off::before, html .glitchy.sg-off::after { content: none; }\n' +
 		${JSON.stringify(glitchBase)};
 	document.head.appendChild(engineStyle);
 
@@ -379,10 +389,16 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	Macro.add('sg-place', {
 		tags: null,
 		handler: function () {
-			var a = blockArgs(this, [], ['kind', 'corner', 'x', 'y'], []);
+			var a = blockArgs(this, [], ['kind', 'corner', 'x', 'y', 'hover', 'click'], []);
 			var el = document.createElement('span');
 
 			el.className = 'sg-place' + (a.kind ? ' ' + a.kind : '');
+			// Шаг 2.2: свой звук наведения и нажатия (none — без звука).
+			['hover', 'click'].forEach(function (which) {
+				if (a[which] !== undefined) {
+					el.setAttribute('data-sg-' + which, a[which] === 'none' ? '' : String(a[which]));
+				}
+			});
 			placeStyle(el, {place: 'screen', corner: a.corner, x: a.x, y: a.y});
 			if (preview) {
 				el.setAttribute('data-sg-block', 'place');
@@ -409,18 +425,482 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		seen[ev.passage.title] = true;
 	});
 
+	/* ----- Звуки наведения и нажатия (шаг 2.2) ----- */
+
+	// Наборы — в блоке «СИГНАЛЫ: звуки наведения и нажатия» (setup.signalySounds).
+	// У ссылки или кнопки звучит набор её вида (ближайший класс вида у неё или
+	// вокруг неё), у вида без своего — набор вида «Обычный». Свой звук у элемента
+	// — data-sg-hover / data-sg-click ("" — без звука). Из набора — случайный
+	// файл; новый звук наведения прерывает предыдущий.
+	var uiAudio = {};
+	var hoverNow = null;
+	var hoverTimer = null;
+
+	function uiSoundOn() {
+		return !preview || window.SIGNALY_UI_SOUND === true;
+	}
+
+	function uiAudioFor(file) {
+		if (!uiAudio[file]) {
+			var audio = new Audio(file);
+
+			audio.preload = 'auto';
+			audio.sgUi = true;
+			uiAudio[file] = audio;
+		}
+		return uiAudio[file];
+	}
+
+	$(document).one(':passagestart', function () {
+		var data = setup.signalySounds;
+
+		if (data && data.sets) {
+			data.sets.forEach(function (set) {
+				(set.files || []).forEach(uiAudioFor);
+			});
+		}
+	});
+
+	function uiSet(el, which) {
+		var data = setup.signalySounds;
+
+		if (!data || !data.sets || !data.kinds) {
+			return null;
+		}
+
+		var own = $(el).closest('[data-sg-' + which + ']');
+		var name;
+
+		if (own.length) {
+			name = own.attr('data-sg-' + which);
+		} else {
+			for (var node = el; node && node.nodeType === 1 && name === undefined; node = node.parentNode) {
+				for (var i = 0; i < node.classList.length; i++) {
+					var kind = data.kinds[node.classList[i]];
+
+					if (kind && kind[which] !== undefined) {
+						name = kind[which];
+						break;
+					}
+				}
+			}
+			if (name === undefined && data.kinds['']) {
+				name = data.kinds[''][which];
+			}
+		}
+		if (!name) {
+			return null;
+		}
+		return (
+			data.sets.filter(function (set) {
+				return set.name === name;
+			})[0] || null
+		);
+	}
+
+	function playSet(set) {
+		var files = set.files || [];
+		var file = files[Math.floor(Math.random() * files.length)];
+
+		if (!file) {
+			return null;
+		}
+
+		var audio = uiAudioFor(file);
+
+		audio.volume = Math.max(0, Math.min(1, (set.volume === undefined ? 100 : set.volume) / 100));
+		audio.currentTime = 0;
+		audio.play().catch(function () {});
+		return audio;
+	}
+
+	function later(set, play) {
+		if (set.delay > 0) {
+			return setTimeout(play, set.delay);
+		}
+		play();
+		return null;
+	}
+
+	$(document).on('mouseenter', 'a, button', function () {
+		if (!uiSoundOn()) {
+			return;
+		}
+
+		var set = uiSet(this, 'hover');
+
+		clearTimeout(hoverTimer);
+		if (hoverNow) {
+			hoverNow.pause();
+			hoverNow.currentTime = 0;
+			hoverNow = null;
+		}
+		if (set) {
+			hoverTimer = later(set, function () {
+				hoverNow = playSet(set);
+			});
+		}
+	});
+	$(document).on('click', 'a, button', function () {
+		var set = uiSoundOn() && uiSet(this, 'click');
+
+		if (set) {
+			later(set, function () {
+				playSet(set);
+			});
+		}
+	});
+
+	/* ----- Порядок эффектов (сессия 7): «после эффектов выше» ----- */
+
+	// Эффект со словом after (<<type 40ms after>>, <<timed 2s after>>) или span
+	// с data-sg-after="1" ждёт, пока всё, что выше по тексту на этом экране,
+	// допечатается, появится, сменится или включится, и только потом отсчитывает
+	// свою задержку. waits — что ещё не закончилось, waiters — кто ждёт.
+	var waits = [];
+	var waiters = [];
+	var checkTimer = null;
+
+	$(document).on(':passageinit', function () {
+		waits = [];
+		waiters = [];
+	});
+
+	function takeWord(args, word) {
+		var at = args.indexOf(word);
+
+		if (at < 1) {
+			return false;
+		}
+		args.splice(at, 1);
+		return true;
+	}
+
+	function rootOf(node) {
+		var el = node.nodeType === 1 ? node : node.parentNode;
+
+		return el && el.closest ? el.closest('#ui-dialog-body, #passages') : null;
+	}
+
+	function busyBefore(node) {
+		var root = rootOf(node);
+
+		return waits.some(function (w) {
+			if (w.node === node || !w.node.isConnected || rootOf(w.node) !== root || !w.pending()) {
+				return false;
+			}
+
+			var pos = node.compareDocumentPosition(w.node);
+
+			return (pos & Node.DOCUMENT_POSITION_PRECEDING) !== 0 && (pos & Node.DOCUMENT_POSITION_CONTAINS) === 0;
+		});
+	}
+
+	function runWaiters() {
+		checkTimer = null;
+		waiters = waiters.filter(function (w) {
+			return !w.started && w.node.isConnected;
+		});
+		waiters.sort(function (a, b) {
+			return a.node.compareDocumentPosition(b.node) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+		});
+		waiters.forEach(function (w) {
+			if (!w.started && w.node.isConnected && !busyBefore(w.node)) {
+				w.started = true;
+				w.run();
+			}
+		});
+	}
+
+	function check() {
+		if (waiters.length && checkTimer === null) {
+			checkTimer = setTimeout(runWaiters, 0);
+		}
+	}
+
+	$(document).on(':passageend :passagedisplay', check);
+	setInterval(check, 500);
+
+	function wait(node, run) {
+		var waiter = {node: node, run: run, started: false};
+
+		waiters.push(waiter);
+		waits.push({
+			node: node,
+			pending: function () {
+				return !waiter.started;
+			}
+		});
+		check();
+	}
+
+	// Команда со словом after: на её месте — метка; когда подойдёт очередь,
+	// команда выполняется в это место.
+	function deferMacro(ctx, run, args) {
+		var anchor = document.createComment('sg-after');
+
+		ctx.output.appendChild(anchor);
+		wait(anchor, function () {
+			var holder = document.createElement('span');
+			var parent = anchor.parentNode;
+
+			parent.insertBefore(holder, anchor.nextSibling);
+			run(
+				Object.create(ctx, {
+					_output: {value: holder},
+					_debugView: {value: null, writable: true}
+				}),
+				args
+			);
+			while (holder.firstChild) {
+				parent.insertBefore(holder.firstChild, holder);
+			}
+			parent.removeChild(holder);
+		});
+	}
+
 	var typeMacro = Macro.get('type');
 
 	if (typeMacro) {
 		var typeHandler = typeMacro.handler;
+		var runType = function (ctx, args) {
+			var marker = document.createComment('sg-type');
+			var was = ctx.self.typeId;
+
+			ctx.output.appendChild(marker);
+
+			var result = typeHandler.apply(ctx, args);
+			var id = ctx.self.typeId;
+
+			if (id !== was) {
+				waits.push({
+					node: marker,
+					pending: function () {
+						var queue = TempState.macroTypeQueue;
+
+						return !!queue && queue.some(function (item) {
+							return item.id === id;
+						});
+					}
+				});
+			} else if (marker.parentNode) {
+				marker.parentNode.removeChild(marker);
+			}
+			return result;
+		};
 
 		typeMacro.handler = function () {
+			var after = takeWord(this.args, 'after');
+
 			if (seenNow && this.args.length) {
 				this.args[0] = '0s';
 			}
-			return typeHandler.apply(this, arguments);
+			return after ? deferMacro(this, runType, arguments) : runType(this, arguments);
 		};
 	}
+
+	var timedMacro = Macro.get('timed');
+
+	if (timedMacro) {
+		var timedHandler = timedMacro.handler;
+		var timedRegister = timedMacro.registerTimeout;
+		var timedNow = null;
+
+		// Появление закончилось — показан последний раздел (и прошла плавность).
+		timedMacro.registerTimeout = function (callback, items) {
+			var info = timedNow;
+			var left = items.length;
+
+			timedNow = null;
+			if (!info) {
+				return timedRegister.call(this, callback, items);
+			}
+			info.registered = true;
+			return timedRegister.call(
+				this,
+				function () {
+					var result = callback.apply(this, arguments);
+
+					if (--left === 0) {
+						setTimeout(function () {
+							info.done = true;
+							check();
+						}, info.fade ? 450 : 0);
+					}
+					return result;
+				},
+				items
+			);
+		};
+
+		var runTimed = function (ctx, args) {
+			var info = {done: false, registered: false, fade: ctx.args.length > 1 && /^(?:transition|t8n)$/.test(ctx.args[1])};
+			var out = ctx.output;
+			var last = out.lastChild;
+			var result;
+
+			timedNow = info;
+			try {
+				result = timedHandler.apply(ctx, args);
+			} finally {
+				timedNow = null;
+			}
+			if (info.registered && out.lastChild && out.lastChild !== last) {
+				waits.push({
+					node: out.lastChild,
+					pending: function () {
+						return !info.done;
+					}
+				});
+			}
+			return result;
+		};
+
+		timedMacro.handler = function () {
+			return takeWord(this.args, 'after') ? deferMacro(this, runTimed, arguments) : runTimed(this, arguments);
+		};
+	}
+
+	// Глитч и мигание с началом: data-sg-start="2s" (через N с), data-sg-after="1"
+	// (после эффектов выше). До начала — класс sg-off (обычный текст).
+	function startSpans(root) {
+		$(root)
+			.find('[data-sg-start], [data-sg-after]')
+			.addBack('[data-sg-start], [data-sg-after]')
+			.each(function () {
+				var el = this;
+
+				if (el.sgOn !== undefined) {
+					return;
+				}
+				el.sgOn = false;
+				el.classList.add('sg-off');
+
+				var go = function () {
+					var delay = 0;
+
+					try {
+						delay = cssTimeToMS(el.getAttribute('data-sg-start') || '0s');
+					} catch (e) {
+						delay = 0;
+					}
+					setTimeout(function () {
+						el.sgOn = true;
+						el.classList.remove('sg-off');
+						check();
+					}, delay);
+				};
+
+				if (el.getAttribute('data-sg-after')) {
+					wait(el, go);
+				} else {
+					go();
+				}
+				waits.push({
+					node: el,
+					pending: function () {
+						return !el.sgOn;
+					}
+				});
+			});
+	}
+
+	/* ----- Ссылки и глитч в печатающемся тексте (сессия 7) ----- */
+
+	// Ссылка или кнопка внутри <<type>> нажимается, только когда допечатана
+	// целиком (пока печатается — класс sg-type-wait). «Тени» глитча печатаются
+	// вместе с текстом.
+	var typingNow = [];
+
+	function followed(el, wrap) {
+		for (var node = el; node && node !== wrap; node = node.parentNode) {
+			if (node.nextSibling) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	function typingAround(el) {
+		return (
+			typingNow.some(function (wrap) {
+				return (wrap.contains(el) && !followed(el, wrap)) || el.contains(wrap);
+			}) ||
+			!!el.querySelector('.macro-type-target') ||
+			$(el)
+				.find('.macro-type:not(.macro-type-done)')
+				.toArray()
+				.some(function (wrap) {
+					return wrap.textContent === '';
+				})
+		);
+	}
+
+	function syncTyping() {
+		var waiting = [];
+
+		typingNow.forEach(function (wrap) {
+			$(wrap)
+				.find('a, button')
+				.each(function () {
+					if (!followed(this, wrap)) {
+						waiting.push(this);
+					}
+				});
+		});
+		$('.sg-type-wait').each(function () {
+			if (waiting.indexOf(this) === -1) {
+				this.classList.remove('sg-type-wait');
+			}
+		});
+		waiting.forEach(function (el) {
+			el.classList.add('sg-type-wait');
+		});
+		$('.glitchy').each(function () {
+			var full = this.getAttribute('data-sg-text');
+
+			if (typingAround(this)) {
+				if (full === null) {
+					full = this.getAttribute('data-text') || '';
+					this.setAttribute('data-sg-text', full);
+				}
+				this.setAttribute('data-text', Array.from(full).slice(0, Array.from(this.textContent).length).join(''));
+			} else if (full !== null) {
+				this.setAttribute('data-text', full);
+				this.removeAttribute('data-sg-text');
+			}
+		});
+	}
+
+	$(document).on(':typingstart', function (ev) {
+		typingNow.push(ev.target);
+		syncTyping();
+	});
+	$(document).on(':typingstop', function (ev) {
+		setTimeout(function () {
+			typingNow = typingNow.filter(function (wrap) {
+				return wrap !== ev.target && wrap.isConnected;
+			});
+			syncTyping();
+			check();
+		}, 0);
+	});
+	$(document).on(':passageinit', function () {
+		typingNow = [];
+	});
+
+	new MutationObserver(function (records) {
+		records.forEach(function (record) {
+			for (var i = 0; i < record.addedNodes.length; i++) {
+				if (record.addedNodes[i].nodeType === 1) {
+					startSpans(record.addedNodes[i]);
+				}
+			}
+		});
+		if (typingNow.length || document.querySelector('[data-sg-text], .glitchy .macro-type')) {
+			syncTyping();
+		}
+	}).observe(document.body, {childList: true, subtree: true, characterData: true});
 
 	// Щелчок мышью (не по ссылке, кнопке или полю) допечатывает текст сразу —
 	// и всё, что на этом экране ещё будет печататься.

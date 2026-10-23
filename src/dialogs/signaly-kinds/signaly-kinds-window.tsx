@@ -40,15 +40,28 @@ import {
 	withKinds
 } from '../../util/signaly/signaly-kinds';
 import {movePlacesInTexts, withoutPlaces} from '../../util/signaly/signaly-places';
+import {
+	emptySounds,
+	KindSounds,
+	readSounds,
+	SignalySounds,
+	withSounds
+} from '../../util/signaly/signaly-sounds';
+import {playSet} from '../signaly-sounds/signaly-sound-player';
 import {folderToFileUrl} from '../../util/signaly/signaly-preview';
 import {
 	CheckField,
+	ChoiceField,
 	TextField
 } from '../signaly-appearance/signaly-appearance-fields';
-import {SignalyAppearancePreview} from '../signaly-appearance/signaly-appearance-preview';
+import {
+	SignalyAppearancePreview,
+	SignalyPreviewMute
+} from '../signaly-appearance/signaly-appearance-preview';
 import {LookEditor} from './signaly-kinds-look';
 import '../signaly-appearance/signaly-appearance.css';
 import './signaly-kinds.css';
+import '../signaly-sounds/signaly-sounds.css';
 
 export interface SignalyKindsWindowProps {
 	onClose: () => void;
@@ -76,6 +89,9 @@ interface Prepared {
 	/** Старые кнопки на экране → элементы: новые тексты пассажей (по id). */
 	placeTexts: Map<string, string>;
 	placeCount: number;
+	/** Звуки наведения и нажатия (шаг 2.2). */
+	sounds: SignalySounds;
+	hasSounds: boolean;
 }
 
 function prepare(story: Story): Prepared {
@@ -98,8 +114,17 @@ function prepare(story: Story): Prepared {
 		moved: kinds.moved,
 		movedAppearance: app.moved.length > 0,
 		placeTexts,
-		placeCount: moved.count
+		placeCount: moved.count,
+		sounds: readSounds(app.script) ?? emptySounds,
+		hasSounds: readSounds(app.script) !== undefined
 	};
+}
+
+/** JavaScript истории: блок звуков пишется, если он уже был или звуки меняли. */
+function buildScript(prepared: Prepared, sounds: SignalySounds) {
+	return prepared.hasSounds || JSON.stringify(sounds) !== JSON.stringify(prepared.sounds)
+		? withSounds(prepared.script, sounds)
+		: prepared.script;
 }
 
 function build(prepared: Prepared, kinds: SignalyKinds, savedColors: string[]) {
@@ -120,16 +145,17 @@ export const SignalyKindsWindow: React.FC<SignalyKindsWindowProps> = props => {
 	const [savedColors, setSavedColors] = React.useState(
 		prepared.appearance.savedColors
 	);
+	const [sounds, setSounds] = React.useState(prepared.sounds);
 	const [upToDate] = React.useState(
 		() =>
-			prepared.script === story.script &&
+			buildScript(prepared, prepared.sounds) === story.script &&
 			build(prepared, prepared.kinds, prepared.appearance.savedColors) ===
 				story.stylesheet
 	);
 	const [saved, setSaved] = React.useState(upToDate);
 	const [savedOnce, setSavedOnce] = React.useState(false);
 	const [selectedKind, setSelectedKind] = React.useState('');
-	const [target, setTarget] = React.useState<'link' | 'button'>('link');
+	const [target, setTarget] = React.useState<'link' | 'button' | 'sounds'>('link');
 	const [newKindName, setNewKindName] = React.useState('');
 	const [screen, setScreen] = React.useState(demoId);
 	const [refresh, setRefresh] = React.useState(0);
@@ -138,6 +164,7 @@ export const SignalyKindsWindow: React.FC<SignalyKindsWindowProps> = props => {
 	const kind = kinds.kinds.find(k => k.cls === selectedKind) ?? kinds.kinds[0];
 
 	const stylesheet = build(prepared, kinds, savedColors);
+	const script = buildScript(prepared, sounds);
 	const demoText = demoPassageText(kinds, {
 		link: t('signaly.kinds.demo.link'),
 		button: t('signaly.kinds.demo.button'),
@@ -162,10 +189,10 @@ export const SignalyKindsWindow: React.FC<SignalyKindsWindowProps> = props => {
 				),
 				demo
 			],
-			script: prepared.script,
+			script,
 			stylesheet: `${stylesheet}\n${demoStatesCss(kinds)}`
 		};
-	}, [demoText, kinds, prepared, story, stylesheet]);
+	}, [demoText, kinds, prepared, script, story, stylesheet]);
 
 	// Образцы меняются (новый вид, название) — предпросмотр перезапускается.
 	React.useEffect(() => {
@@ -188,6 +215,19 @@ export const SignalyKindsWindow: React.FC<SignalyKindsWindowProps> = props => {
 
 	function changeLook(look: Look) {
 		changeKind(target === 'link' ? {link: look} : {button: look});
+	}
+
+	// Звуки вида (шаг 2.2, ответ 1А): '__base__' — как у «Обычного».
+	function changeSound(which: keyof KindSounds, value: string) {
+		const current = {...(sounds.kinds[kind.cls] ?? {})};
+
+		if (value === '__base__') {
+			delete current[which];
+		} else {
+			current[which] = value;
+		}
+		setSounds({...sounds, kinds: {...sounds.kinds, [kind.cls]: current}});
+		setSaved(false);
 	}
 
 	function addKind() {
@@ -226,6 +266,12 @@ export const SignalyKindsWindow: React.FC<SignalyKindsWindowProps> = props => {
 			return;
 		}
 		change({...kinds, kinds: kinds.kinds.filter(k => k.cls !== kind.cls)});
+		if (sounds.kinds[kind.cls]) {
+			const rest = {...sounds.kinds};
+
+			delete rest[kind.cls];
+			setSounds({...sounds, kinds: rest});
+		}
 		setSelectedKind('');
 	}
 
@@ -238,7 +284,7 @@ export const SignalyKindsWindow: React.FC<SignalyKindsWindowProps> = props => {
 
 	function save() {
 		dispatch(
-			updateStory(stories, story, {script: prepared.script, stylesheet})
+			updateStory(stories, story, {script, stylesheet})
 		);
 		// Старые кнопки на экране становятся элементами пассажей (один раз).
 		if (!savedOnce) {
@@ -274,7 +320,7 @@ export const SignalyKindsWindow: React.FC<SignalyKindsWindowProps> = props => {
 	const passages = [...story.passages]
 		.filter(p => !p.tags.includes('script') && !p.tags.includes('stylesheet'))
 		.sort((a, b) => a.name.localeCompare(b.name, 'ru'));
-	const look = target === 'link' || !kind.buttonAsLink ? kind[target] : kind.link;
+	const look = target === 'button' && !kind.buttonAsLink ? kind.button : kind.link;
 
 	return (
 		<div
@@ -396,7 +442,7 @@ export const SignalyKindsWindow: React.FC<SignalyKindsWindowProps> = props => {
 								)}
 							</section>
 							<div className="signaly-tabs" role="tablist">
-								{(['link', 'button'] as const).map(name => (
+								{(['link', 'button', 'sounds'] as const).map(name => (
 									<button
 										aria-selected={target === name}
 										className="signaly-tab"
@@ -423,7 +469,42 @@ export const SignalyKindsWindow: React.FC<SignalyKindsWindowProps> = props => {
 									value={kind.buttonAsLink}
 								/>
 							)}
-							{!(target === 'button' && kind.buttonAsLink) && (
+							{target === 'sounds' &&
+								(['hover', 'click'] as const).map(which => {
+									const own = sounds.kinds[kind.cls]?.[which];
+									const value = own === undefined ? (kind.cls === '' ? '' : '__base__') : own;
+									const name = value === '__base__' ? sounds.kinds['']?.[which] : value;
+
+									return (
+										<div className="signaly-sound-row" key={which}>
+											<ChoiceField
+												label={t(`signaly.sounds.kind.${which}`)}
+												onChange={v => changeSound(which, v)}
+												options={[
+													...(kind.cls === '' ? [] : [{label: t('signaly.sounds.kind.base'), value: '__base__'}]),
+													{label: t('signaly.sounds.kind.none'), value: ''},
+													...sounds.sets.map(s => ({label: s.name, value: s.name}))
+												]}
+												value={value}
+											/>
+											<button
+												className="signaly-small-button"
+												disabled={!folder || !name}
+												onClick={() => playSet(folder, sounds.sets.find(s => s.name === name))}
+												title={t('signaly.sounds.listen')}
+												type="button"
+											>
+												▶
+											</button>
+										</div>
+									);
+								})}
+							{target === 'sounds' && (
+								<p className="signaly-field-hint">
+									{sounds.sets.length ? t('signaly.sounds.kind.hint') : t('signaly.sounds.kind.noSets')}
+								</p>
+							)}
+							{target !== 'sounds' && !(target === 'button' && kind.buttonAsLink) && (
 								<LookEditor
 									key={`${kind.cls}/${target}`}
 									onChange={changeLook}
@@ -455,6 +536,7 @@ export const SignalyKindsWindow: React.FC<SignalyKindsWindowProps> = props => {
 						>
 							{t('signaly.appearance.preview.refresh')}
 						</button>
+						<SignalyPreviewMute />
 						<span className="signaly-field-hint">
 							{t('signaly.kinds.demo.hint')}
 						</span>
@@ -476,6 +558,7 @@ export const SignalyKindsWindow: React.FC<SignalyKindsWindowProps> = props => {
 						mode="passage"
 						passageId={screen}
 						refresh={refresh}
+						sounds={sounds}
 						story={previewStory}
 					/>
 				</div>

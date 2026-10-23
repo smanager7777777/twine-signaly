@@ -15,6 +15,7 @@ import {getAppInfo} from '../../util/app-info';
 import {publishStoryWithFormat} from '../../util/publish';
 import {attachDrag, DragOptions} from '../../util/signaly/signaly-drag';
 import {PreviewMode, previewHtml} from '../../util/signaly/signaly-preview';
+import {SignalySounds} from '../../util/signaly/signaly-sounds';
 
 /** Галочка «Закрепить»: в предпросмотре ничего не двигается мышью. */
 export const SignalyDragLock: React.FC = () => {
@@ -29,6 +30,23 @@ export const SignalyDragLock: React.FC = () => {
 				type="checkbox"
 			/>{' '}
 			{t('signaly.drag.lock')}
+		</label>
+	);
+};
+
+/** Галочка «Без звука» (шаг 2.2, ответ 7А): звуки наведения и нажатия в предпросмотре. */
+export const SignalyPreviewMute: React.FC = () => {
+	const {t} = useTranslation();
+	const {dispatch, prefs} = usePrefsContext();
+
+	return (
+		<label className="signaly-drag-lock" title={t('signaly.sounds.muteHint')}>
+			<input
+				checked={prefs.signalyPreviewMute}
+				onChange={e => dispatch(setPref('signalyPreviewMute', e.target.checked))}
+				type="checkbox"
+			/>{' '}
+			{t('signaly.sounds.mute')}
 		</label>
 	);
 };
@@ -50,13 +68,17 @@ export interface SignalyAppearancePreviewProps {
 	story: Story;
 	/** Перетаскивание мышью (шаг 1.4): что делать, когда элемент отпустили. */
 	drag?: {locked: boolean} & Pick<DragOptions, 'onDrop'>;
+	/** Наборы звуков (шаг 2.2): меняются во фрейме сразу, без перезапуска. */
+	sounds?: SignalySounds;
 }
 
 export const SignalyAppearancePreview: React.FC<
 	SignalyAppearancePreviewProps
 > = props => {
-	const {baseUrl, drag, mode, passageId, refresh, sampleDialog, story} = props;
+	const {baseUrl, drag, mode, passageId, refresh, sampleDialog, sounds, story} = props;
 	const {dispatch, formats} = useStoryFormatsContext();
+	const {prefs} = usePrefsContext();
+	const muteRef = React.useRef(prefs.signalyPreviewMute);
 	const {t} = useTranslation();
 	const frameRef = React.useRef<HTMLIFrameElement>(null);
 	const boxRef = React.useRef<HTMLDivElement>(null);
@@ -102,7 +124,7 @@ export const SignalyAppearancePreview: React.FC<
 
 				if (!cancelled) {
 					setError(undefined);
-					setHtml(previewHtml(published, {baseUrl, mode}));
+					setHtml(previewHtml(published, {baseUrl, mode, uiSound: !muteRef.current}));
 				}
 			} catch (e) {
 				if (!cancelled) {
@@ -127,6 +149,31 @@ export const SignalyAppearancePreview: React.FC<
 	}, []);
 
 	React.useEffect(applyStyles, [applyStyles, story.stylesheet]);
+
+	// Наборы звуков — сразу во фрейм.
+	const soundsRef = React.useRef(sounds);
+
+	soundsRef.current = sounds;
+
+	const applySounds = React.useCallback(() => {
+		const sugar = (frameRef.current?.contentWindow as any)?.SugarCube;
+
+		if (soundsRef.current && sugar?.setup) {
+			sugar.setup.signalySounds = soundsRef.current;
+		}
+	}, []);
+
+	React.useEffect(applySounds, [applySounds, sounds]);
+
+	// «Без звука» меняется сразу, без перезапуска.
+	muteRef.current = prefs.signalyPreviewMute;
+	React.useEffect(() => {
+		const win = frameRef.current?.contentWindow as any;
+
+		if (win) {
+			win.SIGNALY_UI_SOUND = !prefs.signalyPreviewMute;
+		}
+	}, [prefs.signalyPreviewMute]);
 
 	// Образец окна-сообщения — чтобы видеть его оформление.
 	React.useEffect(() => {
@@ -169,7 +216,12 @@ export const SignalyAppearancePreview: React.FC<
 
 	function handleLoad() {
 		// SugarCube вставляет стили чуть позже загрузки — подстрахуемся.
-		[100, 500, 1500].forEach(delay => setTimeout(applyStyles, delay));
+		[100, 500, 1500].forEach(delay =>
+			setTimeout(() => {
+				applyStyles();
+				applySounds();
+			}, delay)
+		);
 
 		const doc = frameRef.current?.contentDocument;
 

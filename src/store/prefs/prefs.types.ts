@@ -61,6 +61,11 @@ export interface PrefsState {
 	 */
 	signalyDragLock: boolean;
 	/**
+	 * «Twine СИГНАЛЫ» (шаг 2.2): галочка «Без звука» у предпросмотра — звуки
+	 * наведения и нажатия не звучат.
+	 */
+	signalyPreviewMute: boolean;
+	/**
 	 * Timestamp when the app was first run.
 	 */
 	firstRunTime: number;

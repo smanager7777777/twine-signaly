@@ -1,6 +1,7 @@
 import {readFileSync} from 'fs';
 import {join} from 'path';
 import {
+	composeEffect,
 	findEffects,
 	freeSwapId,
 	idsIn,
@@ -8,6 +9,7 @@ import {
 	newLinesEffect,
 	parseTime,
 	replaceEffect,
+	visibleText,
 	writeEffect
 } from '../signaly-effects';
 
@@ -102,5 +104,100 @@ describe('signaly-effects', () => {
 
 			expect(writeEffect(effect, content)).toBe(twee.slice(effect.from, effect.to));
 		});
+	});
+
+	// Сессия 7: «после эффектов выше», начало глитча и мигания, слои.
+	it('после эффектов выше и начало глитча и мигания', () => {
+		const text =
+			'<<type 40ms after>>А<</type>><<timed 2s t8n after>>Б<</timed>>' +
+			'<span class="glitchy" data-text="В" data-sg-start="1.5s" data-sg-after="1">В</span>' +
+			'<span class="sg-blink" data-sg-start="2s">Г</span>';
+		const effects = findEffects(text);
+
+		expect(effects.map(e => [e.type, !!e.after, e.start])).toEqual([
+			['type', true, undefined],
+			['timed', true, undefined],
+			['glitch', true, 1.5],
+			['blink', false, 2]
+		]);
+		effects.forEach(e =>
+			expect(writeEffect(e, text.slice(e.contentFrom, e.contentTo))).toBe(text.slice(e.from, e.to))
+		);
+
+		const [type, timed] = effects;
+
+		expect(replaceEffect(text, type, {...type, after: false}).startsWith('<<type 40ms>>А')).toBe(true);
+		// t8n у SugarCube — только вторым словом, after — после него.
+		expect(writeEffect({...timed, fade: false}, '')).toBe('<<timed 2s after>>Б<</timed>>');
+	});
+
+	it('видимый текст для «тени» глитча', () => {
+		expect(visibleText('Дальше: [[Открыть дверь|Дверь]]')).toBe('Дальше: Открыть дверь');
+		expect(visibleText('<<link "Нажми" "Start">><<set $a to 1>><</link>>')).toBe('Нажми');
+		expect(visibleText('<<type 40ms>>Привет<</type>>')).toBe('Привет');
+		expect(visibleText('[[Назад->Start]] и [[Start<-Вперёд]]')).toBe('Назад и Вперёд');
+	});
+
+	const samples = {text: 'Текст', next: 'Новый текст', lines: 'а\nб'};
+	const apply = (text: string, from: number, to: number, type: Parameters<typeof composeEffect>[0]) => {
+		const made = composeEffect(type, text, from, to, samples);
+
+		return text.slice(0, made.from) + made.insert + text.slice(made.to);
+	};
+	const sel = (text: string, part: string) => [text.indexOf(part), text.indexOf(part) + part.length] as const;
+
+	it('второй эффект на тот же текст встаёт в свой слой', () => {
+		const typed = '<<type 40ms>>Привет<</type>>';
+		// Глитч — внутрь печати, «тень» — видимый текст.
+		expect(apply(typed, ...sel(typed, 'Привет'), 'glitch')).toBe(
+			'<<type 40ms>><span class="glitchy" data-text="Привет">Привет</span><</type>>'
+		);
+		// Появление — снаружи печати, даже если выделен только текст.
+		expect(apply(typed, ...sel(typed, 'Привет'), 'timed')).toBe('<<timed 3s>>' + typed + '<</timed>>');
+		// Выделено вместе с командами — то же самое.
+		expect(apply(typed, 0, typed.length, 'timed')).toBe('<<timed 3s>>' + typed + '<</timed>>');
+
+		const glitch = '<span class="glitchy" data-text="Х">Х</span>';
+		// Печать — снаружи глитча.
+		expect(apply(glitch, ...sel(glitch, '>Х<').map((v, i) => v + (i ? -1 : 1)) as [number, number], 'type')).toBe(
+			'<<type 40ms>>' + glitch + '<</type>>'
+		);
+
+		const both = '<<timed 1s>><<type 40ms>>Х<</type>><</timed>>';
+		// Глитч — в самую глубину, печать — между появлением и глитчем.
+		expect(apply(both, ...sel(both, 'Х'), 'glitch')).toBe(
+			'<<timed 1s>><<type 40ms>><span class="glitchy" data-text="Х">Х</span><</type>><</timed>>'
+		);
+	});
+
+	it('смена текста поверх печати', () => {
+		const text = '<span id="sg-swap1"><<type 40ms>>Старый<</type>></span><<timed 3s>><<replace "#sg-swap1">>Новый<</replace>><</timed>>';
+		const made = apply(text, ...sel(text, 'Старый'), 'blink');
+
+		expect(made).toBe(text.replace('>Старый<', '><span class="sg-blink">Старый</span><'));
+
+		const typed = '<<type 40ms>>Старый<</type>>';
+
+		expect(apply(typed, ...sel(typed, 'Старый'), 'swap')).toBe(
+			'<span id="sg-swap1">' + typed + '</span><<timed 3s>><<replace "#sg-swap1">>Новый текст<</replace>><</timed>>'
+		);
+	});
+
+	it('глитч на ссылке: «тень» — надпись ссылки', () => {
+		const text = 'Иди [[Открыть дверь|Дверь]] сюда';
+
+		expect(apply(text, ...sel(text, '[[Открыть дверь|Дверь]]'), 'glitch')).toBe(
+			'Иди <span class="glitchy" data-text="Открыть дверь">[[Открыть дверь|Дверь]]</span> сюда'
+		);
+	});
+
+	it('по очереди не режет команды пополам', () => {
+		const lines = 'а\nб';
+
+		expect(apply(lines, 0, 3, 'lines')).toBe('<<timed 1s>>а\n<<next>>б<</timed>>');
+
+		const typed = '<<type 40ms>>а\nб<</type>>';
+
+		expect(apply(typed, 0, typed.length, 'lines')).toBe('<<timed 1s>>' + typed + '<</timed>>');
 	});
 });

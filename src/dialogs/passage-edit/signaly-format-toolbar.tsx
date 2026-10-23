@@ -68,10 +68,9 @@ import {
 	writeBlock
 } from '../../util/signaly/signaly-screen-blocks';
 import {
+	composeEffect,
 	EffectType,
-	findEffects,
-	newEffect,
-	newLinesEffect
+	findEffects
 } from '../../util/signaly/signaly-effects';
 import {SignalyPreviewButton} from '../signaly-passage-preview';
 import {saveStoryWithUpgrade} from '../signaly-upgrade';
@@ -378,20 +377,20 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 		ensureEngine();
 
 		const {text: value, from, to} = selection();
-		const selected = value.slice(from, to);
-		const sample = t('signaly.effects.sample');
-		const made =
-			type === 'lines'
-				? newLinesEffect(selected, t('signaly.effects.sampleLines'))
-				: newEffect(type, selected, value, sample, t('signaly.effects.sampleNew'));
+		// У текста уже есть эффекты — новый встаёт в свой слой (сессия 7).
+		const made = composeEffect(type, value, from, to, {
+			text: t('signaly.effects.sample'),
+			next: t('signaly.effects.sampleNew'),
+			lines: t('signaly.effects.sampleLines')
+		});
 
-		run(() => ({from, to, insert: made.insert, selFrom: from, selTo: from}));
+		run(() => ({from: made.from, to: made.to, insert: made.insert, selFrom: made.from, selTo: made.from}));
 
-		const after = value.slice(0, from) + made.insert + value.slice(to);
+		const after = value.slice(0, made.from) + made.insert + value.slice(made.to);
 
 		setPanel({
 			kind: 'effect',
-			index: findEffects(after).findIndex(e => e.from === from + made.at)
+			index: findEffects(after).findIndex(e => e.from === made.from + made.at)
 		});
 	}
 

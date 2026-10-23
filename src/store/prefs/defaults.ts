@@ -10,6 +10,7 @@ export const defaults = (): PrefsState => ({
 	editorCursorBlinks: true,
 	gameFolders: {},
 	signalyDragLock: false,
+	signalyPreviewMute: false,
 	firstRunTime: new Date().getTime(),
 	lastUpdateSeen: '',
 	lastUpdateCheckTime: new Date().getTime(),

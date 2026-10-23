@@ -8,7 +8,8 @@
 // Третий параметр (для проверок) — настройки оформления, которые поменять после
 // переноса; четвёртый — данные видов кнопок. Старые «кнопки на экране» (места
 // в блоке видов, <span class="sg-place-…">) становятся элементами <<sg-place>>
-// (сессия 6).
+// (сессия 6). С шага 2.2 — звуки наведения и нажатия шаблона → наборы, звуковые
+// команды StoryInit → раздел окна «Звуки».
 
 import {readFileSync, writeFileSync} from 'fs';
 import {
@@ -23,6 +24,7 @@ import {
 	withKinds
 } from '../../src/util/signaly/signaly-kinds';
 import {movePlacesInTexts, withoutPlaces} from '../../src/util/signaly/signaly-places';
+import {findAudioInit, readSounds, templateSounds, withAudioInit} from '../../src/util/signaly/signaly-sounds';
 
 function section(source: string, header: RegExp) {
 	const match = header.exec(source);
@@ -71,6 +73,11 @@ if (!script || !style) {
 }
 
 const result = prepareStory(script.text, style.text);
+
+// Шаг 2.2: код звуков шаблона → наборы (это делает движок, prepareStory).
+if (!readSounds(script.text) && templateSounds(script.text)) {
+	result.moved.push('звуки наведения и нажатия → наборы');
+}
 
 if (overrides) {
 	result.appearance = sanitizeAppearance({
@@ -122,6 +129,18 @@ if (places.length) {
 	});
 	twee = chunks.join('');
 	result.moved.push(`кнопки на экране → элементы (${moved.count})`);
+}
+
+// Звуки (шаг 2.2): файлы, группы и плейлисты StoryInit — разделом окна «Звуки».
+const init = section(twee, /^:: StoryInit\b[^\n]*\n/m);
+
+if (init && findAudioInit(init.text).ranges.length) {
+	const text = withAudioInit(init.text, findAudioInit(init.text).init).replace(/\s+$/, '');
+
+	if (text !== init.text) {
+		twee = replaceSection(twee, init, text, init.to >= twee.length);
+		result.moved.push('звуки StoryInit → раздел окна «Звуки»');
+	}
 }
 
 writeFileSync(output, twee);

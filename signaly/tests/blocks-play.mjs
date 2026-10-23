@@ -3,7 +3,9 @@
 // С сессии 6: кнопка на экране <<sg-place>>, условия статусов KR2, эффекты
 // текста (печать: щелчок и повторный вход, появление по очереди, смена,
 // мигание, глитч).
-// node blocks-play.mjs <история.twee с движком v4> <папка с media> <playwright>
+// С сессии 7: «после эффектов выше», начало глитча и мигания, ссылка и глитч
+// в печатающемся тексте, глитч на ссылке.
+// node blocks-play.mjs <история.twee с движком v5> <папка с media> <playwright>
 // Скрипт добавляет к истории проверочные пассажи, публикует test.html в папку
 // и проверяет. Ошибки SugarCube и страницы — провал.
 import {createRequire} from 'module';
@@ -70,13 +72,28 @@ const extra = `
 :: SGEffects {"position":"0,0","size":"100,100"}
 <span class="sg-blink" style="animation-duration: 0.5s">Мигаю</span>
 <span class="glitchy" data-text="КУПИ">Мысль</span>
+
+:: SGAfter {"position":"0,0","size":"100,100"}
+<span id="sg-swap1"><<type 30ms start 0s>>Печатаю текст<</type>></span><<timed 0s after>><<replace "#sg-swap1">>Сменился<</replace>><</timed>>
+<<timed 0.3s>>Появился<</timed>><<type 20ms start 0s after>>Потом печать<</type>>
+<span class="glitchy" data-text="Г" data-sg-after="1">Глитч</span> <span class="sg-blink" data-sg-start="0.3s">Мигну</span>
+
+:: SGTypeLink {"position":"0,0","size":"100,100"}
+<<type 60ms start 0s>>Нажми [[Сюда длинная ссылка|Start]] и ещё текст после<</type>>
+
+:: SGTypeGlitch {"position":"0,0","size":"100,100"}
+<<type 60ms start 0s>><span class="glitchy" data-text="ПОДМЕННЫЙ ТЕКСТ">Настоящий текст</span><</type>>
+
+:: SGGlitchLink {"position":"0,0","size":"100,100"}
+<span class="glitchy" data-text="Перейти">[[Перейти|Start]]</span>
 `;
 
 const twee = fs.readFileSync(tweePath, 'utf8').replace(/\s*$/, '\n') + extra;
 const tweeOut = path.join(gameDir, 'blocks.twee');
 
 fs.writeFileSync(tweeOut, twee);
-execFileSync('node', [path.join(here, 'publish-twee.mjs'), tweeOut, path.join(gameDir, 'blocks.html'), 'debug', 'start=SGBlocks']);
+// NODEBUG=1 — без режима «Тестировать».
+execFileSync('node', [path.join(here, 'publish-twee.mjs'), tweeOut, path.join(gameDir, 'blocks.html'), ...(process.env.NODEBUG ? [] : ['debug']), 'start=SGBlocks']);
 
 const types = {html: 'text/html; charset=utf-8', jpg: 'image/jpeg', png: 'image/png', wav: 'audio/wav', mp3: 'audio/mpeg', mp4: 'video/mp4', woff2: 'font/woff2'};
 const server = http
@@ -309,6 +326,90 @@ const fx = await page.evaluate(() => {
 check('мигание: анимация и период', fx.blink === 'sg-text-blink' && fx.period === '0.5s', JSON.stringify(fx));
 check('глитч: подменный текст, сдвиг, тени из оформления', fx.content === '"КУПИ"' && fx.left === '-5px' && fx.shadow.startsWith('rgb(0, 0, 255)') && fx.anim === 'sg-glitch-1', JSON.stringify(fx));
 check('эффекты: без ошибок SugarCube', (await sugarErrors()).length === 0, (await sugarErrors()).join(' | '));
+
+/* Сессия 7: «после эффектов выше», начало глитча и мигания */
+await page.evaluate(() => {
+	window.sgLog = [];
+	const tick = () => {
+		const el = document.getElementById('sg-swap1');
+		if (el) window.sgLog.push(el.textContent);
+		if (window.sgLog.length < 400) requestAnimationFrame(tick);
+	};
+	SugarCube.Engine.play('SGAfter');
+	requestAnimationFrame(tick);
+});
+await page.waitForTimeout(150);
+const a1 = await page.evaluate(() => ({
+	text: document.querySelector('.passage').innerText,
+	glitchOff: document.querySelector('.glitchy').classList.contains('sg-off'),
+	blinkOff: document.querySelector('.passage .sg-blink').classList.contains('sg-off'),
+	glitchContent: getComputedStyle(document.querySelector('.glitchy'), '::before').content
+}));
+await page.waitForTimeout(1300);
+const a2 = await page.evaluate(() => ({
+	text: document.querySelector('.passage').innerText,
+	glitchOff: document.querySelector('.glitchy').classList.contains('sg-off'),
+	blinkOff: document.querySelector('.passage .sg-blink').classList.contains('sg-off'),
+	log: window.sgLog
+}));
+const beforeSwap = a2.log.filter(t => t !== 'Сменился').pop();
+check('после печати: смена — только когда допечатано (без счёта секунд)', !a1.text.includes('Сменился') && a2.text.includes('Сменился') && beforeSwap === 'Печатаю текст', JSON.stringify([a1.text, beforeSwap]));
+check('после эффектов выше: печать ждёт появление и смену', !a1.text.includes('Потом') && a2.text.includes('Потом печать'), JSON.stringify(a1.text));
+check('глитч «после эффектов выше»: до этого — обычный текст', a1.glitchOff && a1.glitchContent === 'none' && !a2.glitchOff, JSON.stringify([a1.glitchOff, a1.glitchContent, a2.glitchOff]));
+check('мигание через N секунд', a1.blinkOff && !a2.blinkOff);
+await go('Start');
+await page.evaluate(() => SugarCube.Engine.play('SGAfter'));
+await page.waitForTimeout(120);
+const a3 = await passageText();
+await page.waitForTimeout(400);
+const a4 = await passageText();
+check('после эффектов выше: на виденном экране печать сразу, появление — в свой срок', a3.includes('Сменился') && !a3.includes('Появился') && a4.includes('Появился') && a4.includes('Потом печать'), JSON.stringify([a3, a4]));
+
+/* Ссылка в печатающемся тексте */
+await page.evaluate(() => SugarCube.Engine.play('SGTypeLink'));
+await page.waitForTimeout(1000);
+const l1 = await page.evaluate(() => {
+	const a = document.querySelector('.passage a');
+	return a && {wait: a.classList.contains('sg-type-wait'), pe: getComputedStyle(a).pointerEvents, text: a.textContent};
+});
+await page.waitForTimeout(900);
+const l2 = await page.evaluate(() => {
+	const a = document.querySelector('.passage a');
+	return {wait: a.classList.contains('sg-type-wait'), pe: getComputedStyle(a).pointerEvents, text: a.textContent, typing: !!document.querySelector('.macro-type:not(.macro-type-done)')};
+});
+check('ссылка в печати: пока печатается — не нажимается', !!l1 && l1.wait && l1.pe === 'none' && l1.text.length < 19, JSON.stringify(l1));
+check('ссылка в печати: допечатана — нажимается, текст ещё печатается', !l2.wait && l2.pe === 'auto' && l2.text === 'Сюда длинная ссылка' && l2.typing, JSON.stringify(l2));
+await page.click('.passage a');
+await page.waitForTimeout(200);
+check('ссылка в печати: переход', (await page.evaluate(() => SugarCube.State.passage)) === 'Start');
+
+/* Глитч в печатающемся тексте и глитч на ссылке */
+await page.evaluate(() => SugarCube.Engine.play('SGTypeGlitch'));
+await page.waitForTimeout(500);
+const g1 = await page.evaluate(() => {
+	const g = document.querySelector('.glitchy');
+	return {shadow: g.getAttribute('data-text'), text: g.textContent};
+});
+await page.mouse.click(700, 900);
+await page.waitForTimeout(300);
+const g2 = await page.evaluate(() => {
+	const g = document.querySelector('.glitchy');
+	return {shadow: g.getAttribute('data-text'), keep: g.getAttribute('data-sg-text')};
+});
+check('глитч печатается вместе с текстом', g1.text.length > 0 && g1.text.length < 15 && g1.shadow === 'ПОДМЕННЫЙ ТЕКСТ'.slice(0, g1.text.length), JSON.stringify(g1));
+check('глитч после печати — весь подменный текст', g2.shadow === 'ПОДМЕННЫЙ ТЕКСТ' && g2.keep === null, JSON.stringify(g2));
+await go('SGGlitchLink');
+const gl = await page.evaluate(() => {
+	const a = document.querySelector('.glitchy a');
+	const r = a.getBoundingClientRect();
+	const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+	return {hit: hit === a || a.contains(hit), pe: getComputedStyle(document.querySelector('.glitchy'), '::before').pointerEvents};
+});
+check('глитч на ссылке: ссылка нажимается сквозь «тени»', gl.hit && gl.pe === 'none', JSON.stringify(gl));
+await page.click('.glitchy a');
+await page.waitForTimeout(200);
+check('глитч на ссылке: переход', (await page.evaluate(() => SugarCube.State.passage)) === 'Start');
+check('эффекты сессии 7: без ошибок SugarCube', (await sugarErrors()).length === 0, (await sugarErrors()).join(' | '));
 
 check('ошибок страницы нет', errors.length === 0, errors.join(' | '));
 await browser.close();

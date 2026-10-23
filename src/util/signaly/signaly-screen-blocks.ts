@@ -100,7 +100,8 @@ const specs: Record<BlockType | CaseKind, ArgSpec> = {
 	},
 	place: {
 		pos: [],
-		keys: {kind: 'string', corner: 'string', x: 'number', y: 'number'},
+		// hover, click — свой звук (шаг 2.2): имя набора или none (без звука).
+		keys: {kind: 'string', corner: 'string', x: 'number', y: 'number', hover: 'string', click: 'string'},
 		flags: [],
 		container: true
 	},
@@ -249,7 +250,7 @@ function writeValue(value: Value) {
 	return typeof value === 'number' ? round(value) : quote(String(value));
 }
 
-const bareKeys = ['place', 'corner', 'close', 'kind'];
+const bareKeys = ['place', 'corner', 'close', 'kind', 'hover', 'click'];
 
 function writeArgs(values: Values, extra: string[], spec: ArgSpec) {
 	const parts: string[] = [];

@@ -583,7 +583,8 @@
 			"migrated": "Link and button styles were moved from the stylesheet into styles: {{list}}. Unused duplicates (…-link, …-button) were removed. The game looks the same. Press Save to write the styles to the story.",
 			"targets": {
 				"link": "Links",
-				"button": "Buttons"
+				"button": "Buttons",
+				"sounds": "Sounds"
 			},
 			"sections": {
 				"common": "General",
@@ -867,7 +868,107 @@
 			"glitchText": "Text",
 			"shadow": "Hidden text",
 			"shadowHint": "Shows through as noise over the text.",
-			"glitchHint": "Glitch colors, shift and speed are shared, in Terminal appearance."
+			"glitchHint": "Glitch colors, shift and speed are shared, in Terminal appearance.",
+			"begin": "When to start",
+			"begins": {
+				"open": "Count from screen opening",
+				"after": "After effects above"
+			},
+			"beginHint": "\"After effects above\" waits until everything above on this screen has finished typing, appearing, changing or switching on, then counts its own time (0 is fine).",
+			"turnOn": "When to switch on",
+			"turnOns": {
+				"now": "At once",
+				"open": "N seconds after screen opens",
+				"after": "After effects above"
+			},
+			"turnOnAfter": "Seconds",
+			"moreHint": "One more effect on the same text: select the text and choose \"Effect\" — the program orders the effects itself."
+		},
+		"sounds": {
+			"button": "Sounds",
+			"title": "Sounds",
+			"mute": "Mute",
+			"muteHint": "Do not play hover and click sounds in the preview.",
+			"listen": "Listen",
+			"noFolder": "Choose the game folder to listen to and pick files.",
+			"stop": "Stop sound",
+			"delete": "Delete",
+			"removeRow": "Remove",
+			"name": "Name",
+			"volume": "Volume",
+			"delay": "Delay",
+			"delayHint": "Wait after hover or click before the sound.",
+			"ms": "ms",
+			"setFiles": "Files in the set",
+			"setFilesHint": "A random file of the set plays each time. A new hover sound stops the previous one.",
+			"file": "File",
+			"addFile": "Add file",
+			"listenSet": "Listen to the set",
+			"setUsed": "Used by kinds: {{list}}.",
+			"setUnused": "Not used by any kind yet.",
+			"baseKind": "Plain",
+			"trackName": "Short name",
+			"trackNameHint": "Used to play the sound in passage text. No spaces.",
+			"trackUsed": "Mentioned in passages: {{count}}. In text: {{code}}",
+			"renamed": "The old name \"{{name}}\" is mentioned in {{count}} passages — fix them by hand.",
+			"groupName": "Group name",
+			"groupNameHint": "Starts with a colon, no spaces: \":AMBIENT\".",
+			"groupTracks": "Sounds in the group",
+			"groupUsed": "Mentioned in passages: {{count}}. In text: {{code}}",
+			"listName": "Playlist name",
+			"listTracks": "Sounds in order",
+			"addTrack": "Add sound",
+			"listUsed": "Mentioned in passages: {{count}}. Played with {{code}}",
+			"up": "Up",
+			"down": "Down",
+			"newSet": "Set",
+			"newTrack": "sound",
+			"newGroup": "GROUP",
+			"newList": "Playlist",
+			"confirmDelete": "Delete \"{{name}}\"?",
+			"problems": {
+				"sets": "Sets need different non-empty names.",
+				"tracks": "Files need different short names without spaces or colons.",
+				"groups": "Group names start with a colon, have no spaces and do not repeat.",
+				"lists": "Playlists need different names without spaces or colons."
+			},
+			"empty": {
+				"sets": "No sets yet.",
+				"tracks": "No files yet.",
+				"groups": "No groups yet.",
+				"lists": "No playlists yet."
+			},
+			"tabs": {
+				"sets": "Sets",
+				"tracks": "Files",
+				"groups": "Groups",
+				"lists": "Playlists"
+			},
+			"intro": {
+				"sets": "Hover and click sounds for links and buttons. A kind picks its set in \"Button and link kinds\".",
+				"tracks": "Sound files with short names (StoryInit, <<cacheaudio>>).",
+				"groups": "Groups of sounds.",
+				"lists": "Playlists: sounds in order, each with its volume."
+			},
+			"add": {
+				"sets": "Add set",
+				"tracks": "Add file",
+				"groups": "Add group",
+				"lists": "Add playlist"
+			},
+			"kind": {
+				"hover": "Hover sound",
+				"click": "Click sound",
+				"base": "Same as Plain",
+				"none": "No sound",
+				"hint": "Sets are edited in the Sounds window.",
+				"noSets": "No sets yet — create them in the Sounds window."
+			},
+			"place": {
+				"hover": "Hover sound",
+				"click": "Click sound",
+				"kind": "Same as the kind"
+			}
 		}
 	}
 }

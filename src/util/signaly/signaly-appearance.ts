@@ -7,6 +7,7 @@
 //   стартовый экран, эффекты) — его читает браузер, поэтому история
 //   выглядит так же и в обычном Twine.
 
+import {moveTemplateSounds} from './signaly-sounds';
 import {cssColor, defaultGlitch, glitchKeyframes, glitchRules, GlitchSettings} from './signaly-glitch';
 import {BlockMarkers, findBlock, putBlock} from './signaly-blocks';
 import {
@@ -938,11 +939,12 @@ export function hasAuthorKr2(script: string) {
 
 /**
  * JavaScript истории со свежим движком (старый блок «общие настройки» и код
- * KR2 шаблона убираются).
+ * KR2 шаблона убираются, код звуков шаблона становится наборами).
  */
 export function withEngine(script: string) {
 	return putBlock(
-		script.replace(oldSettingsBlock, '').replace(authorKr2Block, kr2MovedNote),
+		// Шаг 2.2: код звуков шаблона → наборы (вид «Обычный»).
+		moveTemplateSounds(script.replace(oldSettingsBlock, '').replace(authorKr2Block, kr2MovedNote)),
 		engineMarkers,
 		signalyEngineBlock()
 	);

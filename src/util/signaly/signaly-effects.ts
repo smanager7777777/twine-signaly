@@ -42,6 +42,13 @@ export interface Effect {
 	contentTo: number;
 	/** Непонятые слова команды (печать, появление) — сохраняются. */
 	extra: string[];
+	/**
+	 * Сессия 7: начать «после эффектов выше» — слово after у <<type>> и
+	 * <<timed>>, data-sg-after="1" у мигания и глитча.
+	 */
+	after?: boolean;
+	/** Мигание и глитч: включить через N с (data-sg-start). */
+	start?: number;
 	type_?: TypeValues;
 	/** Появление: разделы <<timed>>…<<next>>…; плавно — t8n. */
 	sections?: TimedSection[];
@@ -146,6 +153,7 @@ function readType(args: string[]) {
 	const values: TypeValues = {speed: 40, cursor: 'blink', inline: false};
 	const extra: string[] = [];
 	const speed = args.length ? parseTime(args[0]) : undefined;
+	let after = false;
 	let i = 1;
 
 	if (speed === undefined) {
@@ -159,6 +167,9 @@ function readType(args: string[]) {
 		if (word === 'start' && next !== undefined && parseTime(next) !== undefined) {
 			values.start = parseTime(next);
 			i += 2;
+		} else if (word === 'after') {
+			after = true;
+			i++;
 		} else if (word === 'none' || word === 'keep') {
 			values.cursor = word;
 			i++;
@@ -170,10 +181,10 @@ function readType(args: string[]) {
 			i++;
 		}
 	}
-	return {values, extra};
+	return {values, extra, after};
 }
 
-export function typeHead(values: TypeValues, extra: string[] = []) {
+export function typeHead(values: TypeValues, extra: string[] = [], after = false) {
 	const parts = [`${Math.round(values.speed)}ms`];
 
 	if (values.start !== undefined) {
@@ -186,6 +197,9 @@ export function typeHead(values: TypeValues, extra: string[] = []) {
 		parts.push(values.cursor);
 	}
 	parts.push(...extra);
+	if (after) {
+		parts.push('after');
+	}
 	return `<<type ${parts.join(' ')}>>`;
 }
 
@@ -230,17 +244,25 @@ function splitSections(content: string, firstDelay: number): TimedSection[] | un
 	return sections;
 }
 
-export function timedHead(delay: number, fade: boolean, extra: string[] = []) {
-	return `<<timed ${writeSeconds(delay)}${fade ? ' t8n' : ''}${extra.length ? ' ' + extra.join(' ') : ''}>>`;
+/** Слово t8n у SugarCube — только вторым, поэтому after пишется после него. */
+export function timedHead(delay: number, fade: boolean, extra: string[] = [], after = false) {
+	const words = [writeSeconds(delay), ...(fade ? ['t8n'] : []), ...extra, ...(after ? ['after'] : [])];
+
+	return `<<timed ${words.join(' ')}>>`;
 }
 
 /**
  * Текст <<timed>> с разделами (появление по очереди). У <<next>> число пишется,
  * только если оно задано (без числа — как у предыдущей строки).
  */
-export function writeTimed(sections: TimedSection[], fade: boolean, extra: string[] = []) {
+export function writeTimed(
+	sections: TimedSection[],
+	fade: boolean,
+	extra: string[] = [],
+	after = false
+) {
 	return (
-		timedHead(sections[0]?.delay ?? 1, fade, extra) +
+		timedHead(sections[0]?.delay ?? 1, fade, extra, after) +
 		sections
 			.map((section, index) =>
 				index === 0
@@ -259,10 +281,11 @@ export function writeSwap(
 	replacement: string,
 	fade: boolean,
 	replaceFade: boolean,
-	extra: string[] = []
+	extra: string[] = [],
+	after = false
 ) {
 	return (
-		timedHead(delay, fade, extra) +
+		timedHead(delay, fade, extra, after) +
 		`<<replace ${quote('#' + target)}${replaceFade ? ' t8n' : ''}>>${replacement}<</replace>>` +
 		'<</timed>>'
 	);
@@ -306,14 +329,22 @@ export function fromHtmlAttr(value: string) {
 	return value.replace(/&quot;/g, '"').replace(/&amp;/g, '&');
 }
 
-export function blinkOpen(period?: number) {
-	return period === undefined || period === 1
-		? '<span class="sg-blink">'
-		: `<span class="sg-blink" style="animation-duration: ${writeSeconds(period)}">`;
+/** Начало мигания и глитча: data-sg-start="2s", data-sg-after="1". */
+function startAttrs(start?: number, after?: boolean) {
+	return (
+		(start !== undefined && start > 0 ? ` data-sg-start="${writeSeconds(start)}"` : '') +
+		(after ? ' data-sg-after="1"' : '')
+	);
 }
 
-export function glitchOpen(shadow: string) {
-	return `<span class="glitchy" data-text="${htmlAttr(shadow)}">`;
+export function blinkOpen(period?: number, start?: number, after?: boolean) {
+	return period === undefined || period === 1
+		? `<span class="sg-blink"${startAttrs(start, after)}>`
+		: `<span class="sg-blink" style="animation-duration: ${writeSeconds(period)}"${startAttrs(start, after)}>`;
+}
+
+export function glitchOpen(shadow: string, start?: number, after?: boolean) {
+	return `<span class="glitchy" data-text="${htmlAttr(shadow)}"${startAttrs(start, after)}>`;
 }
 
 /* ----- Поиск эффектов ----- */
@@ -351,7 +382,7 @@ export function findEffects(text: string): Effect[] {
 			const read = readType(args);
 
 			if (read) {
-				effects.push({type: 'type', ...base, extra: read.extra, type_: read.values});
+				effects.push({type: 'type', ...base, extra: read.extra, after: read.after, type_: read.values});
 			}
 			continue;
 		}
@@ -363,7 +394,8 @@ export function findEffects(text: string): Effect[] {
 		}
 
 		const fade = args.slice(1).some(a => a === 't8n' || a === 'transition');
-		const extra = args.slice(1).filter(a => a !== 't8n' && a !== 'transition');
+		const after = args.slice(1).includes('after');
+		const extra = args.slice(1).filter(a => a !== 't8n' && a !== 'transition' && a !== 'after');
 		const swap = replaceRe.exec(content);
 
 		if (swap && !/<<next[\s>]/.test(content)) {
@@ -371,6 +403,7 @@ export function findEffects(text: string): Effect[] {
 				type: 'swap',
 				...base,
 				extra,
+				after,
 				fade,
 				target: unquoteToken(swap[1]).slice(1),
 				replaceFade: swap[2] !== undefined,
@@ -383,7 +416,7 @@ export function findEffects(text: string): Effect[] {
 		const sections = splitSections(content, delay);
 
 		if (sections) {
-			effects.push({type: 'timed', ...base, extra, fade, sections});
+			effects.push({type: 'timed', ...base, extra, after, fade, sections});
 		}
 	}
 
@@ -412,6 +445,14 @@ export function findEffects(text: string): Effect[] {
 			extra: []
 		};
 
+		const start = attr(attrs, 'data-sg-start');
+
+		if (start !== undefined && parseTime(start) !== undefined) {
+			effect.start = parseTime(start);
+		}
+		if (attr(attrs, 'data-sg-after') !== undefined) {
+			effect.after = true;
+		}
 		if (kind === 'blink') {
 			const style = attr(attrs, 'style') ?? '';
 			const duration = /animation-duration\s*:\s*([\d.]+m?s)/i.exec(style);
@@ -432,9 +473,9 @@ export function findEffects(text: string): Effect[] {
 export function writeEffect(effect: Effect, content: string) {
 	switch (effect.type) {
 		case 'type':
-			return `${typeHead(effect.type_!, effect.extra)}${content}<</type>>`;
+			return `${typeHead(effect.type_!, effect.extra, effect.after)}${content}<</type>>`;
 		case 'timed':
-			return writeTimed(effect.sections!, !!effect.fade, effect.extra);
+			return writeTimed(effect.sections!, !!effect.fade, effect.extra, effect.after);
 		case 'swap':
 			return writeSwap(
 				effect.sections?.[0]?.delay ?? 3,
@@ -442,12 +483,13 @@ export function writeEffect(effect: Effect, content: string) {
 				effect.replacement ?? '',
 				!!effect.fade,
 				!!effect.replaceFade,
-				effect.extra
+				effect.extra,
+				effect.after
 			);
 		case 'blink':
-			return `${blinkOpen(effect.period)}${content}</span>`;
+			return `${blinkOpen(effect.period, effect.start, effect.after)}${content}</span>`;
 		case 'glitch':
-			return `${glitchOpen(effect.shadow ?? '')}${content}</span>`;
+			return `${glitchOpen(effect.shadow ?? '', effect.start, effect.after)}${content}</span>`;
 	}
 }
 
@@ -482,7 +524,8 @@ export function newEffect(
 	selected: string,
 	text: string,
 	sample: string,
-	sampleNew: string
+	sampleNew: string,
+	shadow?: string
 ): NewEffect {
 	const body = selected === '' ? sample : selected;
 
@@ -500,13 +543,16 @@ export function newEffect(
 		case 'blink':
 			return {insert: `${blinkOpen()}${body}</span>`, at: 0};
 		case 'glitch':
-			return {insert: `${glitchOpen(body)}${body}</span>`, at: 0};
+			return {insert: `${glitchOpen(shadow ?? visibleText(body))}${body}</span>`, at: 0};
 	}
 }
 
 /** Появление строк по очереди: каждая выделенная строка — свой раздел. */
 export function newLinesEffect(selected: string, sample: string, interval = 1): NewEffect {
-	const lines = (selected === '' ? sample : selected).split('\n');
+	const body = selected === '' ? sample : selected;
+	const split = body.split('\n');
+	// Строки, разрезающие команду или тег пополам, не делим (сессия 7).
+	const lines = split.every(selfContained(body)) ? split : [body];
 	const sections = lines.map((line, index) => ({
 		delay: index === 0 ? interval : undefined,
 		content: line + (index < lines.length - 1 ? '\n' : '')
@@ -523,4 +569,165 @@ export function idsIn(text: string) {
 		ids.add(match[1]);
 	}
 	return [...ids];
+}
+
+/* ----- Несколько эффектов на одном тексте (сессия 7) ----- */
+
+/** Строка не разрезает пополам команду с закрывающей частью или тег span. */
+function selfContained(whole: string) {
+	const names = new Set([...whole.matchAll(/<<\/([\w-]+)/g)].map(m => m[1]));
+	const count = (line: string, re: RegExp) => (line.match(re) ?? []).length;
+
+	return (line: string) =>
+		count(line, /<span\b/gi) === count(line, /<\/span>/gi) &&
+		[...names].every(
+			name =>
+				count(line, new RegExp(`<<${name}(?=[\\s>])`, 'g')) ===
+				count(line, new RegExp(`<<\\/${name}>>`, 'g'))
+		);
+}
+
+/** Видимый текст разметки — надписи ссылок без команд и тегов (для «тени» глитча). */
+export function visibleText(markup: string) {
+	const linkText = (link: string) => {
+		const pipe = link.indexOf('|');
+
+		if (pipe !== -1) {
+			return link.slice(0, pipe);
+		}
+
+		const arrow = link.lastIndexOf('->');
+
+		if (arrow !== -1) {
+			return link.slice(0, arrow);
+		}
+
+		const back = link.indexOf('<-');
+
+		return back !== -1 ? link.slice(back + 2) : link;
+	};
+
+	return markup
+		.replace(/\[img\[[^\]]*\](?:\[[^\]]*\])?\]/g, '')
+		.replace(
+			/<<(?:link|button|linkappend|linkprepend|linkreplace)\s+("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\[\[[^\]]*\](?:\[[^\]]*\])?\])[^]*?>>/g,
+			(_, first: string) =>
+				first.startsWith('[[') ? linkText(first.slice(2).replace(/\](?:\[[^\]]*\])?\]$/, '')) : unquoteToken(first)
+		)
+		.replace(/\[\[([^\]]*)\](?:\[[^\]]*\])?\]/g, (_, link: string) => linkText(link))
+		.replace(/<<[^]*?>>/g, '')
+		.replace(/<[^>]*>/g, '')
+		.replace(/\s+/g, ' ')
+		.trim();
+}
+
+/** Порядок слоёв снаружи внутрь: появление и смена → печать → глитч и мигание. */
+const layerRank: Record<EffectType | 'lines', number> = {
+	timed: 0,
+	lines: 0,
+	swap: 0,
+	type: 1,
+	blink: 2,
+	glitch: 2
+};
+
+interface Layer {
+	from: number;
+	to: number;
+	contentFrom: number;
+	contentTo: number;
+	rank: number;
+}
+
+/** Смена: <span id="цель">старый</span> сразу перед своей командой <<timed>>. */
+function swapSpan(text: string, effect: Effect) {
+	const re = new RegExp(`<span\\b[^>]*\\bid\\s*=\\s*["']${(effect.target ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}["'][^>]*>`, 'gi');
+
+	for (const match of text.matchAll(re)) {
+		const open = match.index! + match[0].length;
+		const close = spanClose(text, open);
+
+		if (close && close.end <= effect.from && text.slice(close.end, effect.from).trim() === '') {
+			return {from: match.index!, contentFrom: open, contentTo: close.at};
+		}
+	}
+	return undefined;
+}
+
+function layersOf(text: string): Layer[] {
+	return findEffects(text).flatMap(e => {
+		if (e.type !== 'swap') {
+			return [
+				{from: e.from, to: e.to, contentFrom: e.contentFrom, contentTo: e.contentTo, rank: layerRank[e.type]}
+			];
+		}
+
+		const span = swapSpan(text, e);
+
+		return span ? [{...span, to: e.to, rank: 0}] : [];
+	});
+}
+
+export interface ComposedEffect extends NewEffect {
+	/** Что заменить в тексте пассажа. */
+	from: number;
+	to: number;
+}
+
+/**
+ * Эффект на выделенный текст. Если у текста уже есть эффекты (выделен сам
+ * текст или он вместе с командами), новый встаёт в свой слой: появление и смена
+ * — снаружи, затем печать, внутри — глитч и мигание. Так печать не попадает
+ * внутрь появления (там она не работает), а глитч печатается вместе с текстом.
+ */
+export function composeEffect(
+	type: EffectType | 'lines',
+	text: string,
+	from: number,
+	to: number,
+	samples: {text: string; next: string; lines: string}
+): ComposedEffect {
+	const all = layersOf(text);
+	const stack: Layer[] = [];
+	let cur = {from, to};
+
+	if (from !== to) {
+		for (;;) {
+			const outer = all.find(
+				l =>
+					!stack.includes(l) &&
+					((l.contentFrom === cur.from && l.contentTo === cur.to) || (l.from === cur.from && l.to === cur.to))
+			);
+
+			if (!outer) {
+				break;
+			}
+			stack.unshift(outer);
+			cur = {from: outer.from, to: outer.to};
+		}
+		for (let inner = stack[stack.length - 1]; inner; ) {
+			const next = all.find(
+				l => !stack.includes(l) && l.from === inner.contentFrom && l.to === inner.contentTo
+			);
+
+			if (!next) {
+				break;
+			}
+			stack.push(next);
+			inner = next;
+		}
+	}
+
+	const innermost = stack[stack.length - 1];
+	const bare = innermost ? {from: innermost.contentFrom, to: innermost.contentTo} : {from, to};
+	const wrap = stack.find(l => l.rank > layerRank[type]);
+	const target = wrap ? {from: wrap.from, to: wrap.to} : bare;
+	const body = text.slice(target.from, target.to);
+	const bareText = text.slice(bare.from, bare.to);
+	const made =
+		type === 'lines'
+			? newLinesEffect(body, samples.lines)
+			: newEffect(type, body, text, samples.text, samples.next, bareText === '' ? undefined : visibleText(bareText));
+
+	return {...made, from: target.from, to: target.to};
 }

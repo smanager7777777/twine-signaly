@@ -3,6 +3,7 @@ import {ButtonBar} from '../../../../components/container/button-bar';
 import {RenameStoryButton} from '../../../../components/story/rename-story-button';
 import {SignalyAppearanceButton} from '../../../../dialogs/signaly-appearance';
 import {SignalyKindsButton} from '../../../../dialogs/signaly-kinds';
+import {SignalySoundsButton} from '../../../../dialogs/signaly-sounds';
 import {Story, updateStory, useStoriesContext} from '../../../../store/stories';
 import {DetailsButton} from './details-button';
 import {FindReplaceButton} from './find-replace-button';
@@ -32,6 +33,7 @@ export const StoryActions: React.FC<StoryActionsProps> = props => {
 			<StylesheetButton story={story} />
 			<SignalyAppearanceButton story={story} />
 			<SignalyKindsButton story={story} />
+			<SignalySoundsButton story={story} />
 		</ButtonBar>
 	);
 };

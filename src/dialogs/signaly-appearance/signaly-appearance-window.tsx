@@ -25,7 +25,7 @@ import {
 	RangeField,
 	TextField
 } from './signaly-appearance-fields';
-import {SignalyAppearancePreview} from './signaly-appearance-preview';
+import {SignalyAppearancePreview, SignalyPreviewMute} from './signaly-appearance-preview';
 import './signaly-appearance.css';
 
 export interface SignalyAppearanceWindowProps {
@@ -417,6 +417,7 @@ export const SignalyAppearanceWindow: React.FC<
 						>
 							{t('signaly.appearance.preview.refresh')}
 						</button>
+						<SignalyPreviewMute />
 						<span className="signaly-field-hint">
 							{t('signaly.appearance.preview.size')}
 						</span>

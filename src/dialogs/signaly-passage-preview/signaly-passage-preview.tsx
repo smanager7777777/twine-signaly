@@ -20,7 +20,8 @@ import {folderToFileUrl} from '../../util/signaly/signaly-preview';
 import {writeBlock} from '../../util/signaly/signaly-screen-blocks';
 import {
 	SignalyAppearancePreview,
-	SignalyDragLock
+	SignalyDragLock,
+	SignalyPreviewMute
 } from '../signaly-appearance/signaly-appearance-preview';
 import '../signaly-appearance/signaly-appearance.css';
 import './signaly-passage-preview.css';
@@ -171,6 +172,7 @@ export const SignalyPassagePreview: React.FC<{story: Story}> = ({story}) => {
 					{t('signaly.passagePreview.title')}: {passage.name}
 				</span>
 				<SignalyDragLock />
+				<SignalyPreviewMute />
 				<IconButton
 					icon={<IconRefresh />}
 					iconOnly

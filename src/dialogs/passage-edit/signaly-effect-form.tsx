@@ -36,6 +36,46 @@ export const SignalyEffectForm: React.FC<SignalyEffectFormProps> = props => {
 		onText(replaceEffect(text, effect, {...effect, ...changed}));
 	const content = text.slice(effect.contentFrom, effect.contentTo);
 
+	// Сессия 7: начало — от открытия экрана или после эффектов выше.
+	const begin = (
+		<ChoiceField
+			hint={l('beginHint')}
+			label={l('begin')}
+			onChange={value => write({after: value === 'after'})}
+			options={['open', 'after'].map(value => ({label: l(`begins.${value}`), value}))}
+			value={effect.after ? 'after' : 'open'}
+		/>
+	);
+	const turnOn = effect.after ? 'after' : (effect.start ?? 0) > 0 ? 'open' : 'now';
+	const turnOnFields = (
+		<>
+			<ChoiceField
+				hint={l('beginHint')}
+				label={l('turnOn')}
+				onChange={value =>
+					write({
+						after: value === 'after',
+						start: value === 'now' ? undefined : effect.start ?? (value === 'open' ? 2 : undefined)
+					})
+				}
+				options={['now', 'open', 'after'].map(value => ({label: l(`turnOns.${value}`), value}))}
+				value={turnOn}
+			/>
+			{turnOn !== 'now' && (
+				<RangeField
+					label={l('turnOnAfter')}
+					max={60}
+					min={0}
+					onChange={start => write({start})}
+					step={0.1}
+					unit={seconds}
+					value={effect.start ?? 0}
+				/>
+			)}
+		</>
+	);
+	const more = <div className="signaly-field-hint">{l('moreHint')}</div>;
+
 	switch (effect.type) {
 		case 'type': {
 			const v = effect.type_!;
@@ -43,6 +83,7 @@ export const SignalyEffectForm: React.FC<SignalyEffectFormProps> = props => {
 
 			return (
 				<>
+					{begin}
 					<RangeField
 						hint={l('speedHint')}
 						label={l('speed')}
@@ -78,6 +119,7 @@ export const SignalyEffectForm: React.FC<SignalyEffectFormProps> = props => {
 						value={v.inline}
 					/>
 					<div className="signaly-field-hint">{l('typeHint')}</div>
+					{more}
 				</>
 			);
 		}
@@ -92,6 +134,7 @@ export const SignalyEffectForm: React.FC<SignalyEffectFormProps> = props => {
 
 			return (
 				<>
+					{begin}
 					{sections.map((section, index) => {
 						const delay = section.delay ?? previous;
 
@@ -124,6 +167,7 @@ export const SignalyEffectForm: React.FC<SignalyEffectFormProps> = props => {
 					<div className="signaly-field-hint">
 						{sections.length > 1 ? l('linesHint') : l('timedHint')}
 					</div>
+					{more}
 				</>
 			);
 		}
@@ -133,6 +177,7 @@ export const SignalyEffectForm: React.FC<SignalyEffectFormProps> = props => {
 
 			return (
 				<>
+					{begin}
 					<RangeField
 						label={l('after')}
 						max={120}
@@ -171,6 +216,7 @@ export const SignalyEffectForm: React.FC<SignalyEffectFormProps> = props => {
 						onChange={replaceFade => write({replaceFade})}
 						value={!!effect.replaceFade}
 					/>
+					{more}
 				</>
 			);
 		}
@@ -187,7 +233,9 @@ export const SignalyEffectForm: React.FC<SignalyEffectFormProps> = props => {
 						unit={seconds}
 						value={effect.period ?? 1}
 					/>
+					{turnOnFields}
 					<div className="signaly-field-hint">{l('blinkHint')}</div>
+					{more}
 				</>
 			);
 
@@ -209,7 +257,9 @@ export const SignalyEffectForm: React.FC<SignalyEffectFormProps> = props => {
 						onChange={shadow => write({shadow})}
 						value={effect.shadow ?? ''}
 					/>
+					{turnOnFields}
 					<div className="signaly-field-hint">{l('glitchHint')}</div>
+					{more}
 				</>
 			);
 	}

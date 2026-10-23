@@ -93,7 +93,7 @@ export function glitchRules(g: GlitchSettings, scope: string) {
 			`position: absolute; left: ${round(-left)}px; ` +
 			`text-shadow: ${first ? '1px' : '-1px'} 0 ${first ? g.glitchShadow1 : g.glitchShadow2}; ` +
 			`top: ${round(-g.glitchShift)}px; color: ${g.glitchColor}; background: ${g.glitchBg}; ` +
-			`overflow: hidden; clip-path: polygon(0 0); ` +
+			`overflow: hidden; clip-path: polygon(0 0); pointer-events: none; ` +
 			`animation: ${first ? 'sg-glitch-2' : 'sg-glitch-1'} ${round(first ? g.glitchSpeed * 1.5 : g.glitchSpeed)}s infinite linear alternate-reverse; }`
 		);
 	};

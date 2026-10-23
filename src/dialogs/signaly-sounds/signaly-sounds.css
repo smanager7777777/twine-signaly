@@ -1,0 +1,52 @@
+/* «Twine СИГНАЛЫ»: окно «Звуки» (общие стили — в signaly-appearance.css и signaly-kinds.css). */
+
+.signaly-sounds-body {
+	grid-template-columns: minmax(320px, 380px) 1fr;
+}
+
+.signaly-sounds-editor {
+	max-width: 760px;
+	overflow-y: auto;
+	padding: var(--grid-size);
+}
+
+.signaly-sound-row {
+	align-items: center;
+	display: flex;
+	gap: 6px;
+	margin-bottom: 6px;
+}
+
+.signaly-sound-row .signaly-select,
+.signaly-sound-row .signaly-field {
+	flex: 1;
+	min-width: 0;
+}
+
+.signaly-sound-list-row {
+	border-bottom: 1px solid var(--light-gray);
+	margin-bottom: 6px;
+}
+
+.signaly-sound-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin: 6px 0;
+}
+
+.signaly-sound-checks {
+	display: grid;
+	gap: 4px 12px;
+	grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+}
+
+.signaly-sound-file {
+	color: var(--dark-gray, var(--gray));
+	font-size: 85%;
+	font-weight: normal;
+	margin-left: auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
