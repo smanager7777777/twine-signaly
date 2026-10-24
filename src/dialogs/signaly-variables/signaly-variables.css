@@ -1,0 +1,13 @@
+/* «Twine СИГНАЛЫ»: окно «Переменные» (общие стили — в signaly-appearance.css, signaly-kinds.css, signaly-sounds.css). */
+
+.signaly-variables-used {
+	margin: 0 0 var(--grid-size);
+	padding-left: 1.5em;
+}
+
+.signaly-variables-loose {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-bottom: var(--grid-size);
+}

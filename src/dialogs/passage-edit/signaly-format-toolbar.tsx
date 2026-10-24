@@ -6,6 +6,7 @@
 
 import {
 	IconAlignCenter,
+	IconArrowFork,
 	IconAlignRight,
 	IconBold,
 	IconClick,
@@ -48,6 +49,7 @@ import {
 	applyAlign,
 	applyKind,
 	Edit,
+	enclosingTag,
 	insertRule,
 	kindAt,
 	Mark,
@@ -59,6 +61,11 @@ import {
 	toggleMark
 } from '../../util/signaly/signaly-format';
 import {readKinds} from '../../util/signaly/signaly-kinds';
+import {
+	applyLinkForm,
+	LinkForm,
+	linkFormAt
+} from '../../util/signaly/signaly-link-form';
 import {
 	BlockType,
 	findBlocks,
@@ -72,6 +79,15 @@ import {
 	EffectType,
 	findEffects
 } from '../../util/signaly/signaly-effects';
+import {
+	findConditions,
+	findStates,
+	findValues,
+	wrapCondition,
+	writeStates,
+	writeValue
+} from '../../util/signaly/signaly-logic';
+import {knownVariables} from '../../util/signaly/signaly-variables';
 import {SignalyPreviewButton} from '../signaly-passage-preview';
 import {saveStoryWithUpgrade} from '../signaly-upgrade';
 import {PanelTarget, SignalyBlockPanel} from './signaly-block-panel';
@@ -86,6 +102,8 @@ export interface SignalyFormatToolbarProps {
 
 interface CursorInfo {
 	kind: string;
+	/** Ссылка или кнопка под курсором ('' — нет или разные). */
+	form?: LinkForm | '';
 	align: Align | '';
 	color?: string;
 	size?: string;
@@ -94,7 +112,7 @@ interface CursorInfo {
 const sizes = ['50%', '75%', '125%', '150%', '200%', '300%'];
 
 /** Порядок пунктов «Добавить блок» (решение 52). */
-const addable: Array<BlockType | 'kr2'> = [
+const addable: Array<BlockType | 'kr2' | 'states' | 'value'> = [
 	'alarm',
 	'dialog',
 	'code',
@@ -103,7 +121,9 @@ const addable: Array<BlockType | 'kr2'> = [
 	'chain',
 	'timer',
 	'place',
-	'kr2'
+	'kr2',
+	'states',
+	'value'
 ];
 
 /** Пункты «Эффект» (шаг 2.1, ответ 5А); lines — появление строк по очереди. */
@@ -129,6 +149,27 @@ function clickTargets(value: string) {
 			targets.push({from: e.contentTo, to: e.to, target});
 		}
 	});
+	// Условия и состояния — по своим командам, значение — целиком (шаг 3.1).
+	findConditions(value).forEach((c, index) => {
+		const target: PanelTarget = {kind: 'condition', index};
+
+		targets.push({from: c.from, to: c.headTo, target});
+		if (c.elseFrom !== undefined) {
+			targets.push({from: c.elseFrom, to: c.elseContentFrom!, target});
+		}
+		targets.push({from: c.to - '<</if>>'.length, to: c.to, target});
+	});
+	findStates(value).forEach((st, index) => {
+		const target: PanelTarget = {kind: 'states', index};
+		const body = value.slice(st.from, st.to);
+
+		for (const m of body.matchAll(/<<(?:switch|case|default)(?=[\s>])[^]*?>>|<<\/switch>>/g)) {
+			targets.push({from: st.from + m.index!, to: st.from + m.index! + m[0].length, target});
+		}
+	});
+	findValues(value).forEach((v, index) =>
+		targets.push({from: v.from, to: v.to, target: {kind: 'value', index}})
+	);
 	return targets;
 }
 
@@ -184,6 +225,18 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 		};
 	}, [editor]);
 
+	/** Обёртка вида вокруг курсора — без выделения ссылка ↔ кнопка для всех её элементов. */
+	const kindRange = React.useCallback(
+		(text: string, from: number, to: number) => {
+			const run = enclosingTag(text, from, to, r =>
+				r.classes.some(c => kindClasses.includes(c))
+			);
+
+			return run ? {from: run.openTo, to: run.closeFrom} : undefined;
+		},
+		[kindClasses]
+	);
+
 	const updateInfo = React.useCallback(() => {
 		if (!editor) {
 			return;
@@ -193,11 +246,12 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 
 		setInfo({
 			kind: kindAt(text, from, to, kindClasses),
+			form: linkFormAt(text, from, to, kindRange(text, from, to)),
 			align: alignAt(text, from, to),
 			color: styleAt(text, from, to, 'color'),
 			size: styleAt(text, from, to, 'font-size')
 		});
-	}, [editor, kindClasses, selection]);
+	}, [editor, kindClasses, kindRange, selection]);
 
 	React.useEffect(() => {
 		if (!editor) {
@@ -344,8 +398,12 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 		dispatch(updatePassage(story, passage, {tags: on ? [...tags, kr2Tag] : tags}));
 	}
 
-	function addBlock(type: BlockType | 'kr2') {
+	function addBlock(type: BlockType | 'kr2' | 'states' | 'value') {
 		if (!editor) {
+			return;
+		}
+		if (type === 'states' || type === 'value') {
+			addLogic(type);
 			return;
 		}
 		ensureEngine();
@@ -377,6 +435,53 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 			kind: 'block',
 			index: findBlocks(after).findIndex(b => b.from === from)
 		});
+	}
+
+	// Условие, состояния и значение — обычные команды SugarCube, движок им не
+	// нужен (шаг 3.1). Выделенный текст становится текстом условия или
+	// первого состояния.
+	function firstVariable() {
+		return knownVariables(story.passages)[0] ?? {name: 'variable', label: ''};
+	}
+
+	function addCondition() {
+		if (!editor) {
+			return;
+		}
+
+		const {text: value, from, to} = selection();
+		const made = wrapCondition(value, from, to, `$${firstVariable().name}`, label('logicSample'));
+
+		run(() => ({...made, selFrom: from, selTo: from}));
+		setPanel({kind: 'condition', index: findConditions(value.slice(0, from) + made.insert + value.slice(to)).findIndex(c => c.from === from)});
+	}
+
+	function addLogic(type: 'states' | 'value') {
+		const {text: value, from, to} = selection();
+		const v = firstVariable();
+		const selected = value.slice(from, to);
+		const insert =
+			type === 'states'
+				? writeStates({
+						expr: `$${v.name}`,
+						cases: [
+							{value: v.type === 'bool' ? 'false' : '0', content: selected || label('logicSample'), kind: ''},
+							{value: v.type === 'bool' ? 'true' : '1', content: label('logicSample'), kind: ''}
+						]
+				  })
+				: writeValue({
+						name: v.name,
+						label: v.label,
+						...(v.type === 'bool' ? {yes: t('signaly.logic.yes'), no: t('signaly.logic.no')} : {})
+				  });
+		const after = value.slice(0, from) + insert + value.slice(to);
+
+		run(() => ({from, to, insert, selFrom: from, selTo: from}));
+		setPanel(
+			type === 'states'
+				? {kind: 'states', index: findStates(after).findIndex(st => st.from === from)}
+				: {kind: 'value', index: findValues(after).findIndex(x => x.from === from)}
+		);
 	}
 
 	// Эффект на выделенный текст (без выделения — образец текста).
@@ -567,6 +672,17 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 											)
 									})),
 									{separator: true as const},
+									...(['link', 'button'] as const).map(form => ({
+										checkable: true as const,
+										checked: info.form === form,
+										disabled: info.form === undefined,
+										label: label(form === 'link' ? 'asLink' : 'asButton'),
+										onClick: () =>
+											run((text, from, to) =>
+												applyLinkForm(text, from, to, form, kindRange(text, from, to))
+											)
+									})),
+									{separator: true as const},
 									{
 										disabled: info.kind === '',
 										label: label('noKind'),
@@ -577,7 +693,10 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 									}
 							  ]
 					}
-					label={kindName ? `${label('kind')}: ${kindName}` : label('kind')}
+					label={
+						(kindName ? `${label('kind')}: ${kindName}` : label('kind')) +
+						(info.form ? ` · ${label(info.form === 'link' ? 'formLink' : 'formButton')}` : '')
+					}
 				/>
 				<MenuButton
 					disabled={off}
@@ -588,11 +707,12 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 					}))}
 					label={t('signaly.effects.button')}
 				/>
+				<IconButton disabled={off} icon={<IconArrowFork />} label={label('condition')} onClick={addCondition} />
 				<MenuButton
 					disabled={off}
 					icon={<IconSquarePlus />}
 					items={addable.map(type => ({
-						label: t(`signaly.blocks.add.${type}`),
+						label: type === 'states' || type === 'value' ? t(`signaly.logic.add.${type}`) : t(`signaly.blocks.add.${type}`),
 						onClick: () => addBlock(type)
 					}))}
 					label={t('signaly.blocks.add.button')}

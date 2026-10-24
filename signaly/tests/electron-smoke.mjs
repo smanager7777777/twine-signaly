@@ -272,7 +272,7 @@ if (twee) {
 		const v = doc.getValue();
 		doc.setSelection(doc.posFromIndex(v.indexOf('[[')), doc.posFromIndex(v.length));
 	});
-	await btn(/^Вид$/).click();
+	await btn(/^Вид( ·|$)/).click();
 	await win.locator('.menu-button-menu').getByText('Янтарный', {exact: true}).click();
 	await win.waitForTimeout(300);
 	check('панель: вид ссылки', (await cmValue()).endsWith('<span class="amber">[[Назад|Start]]</span>'), await cmValue());

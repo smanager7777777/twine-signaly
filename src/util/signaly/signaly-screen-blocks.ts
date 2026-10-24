@@ -204,7 +204,7 @@ export interface ChainStep {
 /* ----- Разбор аргументов, как в SugarCube ----- */
 
 /** Слова команды до «>>» с учётом кавычек. Возвращает слова и конец команды. */
-function scanArgs(text: string, at: number) {
+export function scanArgs(text: string, at: number) {
 	const tokens: string[] = [];
 	let i = at;
 
@@ -361,7 +361,7 @@ function macroType(name: string): BlockType | undefined {
 }
 
 /** Конец парной команды с учётом вложенных команд с тем же именем. */
-function findClose(text: string, name: string, from: number) {
+export function findClose(text: string, name: string, from: number) {
 	const re = new RegExp(`<<(/?)${name}(?=[\\s>])`, 'g');
 	let depth = 1;
 	let match: RegExpExecArray | null;
@@ -514,6 +514,15 @@ export function writeBlock(block: Omit<ScreenBlock, 'from' | 'to'>) {
 		return `${head}\n${lines.map(line => line + '\n').join('')}<</${name}>>`;
 	}
 	return `${head}${block.content ?? ''}<</${name}>>`;
+}
+
+/** Только открывающая команда блока (без содержимого и закрывающей). */
+export function writeBlockHead(
+	type: BlockType,
+	values: Values,
+	extra: string[]
+) {
+	return `<<${blockMacros[type]}${writeArgs(values, extra, specs[type])}>>`;
 }
 
 /** Заменить блок в тексте новым. */

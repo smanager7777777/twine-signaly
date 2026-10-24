@@ -8,5 +8,9 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "files": ["migrate-twee.ts"]
+  "files": [
+    "migrate-twee.ts",
+    "../../src/util/signaly/signaly-variables.ts",
+    "../../src/util/signaly/signaly-logic.ts"
+  ]
 }

@@ -648,7 +648,13 @@
 			"kind": "Style",
 			"noKind": "No style (normal)",
 			"noKinds": "Styles are set up in the Button and Link Styles window on the Story tab",
-			"sampleLink": "Link"
+			"sampleLink": "Link",
+			"asLink": "Make it a link",
+			"asButton": "Make it a button",
+			"formLink": "link",
+			"formButton": "button",
+			"condition": "Condition",
+			"logicSample": "Text"
 		},
 		"passagePreview": {
 			"button": "Preview",
@@ -1028,6 +1034,101 @@
 				"hover": "Hover sound",
 				"click": "Click sound",
 				"kind": "Same as the kind"
+			}
+		},
+		"logic": {
+			"yes": "yes",
+			"no": "no",
+			"variable": "Variable",
+			"value": {
+				"title": "Variable value",
+				"label": "Label",
+				"labelHint": "Written before the value with a colon: “Chapter: 2”. Empty: value only.",
+				"words": "Show as “yes / no” words",
+				"yes": "Word for “yes”",
+				"no": "Word for “no”",
+				"of": "Show “of N” (3 of 5)",
+				"total": "Total (N)",
+				"hint": "To show the line only under a condition, select it and press “Condition”. This is the regular SugarCube <<=>> macro."
+			},
+			"remove": "Remove",
+			"up": "Up",
+			"down": "Down",
+			"add": {
+				"states": "States (by variable value)",
+				"value": "Variable value"
+			},
+			"cond": {
+				"title": "Condition",
+				"code": "This condition is written as code; the form cannot parse it. You can edit it here as is.",
+				"expr": "Condition (SugarCube code)",
+				"row": "Condition {{n}}",
+				"op": "When",
+				"ops": {
+					"on": "is on (true, not 0, not empty)",
+					"eq": "equals",
+					"gt": "greater than",
+					"lt": "less than"
+				},
+				"add": "Add condition",
+				"join": "Show when",
+				"and": "all conditions (and)",
+				"or": "any condition (or)",
+				"else": "Otherwise show other text",
+				"elseHint": "The “otherwise” text is in the passage after <<else>>; edit it there.",
+				"elseSample": "Other text",
+				"confirmNoElse": "Remove “otherwise” together with its text?",
+				"hint": "The shown text is in the passage between <<if …>> and <</if>>; edit it there. This is the regular SugarCube <<if>> macro."
+			},
+			"states": {
+				"title": "States",
+				"expr": "Expression (SugarCube code)",
+				"row": "State {{n}}",
+				"value": "When the variable equals",
+				"kind": "Button and link style",
+				"noKind": "No style",
+				"text": "What to show (text, link, button)",
+				"add": "Add state",
+				"sample": "Text",
+				"other": "In all other cases",
+				"otherHint": "What to show if no state matches. Without it, nothing.",
+				"hint": "One state is shown: the one whose value matches the variable. This is the regular SugarCube <<switch>> macro."
+			},
+			"valueField": "Value"
+		},
+		"variables": {
+			"button": "Variables",
+			"title": "Variables",
+			"intro": "Game variables and their starting values. They are written to StoryInit as regular <<set>> macros.",
+			"add": "Add variable",
+			"delete": "Delete",
+			"empty": "No variables yet. Press “Add variable”.",
+			"name": "Name (Latin letters)",
+			"nameHint": "How the variable is written in text and macros: Latin letters, digits and “_”, no spaces. SugarCube requires this.",
+			"renameHint": "Will be renamed everywhere ${{from}} appears ({{count}}) on Save.",
+			"label": "Label",
+			"labelHint": "For lists in forms (“Chapter”). Not shown in the game.",
+			"type": "Type",
+			"types": {
+				"number": "number",
+				"bool": "yes-no",
+				"text": "text"
+			},
+			"value": "Starting value",
+			"valueOn": "“Yes” at the start of the game",
+			"notNumber": "This is not a number.",
+			"usedIn": "Where it is used",
+			"unused": "Nowhere yet.",
+			"codeHint": "In passage text: {{code}}",
+			"loose": "Found in text without a starting value",
+			"looseHint": "Click to add the variable to the list.",
+			"byCode": "Set by code in StoryInit (this window does not change them): {{names}}",
+			"script": "Story JavaScript",
+			"confirmDelete": "Delete variable ${{name}}?",
+			"confirmDeleteUsed": "Variable ${{name}} is used ({{count}}). Delete only its starting value? It stays in the text.",
+			"problems": {
+				"name": "A variable name may only contain Latin letters, digits and “_” and must not start with a digit.",
+				"duplicate": "Two variables have the same name."
 			}
 		}
 	}

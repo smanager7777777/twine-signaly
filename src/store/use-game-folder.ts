@@ -1,10 +1,13 @@
 // «Twine СИГНАЛЫ»: папка игры для истории.
 //
-// Путь хранится в настройках программы (prefs.gameFolders, ключ — id
-// истории), а не в самой истории: это место на конкретном компьютере, и
-// обычному Twine оно не нужно.
+// Путь хранится в настройках программы (prefs.gameFolders), а не в самой
+// истории: это место на конкретном компьютере, и обычному Twine оно не нужно.
+// Ключ — IFID истории: внутренний id Twine выдаёт заново при каждом запуске
+// программы (src/util/import.ts), поэтому папка, записанная по id, терялась
+// после перезапуска (замечание автора к build-10, решение 65).
 
 import {setPref, usePrefsContext} from './prefs';
+import {useStoriesContext} from './stories';
 import {isElectronRenderer} from '../util/is-electron';
 import {MediaKind, TwineElectronWindow} from '../electron/shared';
 
@@ -53,10 +56,16 @@ export interface UseGameFolderProps {
 export function useGameFolder(): UseGameFolderProps {
 	const {dispatch, prefs} = usePrefsContext();
 	const available = isElectronRenderer();
+	const {stories} = useStoriesContext();
 	const folders = prefs.gameFolders ?? {};
 
+	/** Постоянный ключ истории — IFID (id меняется при каждом запуске). */
+	function folderKey(storyId: string) {
+		return stories.find(story => story.id === storyId)?.ifid ?? storyId;
+	}
+
 	function gameFolder(storyId: string) {
-		const result = folders[storyId];
+		const result = folders[folderKey(storyId)] ?? folders[storyId];
 
 		return typeof result === 'string' && result !== '' ? result : undefined;
 	}
@@ -70,7 +79,9 @@ export function useGameFolder(): UseGameFolderProps {
 			);
 
 			if (folder) {
-				dispatch(setPref('gameFolders', {...folders, [storyId]: folder}));
+				dispatch(
+					setPref('gameFolders', {...folders, [folderKey(storyId)]: folder})
+				);
 			}
 
 			return folder;

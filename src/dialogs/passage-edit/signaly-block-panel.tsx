@@ -40,10 +40,16 @@ import {
 	TextField
 } from '../signaly-appearance/signaly-appearance-fields';
 import {effectTitle, SignalyEffectForm} from './signaly-effect-form';
+import {ConditionForm, StatesForm, ValueForm} from './signaly-logic-form';
+import {findConditions, findStates, findValues} from '../../util/signaly/signaly-logic';
+import {knownVariables} from '../../util/signaly/signaly-variables';
 
 export type PanelTarget =
 	| {kind: 'block'; index: number}
 	| {kind: 'effect'; index: number}
+	| {kind: 'condition'; index: number}
+	| {kind: 'states'; index: number}
+	| {kind: 'value'; index: number}
 	| {kind: 'kr2'};
 
 export interface SignalyBlockPanelProps {
@@ -61,7 +67,7 @@ export interface SignalyBlockPanelProps {
 
 /* ----- Общие кусочки ----- */
 
-const AreaField: React.FC<{
+export const AreaField: React.FC<{
 	hint?: string;
 	label: string;
 	onChange: (value: string) => void;
@@ -185,6 +191,34 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 		}
 		title = effectTitle(effect, t);
 		body = <SignalyEffectForm effect={effect} onText={onText} text={text} />;
+	} else if (target.kind === 'condition' || target.kind === 'states' || target.kind === 'value') {
+		const variables = knownVariables(story.passages);
+
+		if (target.kind === 'condition') {
+			const cond = findConditions(text)[target.index];
+
+			if (!cond) {
+				return null;
+			}
+			title = t('signaly.logic.cond.title');
+			body = <ConditionForm cond={cond} onText={onText} text={text} variables={variables} />;
+		} else if (target.kind === 'states') {
+			const states = findStates(text, kinds.map(k => k.cls).filter(Boolean))[target.index];
+
+			if (!states) {
+				return null;
+			}
+			title = t('signaly.logic.states.title');
+			body = <StatesForm kinds={kinds} onText={onText} states={states} text={text} variables={variables} />;
+		} else {
+			const value = findValues(text)[target.index];
+
+			if (!value) {
+				return null;
+			}
+			title = t('signaly.logic.value.title');
+			body = <ValueForm onText={onText} text={text} value={value} variables={variables} />;
+		}
 	} else if (target.kind === 'kr2') {
 		title = l('kr2.title');
 		body = (
