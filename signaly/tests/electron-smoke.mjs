@@ -454,6 +454,11 @@ if (twee) {
 	check('таймер: окно-сообщение по окончании, формат ЧЧ:ММ:СС', (await cmValue()).includes('<<sg-timer "Таймер" minutes 5 seconds 0 title "Время вышло" text "Время вышло." format hms>>'), (await cmValue()).slice(-110));
 	await win.screenshot({path: (process.env.SHOT || path.join(home, 'shot.png')).replace('.png', '-timer.png')});
 	check('таймер: в форме вид табло (шрифт DSEG7 по умолчанию)', (await panel().getByLabel('Шрифт').inputValue()) === 'media/fonts/DSEG7Classic-Regular.woff2');
+	// Пока в редакторе курсор, щелчок по форме сохраняет текст пассажа, и окно
+	// «Подробности» над ним может вырасти на строку (дата изменения) — форма
+	// сдвигается между нажатием и отпусканием. Сначала убираем фокус.
+	await win.evaluate(() => document.activeElement && document.activeElement.blur());
+	await win.waitForTimeout(400);
 	await panel().getByLabel('Не показывать табло').check();
 	await win.waitForTimeout(300);
 	check('таймер: скрытый — без настроек табло', (await cmValue()).includes('format hms hidden>>') && (await panel().getByLabel('Шрифт').count()) === 0);
@@ -590,7 +595,7 @@ if (twee) {
 	await btn(/^Закрыть$/).last().click();
 
 	const saved3 = fs.readFileSync(path.join(lib, fs.readdirSync(lib).find(f => f.startsWith('27_03_2025'))), 'utf8');
-	check('история: движок 6, KR2 в движке, оформление окон и эффектов', saved3.includes('Версия движка: 6') && saved3.includes('код окна KR2 перенесён в движок') && saved3.includes('#ui-dialog {') && saved3.includes('--sg-type-click: 1;') && saved3.includes('html .glitchy::after') && (saved3.includes('&lt;&lt;kr2layout 50 65&gt;&gt;') || saved3.includes('<<kr2layout 50 65>>')));
+	check('история: движок 7, KR2 в движке, оформление окон и эффектов', saved3.includes('Версия движка: 7') && saved3.includes('код окна KR2 перенесён в движок') && saved3.includes('#ui-dialog {') && saved3.includes('--sg-type-click: 1;') && saved3.includes('html .glitchy::after') && (saved3.includes('&lt;&lt;kr2layout 50 65&gt;&gt;') || saved3.includes('<<kr2layout 50 65>>')));
 	check('история: звуки шаблона стали наборами, кода звуков нет', saved3.includes('setup.signalySounds') && saved3.includes('звуки наведения и нажатия перенесены в наборы') && !saved3.includes('var hoverSounds'));
 
 	// Шаг 2.2: окно «Виды кнопок и ссылок» → «Звуки».

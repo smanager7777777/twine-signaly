@@ -35,7 +35,7 @@ import {timerDefaults} from './signaly-screen-blocks';
 const glitchBase = [...glitchRules(defaultGlitch, ':where(.glitchy)'), glitchKeyframes].join('\n');
 
 /** Версия движка. Увеличивать при каждом изменении кода ниже. */
-export const signalyEngineVersion = 6;
+export const signalyEngineVersion = 7;
 
 export const signalyEngineStart =
 	'/* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */';
@@ -579,6 +579,20 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			text.textContent = timerText(running.end, a.format);
 			el.appendChild(text);
 			this.output.appendChild(el);
+		}
+	});
+
+	// Действие ссылки или кнопки (шаг 3.2): остановить таймер по имени.
+	// Запустить — тот же <<sg-timer … hidden>> внутри ссылки.
+	Macro.add('sg-timer-stop', {
+		handler: function () {
+			var store = timerStore();
+			var name = String(this.args.length ? this.args[0] : State.passage);
+
+			if (store[name]) {
+				delete store[name];
+				timersChanged();
+			}
 		}
 	});
 
@@ -1388,6 +1402,24 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 					seconds: a.seconds,
 					ok: a.ok
 				});
+			});
+		}
+	});
+
+	// Действие ссылки или кнопки (шаг 3.2): открыть окно-сообщение —
+	// <<sg-open "Заголовок" passage "Пассаж" close ok|time ok "Принято" seconds 5>>текст<</sg-open>>.
+	Macro.add('sg-open', {
+		tags: null,
+		handler: function () {
+			var a = blockArgs(this, ['title'], ['passage', 'close', 'seconds', 'ok'], []);
+
+			setup.signaly.openDialog({
+				title: a.title,
+				passage: a.passage,
+				text: trimContent(this.payload[0].contents),
+				close: a.close,
+				seconds: a.seconds,
+				ok: a.ok
 			});
 		}
 	});

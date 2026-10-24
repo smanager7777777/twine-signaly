@@ -10,7 +10,8 @@
 // в блоке видов, <span class="sg-place-…">) становятся элементами <<sg-place>>
 // (сессия 6). С шага 2.2 — звуки наведения и нажатия шаблона → наборы, звуковые
 // команды StoryInit → раздел окна «Звуки». С шага 2.3 — таймеры и иллюминатор
-// шаблона → блоки «Таймер» и «Цепочка видео».
+// шаблона → блоки «Таймер» и «Цепочка видео». С шага 3.2 — окна-сообщения,
+// открытые кодом <<script>> в ссылках, → действие <<sg-open>>.
 
 import {readFileSync, writeFileSync} from 'fs';
 import {
@@ -27,6 +28,7 @@ import {
 import {movePlacesInTexts, withoutPlaces} from '../../src/util/signaly/signaly-places';
 import {findAudioInit, readSounds, templateSounds, withAudioInit} from '../../src/util/signaly/signaly-sounds';
 import {moveTemplateTimers} from '../../src/util/signaly/signaly-timers';
+import {moveScriptDialogs} from '../../src/util/signaly/signaly-actions';
 
 function section(source: string, header: RegExp) {
 	const match = header.exec(source);
@@ -164,6 +166,16 @@ if (init && findAudioInit(init.text).ranges.length) {
 	};
 
 	timers.texts.forEach((text, i) => put(list[i].index, text));
+	// Шаг 3.2: окна <<script>>Dialog.create…<</script>> в ссылках → <<sg-open>>.
+	list.forEach((p, i) => {
+		const text = timers.texts.get(i) ?? p.text;
+		const moved = moveScriptDialogs(text);
+
+		if (moved !== text) {
+			result.moved.push(`окна-сообщения в ссылках → действия (${p.name})`);
+			put(p.index, moved);
+		}
+	});
 	if (timers.script !== bodies[scriptIndex]) {
 		put(scriptIndex, timers.script);
 	}

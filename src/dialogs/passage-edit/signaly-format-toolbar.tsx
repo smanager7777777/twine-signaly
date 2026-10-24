@@ -66,6 +66,8 @@ import {
 	LinkForm,
 	linkFormAt
 } from '../../util/signaly/signaly-link-form';
+import {arg as linkArg} from '../../util/signaly/signaly-link-form';
+import {findLinks} from '../../util/signaly/signaly-actions';
 import {
 	BlockType,
 	findBlocks,
@@ -135,6 +137,11 @@ const effectItems: Array<EffectType | 'lines'> = ['type', 'timed', 'lines', 'swa
  */
 function clickTargets(value: string) {
 	const targets: Array<{from: number; to: number; target: PanelTarget}> = [];
+
+	// Шаг 3.2: ссылка или кнопка целиком — форма с действиями.
+	findLinks(value).forEach((link, index) =>
+		targets.push({from: link.from, to: link.to, target: {kind: 'link', index}})
+	);
 
 	findBlocks(value).forEach((b, index) =>
 		targets.push({from: b.from, to: b.to, target: {kind: 'block', index}})
@@ -456,6 +463,34 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 		setPanel({kind: 'condition', index: findConditions(value.slice(0, from) + made.insert + value.slice(to)).findIndex(c => c.from === from)});
 	}
 
+	// «Действие» (шаг 3.2, ответ 1А): форма ссылки под курсором; выделенный
+	// текст без ссылки становится ссылкой <<link "текст">><</link>>.
+	function addAction() {
+		if (!editor) {
+			return;
+		}
+
+		const {text: value, from, to} = selection();
+		const links = findLinks(value);
+		const inside = links
+			.map((link, index) => ({link, index}))
+			.filter(({link}) =>
+				from === to ? from > link.from && from < link.to : (link.from <= from && link.to >= to) || (link.from >= from && link.to <= to)
+			);
+
+		if (inside.length) {
+			setPanel({kind: 'link', index: inside.reduce((a, b) => (b.link.from >= a.link.from && b.link.to <= a.link.to ? b : a)).index});
+			return;
+		}
+
+		const selected = value.slice(from, to);
+		const caption = selected.trim() !== '' && !selected.includes('\n') ? selected.trim() : label('sampleLink');
+		const insert = `<<link ${linkArg(caption)}>><</link>>`;
+
+		run(() => ({from, to, insert, selFrom: from, selTo: from}));
+		setPanel({kind: 'link', index: findLinks(value.slice(0, from) + insert + value.slice(to)).findIndex(l => l.from === from)});
+	}
+
 	function addLogic(type: 'states' | 'value') {
 		const {text: value, from, to} = selection();
 		const v = firstVariable();
@@ -521,6 +556,10 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 
 		if (edit.from === edit.to && edit.insert === '') {
 			return;
+		}
+		// Действия «окно», «таймер», «остановить таймер» (шаг 3.2) — команды движка.
+		if (/<<sg-/.test(edit.insert)) {
+			ensureEngine();
 		}
 		editor.operation(() =>
 			doc.replaceRange(edit.insert, doc.posFromIndex(edit.from), doc.posFromIndex(edit.to))
@@ -707,6 +746,7 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 					}))}
 					label={t('signaly.effects.button')}
 				/>
+				<IconButton disabled={off} icon={<IconClick />} label={t('signaly.actions.button')} onClick={addAction} />
 				<IconButton disabled={off} icon={<IconArrowFork />} label={label('condition')} onClick={addCondition} />
 				<MenuButton
 					disabled={off}

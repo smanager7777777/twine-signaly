@@ -171,13 +171,13 @@ export const ConditionForm: React.FC<{
 							onChange={op =>
 								change(index, {
 									op: op as CondOp,
-									value: op === 'on' ? undefined : c.value ?? (type === 'bool' ? true : type === 'text' ? '' : 0)
+									value: op === 'on' || op === 'off' ? undefined : c.value ?? (type === 'bool' ? true : type === 'text' ? '' : 0)
 								})
 							}
-							options={(['on', 'eq', 'gt', 'lt'] as const).map(op => ({label: l(`cond.ops.${op}`), value: op}))}
+							options={(['on', 'off', 'eq', 'ne', 'gt', 'lt'] as const).map(op => ({label: l(`cond.ops.${op}`), value: op}))}
 							value={c.op}
 						/>
-						{c.op !== 'on' && (
+						{c.op !== 'on' && c.op !== 'off' && (
 							<ValueInput
 								label={l('valueField')}
 								onChange={value => change(index, {value})}

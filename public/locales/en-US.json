@@ -1066,7 +1066,9 @@
 				"op": "When",
 				"ops": {
 					"on": "is on (true, not 0, not empty)",
+					"off": "is off (no, 0, empty)",
 					"eq": "equals",
+					"ne": "is not equal to",
 					"gt": "greater than",
 					"lt": "less than"
 				},
@@ -1129,6 +1131,101 @@
 			"problems": {
 				"name": "A variable name may only contain Latin letters, digits and “_” and must not start with a digit.",
 				"duplicate": "Two variables have the same name."
+			}
+		},
+		"actions": {
+			"button": "Action",
+			"title": {
+				"link": "Link",
+				"button": "Button"
+			},
+			"label": "Label",
+			"labelCode": "The label is code (a variable or an image) — edit it in the passage text.",
+			"kind": "Kind",
+			"kindPlace": "This is an on-screen button: its kind is set on <<sg-place>>.",
+			"form": "Link or button",
+			"forms": {
+				"link": "Link",
+				"button": "Button"
+			},
+			"list": "Actions in order",
+			"none": "No actions — the link only goes to a passage.",
+			"row": "{{n}}. {{type}}",
+			"types": {
+				"set": "Change variable",
+				"audio": "Sound",
+				"dialog": "Open dialog",
+				"timer": "Start timer",
+				"stop": "Stop timer",
+				"code": "Code"
+			},
+			"add": "Add action",
+			"addChoose": "Choose…",
+			"goto": "Then go to passage",
+			"gotoNone": "Nowhere — stay here",
+			"hint": "Actions run in order, then the link goes to the passage. These are ordinary SugarCube macros inside <<link>> / <<button>>.",
+			"hintMarkup": "While there is at most one variable change, the link stays [[…]] markup. Otherwise it becomes a <<link>> macro.",
+			"codeHint": "SugarCube code the form does not parse — runs as is.",
+			"stopHint": "Stops the timer with this name without going anywhere.",
+			"timerNameHint": "The timer runs in the background without a display.",
+			"dialogSeconds": "Close after",
+			"set": {
+				"variable": "Variable",
+				"op": "What to do",
+				"ops": {
+					"to": "set value",
+					"add": "add",
+					"sub": "subtract",
+					"toggle": "toggle yes ↔ no"
+				},
+				"value": "Value",
+				"valueHint": "A number, true / false or quoted text.",
+				"by": "By"
+			},
+			"audio": {
+				"who": "What plays",
+				"whos": {
+					"track": "Sound file",
+					"group": "Group",
+					"playlist": "Playlist",
+					"playing": "Everything playing",
+					"paused": "Everything paused",
+					"all": "All sounds",
+					"other": "Other (SugarCube code)"
+				},
+				"names": {
+					"track": "File",
+					"group": "Group",
+					"playlist": "Playlist"
+				},
+				"noSounds": "None — add them in the Sounds window.",
+				"except": "Except group",
+				"exceptNone": "No exceptions",
+				"selector": "What plays (as in <<audio>>)",
+				"selectorHint": "For example :playing:not(:TERMINAL).",
+				"act": "Do",
+				"acts": {
+					"play": "Play",
+					"pause": "Pause",
+					"stop": "Stop",
+					"fade": "Fade volume",
+					"skip": "Next track",
+					"none": "Only the settings below"
+				},
+				"level": "To volume",
+				"over": "Over seconds",
+				"overHint": "Empty — 5 seconds.",
+				"setVolume": "Set volume",
+				"volume": "Volume",
+				"loop": "Loop",
+				"loops": {
+					"keep": "Keep",
+					"on": "On",
+					"off": "Off"
+				},
+				"setTime": "Seek",
+				"timeHint": "For example 999 — to the end of the track.",
+				"time": "To second"
 			}
 		}
 	}

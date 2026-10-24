@@ -37,6 +37,19 @@ describe('условие', () => {
 		).toBe('$a or $b is "да"');
 	});
 
+	it('«выключена» и «не равна» (шаг 3.2, ответ 7А)', () => {
+		expect(parseExpr('not $log')).toEqual({conds: [{name: 'log', op: 'off'}], join: 'and'});
+		expect(parseExpr('!$log and $ch isnot 2')).toEqual({
+			conds: [
+				{name: 'log', op: 'off'},
+				{name: 'ch', op: 'ne', value: 2}
+			],
+			join: 'and'
+		});
+		expect(parseExpr('$a != "x"')!.conds[0]).toEqual({name: 'a', op: 'ne', value: 'x'});
+		expect(writeExpr([{name: 'log', op: 'off'}, {name: 'ch', op: 'ne', value: 2}], 'or')).toBe('not $log or $ch isnot 2');
+	});
+
 	it('находит <<if>> с «иначе», вложенные и пропускает <<elseif>>', () => {
 		const text = '<<if $a>>A<<if $b>>B<<else>>b<</if>><<else>>нет<</if>> <<if $v is 1>>1<<elseif $v is 2>>2<</if>>';
 		const found = findConditions(text);

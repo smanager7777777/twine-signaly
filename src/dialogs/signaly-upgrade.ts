@@ -2,6 +2,7 @@
 // элементы (сессия 6). Вызывается везде, где ставится свежий движок: окна
 // оформления и видов («Сохранить») и панель над текстом (первый блок).
 // Шаг 2.3: заодно таймеры и иллюминатор шаблона становятся блоками.
+// Шаг 3.2: окна <<script>>Dialog.create…<</script>> в ссылках — действием <<sg-open>>.
 
 import {
 	Story,
@@ -11,6 +12,7 @@ import {
 } from '../store/stories';
 import {upgradePlaces} from '../util/signaly/signaly-places';
 import {moveTemplateTimers} from '../util/signaly/signaly-timers';
+import {moveScriptDialogs} from '../util/signaly/signaly-actions';
 
 /** Записывает изменения истории; возвращает, сколько кнопок на экране перенесено. */
 export function saveStoryWithUpgrade(
@@ -34,6 +36,12 @@ export function saveStoryWithUpgrade(
 	);
 
 	timers.texts.forEach((text, index) => texts.set(story.passages[index], text));
+	// Шаг 3.2: окна-сообщения, открытые кодом <<script>> в ссылках, → <<sg-open>>.
+	story.passages.forEach(passage => {
+		if (passage.name !== exclude) {
+			texts.set(passage, moveScriptDialogs(texts.get(passage)!));
+		}
+	});
 	dispatch(
 		updateStory(stories, story, {
 			...changes,

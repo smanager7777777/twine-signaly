@@ -15,8 +15,11 @@ import {literal, parseLiteral, VarValue} from './signaly-variables';
 
 /* ----- Условие ----- */
 
-/** on — «включена» (истинна), eq — «равна», gt — «больше», lt — «меньше». */
-export type CondOp = 'on' | 'eq' | 'gt' | 'lt';
+/**
+ * on — «включена» (истинна), off — «выключена», eq — «равна», ne — «не равна»,
+ * gt — «больше», lt — «меньше» (off и ne — шаг 3.2, ответ 7А).
+ */
+export type CondOp = 'on' | 'off' | 'eq' | 'ne' | 'gt' | 'lt';
 
 export interface Cond {
 	/** Имя переменной без «$». */
@@ -49,13 +52,22 @@ const opWords: Record<string, CondOp> = {
 	eq: 'eq',
 	'==': 'eq',
 	'===': 'eq',
+	isnot: 'ne',
+	neq: 'ne',
+	'!=': 'ne',
+	'!==': 'ne',
 	gt: 'gt',
 	'>': 'gt',
 	lt: 'lt',
 	'<': 'lt'
 };
 
-const opWrite: Record<Exclude<CondOp, 'on'>, string> = {eq: 'is', gt: 'gt', lt: 'lt'};
+const opWrite: Record<Exclude<CondOp, 'on' | 'off'>, string> = {
+	eq: 'is',
+	ne: 'isnot',
+	gt: 'gt',
+	lt: 'lt'
+};
 
 /** Разбор выражения «$a and $b is 2» на условия; undefined — записано кодом. */
 export function parseExpr(expr: string): {conds: Cond[]; join: 'and' | 'or'} | undefined {
@@ -69,7 +81,15 @@ export function parseExpr(expr: string): {conds: Cond[]; join: 'and' | 'or'} | u
 	const conds: Cond[] = [];
 
 	for (let i = 0; i < parts.length; i += 2) {
-		const m = /^\$([A-Za-z_]\w*)(?:\s+(is|eq|gt|lt|===|==|>|<)\s+(.+))?$/.exec(parts[i].trim());
+		const part = parts[i].trim();
+		const off = /^(?:not\s+|!\s*)\$([A-Za-z_]\w*)$/.exec(part);
+
+		if (off) {
+			conds.push({name: off[1], op: 'off'});
+			continue;
+		}
+
+		const m = /^\$([A-Za-z_]\w*)(?:\s+(isnot|is|neq|eq|gt|lt|!==|!=|===|==|>|<)\s+(.+))?$/.exec(part);
 
 		if (!m) {
 			return undefined;
@@ -92,7 +112,11 @@ export function parseExpr(expr: string): {conds: Cond[]; join: 'and' | 'or'} | u
 export function writeExpr(conds: Cond[], join: 'and' | 'or') {
 	return conds
 		.map(c =>
-			c.op === 'on' ? `$${c.name}` : `$${c.name} ${opWrite[c.op]} ${literal(c.value ?? 0)}`
+			c.op === 'on'
+				? `$${c.name}`
+				: c.op === 'off'
+				? `not $${c.name}`
+				: `$${c.name} ${opWrite[c.op]} ${literal(c.value ?? 0)}`
 		)
 		.join(` ${join} `);
 }

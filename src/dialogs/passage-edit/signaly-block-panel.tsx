@@ -43,6 +43,9 @@ import {effectTitle, SignalyEffectForm} from './signaly-effect-form';
 import {ConditionForm, StatesForm, ValueForm} from './signaly-logic-form';
 import {findConditions, findStates, findValues} from '../../util/signaly/signaly-logic';
 import {knownVariables} from '../../util/signaly/signaly-variables';
+import {findLinks} from '../../util/signaly/signaly-actions';
+import {findAudioInit} from '../../util/signaly/signaly-sounds';
+import {LinkActionsForm} from './signaly-link-actions-form';
 
 export type PanelTarget =
 	| {kind: 'block'; index: number}
@@ -50,6 +53,7 @@ export type PanelTarget =
 	| {kind: 'condition'; index: number}
 	| {kind: 'states'; index: number}
 	| {kind: 'value'; index: number}
+	| {kind: 'link'; index: number}
 	| {kind: 'kr2'};
 
 export interface SignalyBlockPanelProps {
@@ -219,6 +223,28 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 			title = t('signaly.logic.value.title');
 			body = <ValueForm onText={onText} text={text} value={value} variables={variables} />;
 		}
+	} else if (target.kind === 'link') {
+		// Шаг 3.2: ссылка или кнопка — действия по порядку и переход.
+		const link = findLinks(text)[target.index];
+
+		if (!link) {
+			return null;
+		}
+		title = t(`signaly.actions.title.${link.form}`);
+		body = (
+			<LinkActionsForm
+				audio={findAudioInit(story.passages.find(p => p.name === 'StoryInit')?.text ?? '').init}
+				audioFiles={media.audio}
+				current={passage.name}
+				fileChoice={fileChoice}
+				kinds={kinds}
+				link={link}
+				onText={onText}
+				passages={passages}
+				text={text}
+				variables={knownVariables(story.passages)}
+			/>
+		);
 	} else if (target.kind === 'kr2') {
 		title = l('kr2.title');
 		body = (

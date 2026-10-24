@@ -31,7 +31,7 @@ interface Item {
 const macroRe = /<<(link|button)(?=[\s>])/g;
 
 /** Строка в кавычках для аргумента SugarCube. */
-function arg(value: string) {
+export function arg(value: string) {
 	if (/^[$_][\w.]*$/.test(value)) {
 		return value;
 	}
@@ -45,7 +45,7 @@ function arg(value: string) {
 }
 
 /** Значение аргумента без кавычек или undefined, если это не простая строка. */
-function plain(token: string | undefined) {
+export function plain(token: string | undefined) {
 	if (!token) {
 		return undefined;
 	}
@@ -59,7 +59,7 @@ function plain(token: string | undefined) {
 }
 
 /** Части разметки [[…]]: текст, экран, код. */
-function parseMarkup(text: string, at: number) {
+export function parseMarkup(text: string, at: number) {
 	let i = at + 2;
 	const linkStart = i;
 
@@ -110,7 +110,7 @@ function parseMarkup(text: string, at: number) {
 }
 
 /** Можно ли записать текст или экран внутри [[…]]. */
-function markupSafe(value: string) {
+export function markupSafe(value: string) {
 	return value !== '' && !/[[\]|\n]|->|<-/.test(value) && !/^[$_]/.test(value);
 }
 

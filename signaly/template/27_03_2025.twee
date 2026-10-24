@@ -134,29 +134,17 @@ Failure
 :: PRCDTEST {"position":"800,400","size":"100,100"}
 <<button "001">>
 <<set $PRCD to 1>>
-<<script>>
-Dialog.create('Процедура 001');
-Dialog.wikiPassage("PRCDRESULT")
-Dialog.open();
-<</script>>
+<<sg-open "Процедура 001" passage "PRCDRESULT">><</sg-open>>
 <</button>>
 
 <<button "002">>
 <<set $PRCD to 2>>
-<<script>>
-Dialog.create('Процедура 002');
-Dialog.wikiPassage("PRCDRESULT")
-Dialog.open();
-<</script>>
+<<sg-open "Процедура 002" passage "PRCDRESULT">><</sg-open>>
 <</button>>
 
 <<button "003">>
 <<set $PRCD to 3>>
-<<script>>
-Dialog.create('Процедура 003');
-Dialog.wikiPassage("PRCDRESULT")
-Dialog.open();
-<</script>>
+<<sg-open "Процедура 003" passage "PRCDRESULT">><</sg-open>>
 <</button>>
 
 
@@ -985,7 +973,7 @@ setup.signalySounds = {
 
 
 /* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */
-/* Версия движка: 6. Обновляется программой «Twine СИГНАЛЫ».
+/* Версия движка: 7. Обновляется программой «Twine СИГНАЛЫ».
    Настройки — в окне «Оформление терминала» (они лежат в таблице стилей).
    Свой код пишите ниже конца этого блока. */
 (function () {
@@ -1030,7 +1018,7 @@ setup.signalySounds = {
 	// Предпросмотр в программе: без стартового экрана, автокопии и защиты.
 	var preview = window.SIGNALY_PREVIEW;
 
-	setup.signaly = {engine: 6, preview: !!preview};
+	setup.signaly = {engine: 7, preview: !!preview};
 
 	function showStartScreen(onClick) {
 		var screen = document.createElement('div');
@@ -1522,6 +1510,20 @@ setup.signalySounds = {
 			text.textContent = timerText(running.end, a.format);
 			el.appendChild(text);
 			this.output.appendChild(el);
+		}
+	});
+
+	// Действие ссылки или кнопки (шаг 3.2): остановить таймер по имени.
+	// Запустить — тот же <<sg-timer … hidden>> внутри ссылки.
+	Macro.add('sg-timer-stop', {
+		handler: function () {
+			var store = timerStore();
+			var name = String(this.args.length ? this.args[0] : State.passage);
+
+			if (store[name]) {
+				delete store[name];
+				timersChanged();
+			}
 		}
 	});
 
@@ -2331,6 +2333,24 @@ setup.signalySounds = {
 					seconds: a.seconds,
 					ok: a.ok
 				});
+			});
+		}
+	});
+
+	// Действие ссылки или кнопки (шаг 3.2): открыть окно-сообщение —
+	// <<sg-open "Заголовок" passage "Пассаж" close ok|time ok "Принято" seconds 5>>текст<</sg-open>>.
+	Macro.add('sg-open', {
+		tags: null,
+		handler: function () {
+			var a = blockArgs(this, ['title'], ['passage', 'close', 'seconds', 'ok'], []);
+
+			setup.signaly.openDialog({
+				title: a.title,
+				passage: a.passage,
+				text: trimContent(this.payload[0].contents),
+				close: a.close,
+				seconds: a.seconds,
+				ok: a.ok
 			});
 		}
 	});
