@@ -35,6 +35,8 @@ import {
 	TextField
 } from '../signaly-appearance/signaly-appearance-fields';
 import {AreaField} from './signaly-block-panel';
+import {Story} from '../../store/stories';
+import {codesTag, readCodes} from '../../util/signaly/signaly-codes';
 
 type L = (key: string, options?: Record<string, unknown>) => string;
 
@@ -112,6 +114,98 @@ const ValueInput: React.FC<{
 
 /* ----- Условие ----- */
 
+/**
+ * Списки для строк условия (шаг 3.5): экраны (заходы) и сотрудники с кодами
+ * из окна «Коды» (сотрудник ввёл код).
+ */
+export interface CondLists {
+	passages: string[];
+	people: string[];
+	codes: Array<{code: string; label: string}>;
+}
+
+export const CondListsContext = React.createContext<CondLists>({passages: [], people: [], codes: []});
+
+export function useCondLists(story: Story, table?: ReturnType<typeof readCodes>): CondLists {
+	return React.useMemo(() => {
+		const tables = table
+			? [table]
+			: story.passages.filter(p => p.tags.includes(codesTag)).map(p => readCodes(p.text));
+
+		return {
+			passages: story.passages
+				.filter(p => !p.tags.includes('script') && !p.tags.includes('stylesheet'))
+				.map(p => p.name)
+				.sort((a, b) => a.localeCompare(b, 'ru')),
+			people: tables.flatMap(t => t.people.map(p => p.id.trim())).filter(Boolean),
+			codes: tables.flatMap(t => t.codes.map(c => ({code: c.code.trim(), label: c.label}))).filter(c => c.code !== '')
+		};
+	}, [story.passages, table]);
+}
+
+/** Выбор из списка; значение, которого нет в списке, тоже показывается. */
+function choice(label: string, value: string, options: Array<{label: string; value: string}>, onChange: (v: string) => void) {
+	return (
+		<ChoiceField
+			label={label}
+			onChange={onChange}
+			options={options.some(o => o.value === value) ? options : [...options, {label: value || '—', value}]}
+			value={value}
+		/>
+	);
+}
+
+/** Строка про заходы на экран или введённый код (шаг 3.5, ответы 7А, 8А). */
+const SpecialRow: React.FC<{cond: Cond; onChange: (c: Partial<Cond>) => void}> = ({cond: c, onChange}) => {
+	const l = useL();
+	const lists = React.useContext(CondListsContext);
+
+	if (c.kind === 'visits') {
+		return (
+			<>
+				{choice(l('cond.screen'), c.screen ?? '', lists.passages.map(p => ({label: p, value: p})), screen => onChange({screen}))}
+				{choice(
+					l('cond.op'),
+					c.op,
+					(['on', 'off', 'ge', 'eq'] as const).map(op => ({label: l(`cond.visitOps.${op}`), value: op})),
+					op => onChange({op: op as CondOp, value: op === 'ge' || op === 'eq' ? (Number(c.value) || 1) : undefined})
+				)}
+				{(c.op === 'ge' || c.op === 'eq') && (
+					<TextField
+						label={l('cond.times')}
+						onChange={input => {
+							const n = Number(input);
+
+							if (input.trim() !== '' && Number.isInteger(n) && n >= 0) {
+								onChange({value: n});
+							}
+						}}
+						value={String(c.value ?? 1)}
+					/>
+				)}
+			</>
+		);
+	}
+	return (
+		<>
+			{choice(l('cond.person'), c.person ?? '', lists.people.map(p => ({label: p, value: p})), person => onChange({person}))}
+			{choice(
+				l('cond.op'),
+				c.op,
+				(['on', 'off'] as const).map(op => ({label: l(`cond.enteredOps.${op}`), value: op})),
+				op => onChange({op: op as CondOp})
+			)}
+			{choice(
+				l('cond.codeChoice'),
+				c.code ?? '',
+				lists.codes.map(x => ({label: x.label ? `${x.code} — ${x.label}` : x.code, value: x.code})),
+				code => onChange({code})
+			)}
+			{lists.people.length === 0 && <div className="signaly-field-hint">{l('cond.noPeople')}</div>}
+		</>
+	);
+};
+
 /** Строки условий: переменная, «включена / равна / …», значение; «все / хотя бы одно». */
 export const CondRows: React.FC<{
 	conds: Cond[];
@@ -121,13 +215,60 @@ export const CondRows: React.FC<{
 }> = ({conds, join: currentJoin, onChange, variables}) => {
 	const l = useL();
 	const write = (next: Cond[], join = currentJoin) => onChange(next, join);
+	const lists = React.useContext(CondListsContext);
 	const change = (index: number, c: Partial<Cond>) =>
 		write(conds.map((x, i) => (i === index ? {...x, ...c} : x)));
+	const replace = (index: number, c: Cond) => write(conds.map((x, i) => (i === index ? c : x)));
+	const setKind = (index: number, kind: string) => {
+		const c = conds[index];
+
+		if (kind === (c.kind ?? 'var')) {
+			return;
+		}
+		replace(
+			index,
+			kind === 'visits'
+				? {name: '', kind: 'visits', screen: lists.passages[0] ?? '', op: 'on'}
+				: kind === 'entered'
+				? {name: '', kind: 'entered', person: lists.people[0] ?? '', code: lists.codes[0]?.code ?? '', op: 'on'}
+				: {name: variables[0]?.name ?? 'x', op: 'on'}
+		);
+	};
+	const kinds = ['var', 'visits', 'entered'];
 
 	return (
 		<>
 			{conds.map((c, index) => {
 				const type = typeOfVar(variables, c.name);
+				const kindField = (
+					<ChoiceField
+						label={l('cond.what')}
+						onChange={kind => setKind(index, kind)}
+						options={kinds
+							.filter(k => k !== 'entered' || lists.people.length > 0 || c.kind === 'entered')
+							.map(k => ({label: l(`cond.kinds.${k}`), value: k}))}
+						value={c.kind ?? 'var'}
+					/>
+				);
+
+				if (c.kind) {
+					return (
+						<fieldset className="signaly-block-row" key={index}>
+							<legend>
+								{l('cond.row', {n: index + 1})}
+								<IconButton
+									disabled={conds.length < 2}
+									icon={<IconTrash />}
+									iconOnly
+									label={l('remove')}
+									onClick={() => write(conds.filter((_, i) => i !== index))}
+								/>
+							</legend>
+							{kindField}
+							<SpecialRow cond={c} onChange={patch => change(index, patch)} />
+						</fieldset>
+					);
+				}
 
 				return (
 					<fieldset className="signaly-block-row" key={index}>
@@ -141,6 +282,7 @@ export const CondRows: React.FC<{
 								onClick={() => write(conds.filter((_, i) => i !== index))}
 							/>
 						</legend>
+						{kindField}
 						<VariableChoice
 							label={l('variable')}
 							name={c.name}
@@ -381,9 +523,38 @@ export const ValueForm: React.FC<{
 	const words = value.yes !== undefined || value.no !== undefined;
 	const write = (next: Partial<ValueShow>) =>
 		onText(text.slice(0, value.from) + writeValue({...value, ...next}) + text.slice(value.to));
+	const lists = React.useContext(CondListsContext);
+	const what = (
+		<ChoiceField
+			label={l('value.what')}
+			onChange={w =>
+				w === 'visits'
+					? write({name: '', screen: lists.passages[0] ?? '', yes: undefined, no: undefined, of: undefined})
+					: write({name: variables[0]?.name ?? 'x', screen: undefined})
+			}
+			options={[
+				{label: l('value.whatVar'), value: 'var'},
+				{label: l('value.whatVisits'), value: 'visits'}
+			]}
+			value={value.screen !== undefined ? 'visits' : 'var'}
+		/>
+	);
+
+	// Шаг 3.5 (ответ 7А): число заходов на экран.
+	if (value.screen !== undefined) {
+		return (
+			<>
+				{what}
+				{choice(l('cond.screen'), value.screen, lists.passages.map(p => ({label: p, value: p})), screen => write({screen}))}
+				<TextField hint={l('value.labelHint')} label={l('value.label')} onChange={label => write({label})} value={value.label} />
+				<div className="signaly-field-hint">{l('value.visitsHint')}</div>
+			</>
+		);
+	}
 
 	return (
 		<>
+			{what}
 			<VariableChoice
 				label={l('variable')}
 				name={value.name}

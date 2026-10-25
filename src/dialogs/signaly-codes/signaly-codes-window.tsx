@@ -29,6 +29,8 @@ import {freeSpot} from '../../util/signaly/signaly-keys';
 import {findAudioInit} from '../../util/signaly/signaly-sounds';
 import {knownVariables} from '../../util/signaly/signaly-variables';
 import {CheckField, ChoiceField, TextField} from '../signaly-appearance/signaly-appearance-fields';
+import {CondListsContext, useCondLists} from '../passage-edit/signaly-logic-form';
+import {enteredCodes} from '../../util/signaly/signaly-logic';
 import {ActionList} from '../passage-edit/signaly-action-list';
 import {AreaField, useLists} from '../passage-edit/signaly-block-panel';
 import {saveStoryWithUpgrade} from '../signaly-upgrade';
@@ -71,6 +73,9 @@ export const SignalyCodesWindow: React.FC<SignalyCodesWindowProps> = props => {
 		[story.passages]
 	);
 	const fields = React.useMemo(() => fieldsWithTable(story), [story]);
+	const condLists = useCondLists(story, table);
+	// Шаг 3.5: коды из условий «сотрудник ввёл код» спрашивают личный код.
+	const referenced = React.useMemo(() => enteredCodes(story.passages.map(p => p.text)), [story.passages]);
 
 	function change(next: CodeTable) {
 		setTable(next);
@@ -209,7 +214,8 @@ export const SignalyCodesWindow: React.FC<SignalyCodesWindowProps> = props => {
 			return <p className="signaly-field-hint">{l('emptyCodes')}</p>;
 		}
 
-		const pin = needsPin(entry);
+		const pin = needsPin(entry, referenced);
+		const byCondition = pin && !needsPin(entry);
 		const insert = (piece: string) =>
 			setEntry({answer: entry.answer + (entry.answer === '' || /\s$/.test(entry.answer) ? '' : ' ') + piece});
 
@@ -263,19 +269,21 @@ export const SignalyCodesWindow: React.FC<SignalyCodesWindowProps> = props => {
 					]}
 					value={entry.once}
 				/>
-				<div className="signaly-notice">{l(pin ? 'askPin' : 'oneStep')}</div>
+				<div className="signaly-notice">{l(byCondition ? 'askPinCondition' : pin ? 'askPin' : 'oneStep')}</div>
 				<h3>{t('signaly.actions.list')}</h3>
-				<ActionList
-					actions={entry.actions}
-					audio={audio}
-					audioFiles={media.audio}
-					codes
-					current=""
-					fileChoice={fileChoice}
-					onChange={actions => setEntry({actions})}
-					passages={passages}
-					variables={variables}
-				/>
+				<CondListsContext.Provider value={condLists}>
+					<ActionList
+						actions={entry.actions}
+						audio={audio}
+						audioFiles={media.audio}
+						codes
+						current=""
+						fileChoice={fileChoice}
+						onChange={actions => setEntry({actions})}
+						passages={passages}
+						variables={variables}
+					/>
+				</CondListsContext.Provider>
 				<h3>{l('answer')}</h3>
 				<TextField label={l('answerTitle')} onChange={title => setEntry({title})} value={entry.title} />
 				<AreaField hint={l('answerHint')} label={l('answerText')} onChange={answer => setEntry({answer})} value={entry.answer} />

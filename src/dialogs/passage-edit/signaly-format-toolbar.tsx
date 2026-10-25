@@ -7,6 +7,7 @@
 import {
 	IconAlignCenter,
 	IconArrowFork,
+	IconBolt,
 	IconAlignRight,
 	IconBold,
 	IconClick,
@@ -93,6 +94,7 @@ import {knownVariables} from '../../util/signaly/signaly-variables';
 import {SignalyPreviewButton} from '../signaly-passage-preview';
 import {saveStoryWithUpgrade} from '../signaly-upgrade';
 import {PanelTarget, SignalyBlockPanel} from './signaly-block-panel';
+import {eventTag, findEvent, setEventHead} from '../../util/signaly/signaly-events';
 import './signaly-format-toolbar.css';
 
 export interface SignalyFormatToolbarProps {
@@ -177,6 +179,12 @@ function clickTargets(value: string) {
 	findValues(value).forEach((v, index) =>
 		targets.push({from: v.from, to: v.to, target: {kind: 'value', index}})
 	);
+	// Шаг 3.5: команда события.
+	const event = findEvent(value);
+
+	if (event) {
+		targets.push({from: event.from, to: event.to, target: {kind: 'event'}});
+	}
 	return targets;
 }
 
@@ -397,6 +405,30 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 			saveStoryWithUpgrade(dispatch, stories, story, {script: withEngine(story.script)}, passage.name);
 			setEngineUpdated(true);
 		}
+	}
+
+	function setEventTag(on: boolean) {
+		const tags = passage.tags.filter(tag => tag !== eventTag);
+
+		dispatch(updatePassage(story, passage, {tags: on ? [...tags, eventTag] : tags}));
+	}
+
+	// «Событие» (шаг 3.5, ответ 1А): первой строкой <<sg-event условие>>, тег
+	// sg-event; если пассаж уже событие — открыть форму.
+	function addEvent() {
+		if (!editor) {
+			return;
+		}
+
+		const value = editor.getDoc().getValue();
+
+		if (!findEvent(value)) {
+			writeText(setEventHead(value, {expr: `$${firstVariable().name}`, repeat: false, delay: 0, priority: 0}));
+		}
+		if (!passage.tags.includes(eventTag)) {
+			setEventTag(true);
+		}
+		setPanel({kind: 'event'});
 	}
 
 	function setKr2Tag(on: boolean) {
@@ -748,6 +780,7 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 				/>
 				<IconButton disabled={off} icon={<IconClick />} label={t('signaly.actions.button')} onClick={addAction} />
 				<IconButton disabled={off} icon={<IconArrowFork />} label={label('condition')} onClick={addCondition} />
+				<IconButton disabled={off} icon={<IconBolt />} label={t('signaly.events.button')} onClick={addEvent} />
 				<MenuButton
 					disabled={off}
 					icon={<IconSquarePlus />}
@@ -767,6 +800,7 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 			{panel && editor && (
 				<SignalyBlockPanel
 					onClose={() => setPanel(undefined)}
+					onEventTag={setEventTag}
 					onKr2Tag={setKr2Tag}
 					onText={writeText}
 					passage={passage}

@@ -46,6 +46,7 @@ export const actionTypes: ActionType[] = [
 	'stop',
 	'if',
 	'delay',
+	'back',
 	'code'
 ];
 
@@ -524,6 +525,8 @@ export const ActionList: React.FC<ActionListProps> = props => {
 						value={String(a.amount)}
 					/>
 				);
+			case 'back':
+				return <div className="signaly-field-hint">{l('backHint')}</div>;
 			case 'stop':
 				return (
 					<TextField

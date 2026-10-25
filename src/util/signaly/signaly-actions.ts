@@ -125,6 +125,15 @@ export interface ProgressAction {
 	raw?: string;
 }
 
+/**
+ * «Вернуться на экран, где были» (шаг 3.5, ответ 5А) — <<sg-back>>: на экран,
+ * откуда терминал перешёл на событие (если события не было — на предыдущий).
+ */
+export interface BackAction {
+	type: 'back';
+	raw?: string;
+}
+
 /** «Через N секунд» (шаг 3.3, ответ 7А) — <<timed>>. */
 export interface DelayAction {
 	type: 'delay';
@@ -144,6 +153,7 @@ export type Action =
 	| IfAction
 	| DelayAction
 	| ProgressAction
+	| BackAction
 	| CodeAction;
 export type ActionType = Action['type'];
 
@@ -499,7 +509,8 @@ export function parseAction(piece: string): Action {
 		parseTimer(piece) ??
 		parseIf(piece) ??
 		parseDelay(piece) ??
-		parseProgress(piece) ?? {type: 'code', code: piece, raw: piece}
+		parseProgress(piece) ??
+		(/^<<sg-back\s*>>$/.test(piece) ? {type: 'back', raw: piece} : undefined) ?? {type: 'code', code: piece, raw: piece}
 	);
 }
 
@@ -640,6 +651,8 @@ export function writeAction(action: Action): string {
 			return `<<timed ${Number(action.seconds.toFixed(3))}s>>${writeActions(action.actions, action.multiline)}<</timed>>`;
 		case 'progress':
 			return `<<sg-progress ${Number(action.amount) || 0}>>`;
+		case 'back':
+			return '<<sg-back>>';
 		default:
 			return action.code;
 	}
@@ -894,6 +907,8 @@ export function newAction(type: ActionType, variable?: {name: string; type?: str
 			return {type: 'delay', seconds: 1, actions: [], multiline: false};
 		case 'progress':
 			return {type: 'progress', amount: 1};
+		case 'back':
+			return {type: 'back'};
 		default:
 			return {type: 'code', code: ''};
 	}

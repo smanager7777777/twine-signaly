@@ -1051,7 +1051,11 @@
 				"no": "Word for “no”",
 				"of": "Show “of N” (3 of 5)",
 				"total": "Total (N)",
-				"hint": "To show the line only under a condition, select it and press “Condition”. This is the regular SugarCube <<=>> macro."
+				"hint": "To show the line only under a condition, select it and press “Condition”. This is the regular SugarCube <<=>> macro.",
+				"what": "What to show",
+				"whatVar": "Variable value",
+				"whatVisits": "How many times the screen was visited",
+				"visitsHint": "The terminal counts visits from the start of the game; the count survives crashes, “New game” resets it. This is <<= setup.visits(…)>>."
 			},
 			"remove": "Remove",
 			"up": "Up",
@@ -1082,7 +1086,28 @@
 				"elseHint": "The “otherwise” text is in the passage after <<else>>; edit it there.",
 				"elseSample": "Other text",
 				"confirmNoElse": "Remove “otherwise” together with its text?",
-				"hint": "The shown text is in the passage between <<if …>> and <</if>>; edit it there. This is the regular SugarCube <<if>> macro."
+				"hint": "The shown text is in the passage between <<if …>> and <</if>>; edit it there. This is the regular SugarCube <<if>> macro.",
+				"what": "What to check",
+				"kinds": {
+					"var": "Variable",
+					"visits": "Screen visits",
+					"entered": "Employee entered a code"
+				},
+				"screen": "Screen",
+				"visitOps": {
+					"on": "has visited",
+					"off": "has not visited",
+					"ge": "visited at least … times",
+					"eq": "visited exactly … times"
+				},
+				"times": "How many times",
+				"person": "Employee",
+				"enteredOps": {
+					"on": "entered code",
+					"off": "did not enter code"
+				},
+				"codeChoice": "Code",
+				"noPeople": "Employees and codes are in the “Codes” window (Story tab)."
 			},
 			"states": {
 				"title": "States",
@@ -1163,7 +1188,8 @@
 				"signal": "Signal sound",
 				"if": "If … then … else",
 				"delay": "After N seconds",
-				"progress": "Progress of the person +N"
+				"progress": "Progress of the person +N",
+				"back": "Return to the previous screen"
 			},
 			"add": "Add action",
 			"addChoose": "Choose…",
@@ -1254,7 +1280,8 @@
 				"hint": "If the game moves to another screen before the time is up, these actions are not done (this is how <<timed>> works in SugarCube)."
 			},
 			"progress": "How much to add to the progress of whoever entered the code",
-			"progressHint": "The progress variable comes from the person's row (People tab). Can be negative: −1."
+			"progressHint": "The progress variable comes from the person's row (People tab). Can be negative: −1.",
+			"backHint": "The terminal returns to the screen it left for the event (or the previous screen if there was no event). Runs after the other actions."
 		},
 		"keys": {
 			"button": "Hotkeys",
@@ -1380,7 +1407,24 @@
 				"emptyPin": "A person has no personal code.",
 				"samePin": "Duplicate personal codes: {{list}}.",
 				"badVar": "Progress variable name: Latin letters, no spaces."
-			}
+			},
+			"askPinCondition": "The terminal will ask for a personal code: this code is used in an “employee entered a code” condition."
+		},
+		"events": {
+			"button": "Event",
+			"title": "Event",
+			"when": "When the terminal goes to this screen",
+			"repeat": "Repeat — when the condition becomes true again",
+			"repeatHint": "Unchecked — once per game. Checked — every time the condition goes from false to true.",
+			"delay": "Seconds after the condition became true",
+			"delayHint": "0 — at once. The countdown runs in the background and survives screen changes and crashes; if the condition turns false meanwhile, it is cancelled.",
+			"priority": "Priority",
+			"priorityHint": "If several events are ready at once, the higher number goes first (default 0). The next one waits until players leave the event screen.",
+			"hint": "The terminal goes to this screen by itself when the condition becomes true. An open message window closes. To bring players back, add a link with the action “Return to the previous screen”. In the text: first line <<sg-event …>> and tag sg-event.",
+			"remove": "Remove event",
+			"confirmRemove": "The screen stops being an event (the first line <<sg-event …>> and the tag are removed, the rest of the text stays). Remove?",
+			"noTag": "The passage has no sg-event tag — the terminal will not go to it.",
+			"addTag": "Add tag"
 		}
 	}
 }

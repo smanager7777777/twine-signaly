@@ -8,6 +8,14 @@
 //              <</switch>>
 //   Значение:  <span class="sg-value">Глава: <<= $chapter>> из 5</span>
 //              <span class="sg-value">Журнал: <<= $log ? "найден" : "не найден">></span>
+// Шаг 3.5 (ответы 7А, 8А): в строках условия — ещё заходы на экраны и коды,
+// введённые сотрудниками (счётчики ведёт движок терминала):
+//   был на экране            setup.visits("Экран") gt 0
+//   не был на экране         setup.visits("Экран") is 0
+//   заходил не меньше N раз  setup.visits("Экран") gte 3
+//   заходил ровно N раз      setup.visits("Экран") is 3
+//   сотрудник ввёл код       setup.entered("2", "101")   (не ввёл — not …)
+//   значение: число заходов  <<= setup.visits("Экран")>>
 // Что формы не понимают (сложное условие, <<elseif>>), остаётся как есть.
 
 import {findClose} from './signaly-screen-blocks';
@@ -19,13 +27,26 @@ import {literal, parseLiteral, VarValue} from './signaly-variables';
  * on — «включена» (истинна), off — «выключена», eq — «равна», ne — «не равна»,
  * gt — «больше», lt — «меньше» (off и ne — шаг 3.2, ответ 7А).
  */
-export type CondOp = 'on' | 'off' | 'eq' | 'ne' | 'gt' | 'lt';
+export type CondOp = 'on' | 'off' | 'eq' | 'ne' | 'gt' | 'lt' | 'ge';
+
+/**
+ * Что проверяет строка (шаг 3.5): undefined — переменную; visits — заходы на
+ * экран (on — был, off — не был, ge — не меньше N раз, eq — ровно N раз);
+ * entered — сотрудник ввёл код таблицы (on — ввёл, off — не ввёл).
+ */
+export type CondKind = 'visits' | 'entered';
 
 export interface Cond {
 	/** Имя переменной без «$». */
 	name: string;
 	op: CondOp;
 	value?: VarValue;
+	kind?: CondKind;
+	/** visits: имя экрана. */
+	screen?: string;
+	/** entered: номер или имя сотрудника и код. */
+	person?: string;
+	code?: string;
 }
 
 export interface Condition {
@@ -66,13 +87,108 @@ const opWrite: Record<Exclude<CondOp, 'on' | 'off'>, string> = {
 	eq: 'is',
 	ne: 'isnot',
 	gt: 'gt',
-	lt: 'lt'
+	lt: 'lt',
+	ge: 'gte'
 };
+
+const str = `("(?:\\\\.|[^"\\\\])*"|'(?:\\\\.|[^'\\\\])*')`;
+const visitsRe = new RegExp(`^setup\\.visits\\(\\s*${str}\\s*\\)\\s+(gte|gt|is|eq|===|==|>=|>)\\s+(\\d+)$`);
+const enteredRe = new RegExp(`^(not\\s+|!\\s*)?setup\\.entered\\(\\s*${str}\\s*,\\s*${str}\\s*\\)$`);
+const enteredCodeRe = new RegExp(`setup\\.entered\\(\\s*${str}\\s*,\\s*${str}\\s*\\)`, 'g');
+
+/**
+ * Выражение → части и связки «and»/«or» на верхнем уровне: внутри кавычек и
+ * скобок не режем (имя экрана может содержать « and »).
+ */
+function splitJoins(expr: string) {
+	const parts: string[] = [];
+	const joins: string[] = [];
+	let depth = 0;
+	let quote = '';
+	let start = 0;
+
+	for (let i = 0; i < expr.length; i++) {
+		const ch = expr[i];
+
+		if (quote) {
+			if (ch === '\\') {
+				i++;
+			} else if (ch === quote) {
+				quote = '';
+			}
+			continue;
+		}
+		if (ch === '"' || ch === "'") {
+			quote = ch;
+		} else if (ch === '(' || ch === '[') {
+			depth++;
+		} else if (ch === ')' || ch === ']') {
+			depth--;
+		} else if (depth === 0 && /\s/.test(ch)) {
+			const m = /^\s+(and|or|&&|\|\|)\s+/.exec(expr.slice(i));
+
+			if (m) {
+				parts.push(expr.slice(start, i));
+				joins.push(m[1]);
+				i += m[0].length - 1;
+				start = i + 1;
+			}
+		}
+	}
+	parts.push(expr.slice(start));
+	return {parts, joins};
+}
+
+/** Строка в кавычках → текст. */
+function unquote(s: string) {
+	const v = parseLiteral(s);
+
+	return typeof v === 'string' ? v : undefined;
+}
+
+/** Строка условия про заходы на экран или введённый код (шаг 3.5). */
+function parseSpecial(part: string): Cond | undefined {
+	const v = visitsRe.exec(part);
+
+	if (v) {
+		const screen = unquote(v[1]);
+		const n = Number(v[3]);
+		const op = v[2];
+
+		if (screen === undefined) {
+			return undefined;
+		}
+		if ((op === 'gt' || op === '>') && n === 0) {
+			return {name: '', kind: 'visits', screen, op: 'on'};
+		}
+		if (op === 'is' || op === 'eq' || op === '==' || op === '===') {
+			return n === 0
+				? {name: '', kind: 'visits', screen, op: 'off'}
+				: {name: '', kind: 'visits', screen, op: 'eq', value: n};
+		}
+		if (op === 'gte' || op === '>=') {
+			return {name: '', kind: 'visits', screen, op: 'ge', value: n};
+		}
+		return undefined;
+	}
+
+	const e = enteredRe.exec(part);
+
+	if (e) {
+		const person = unquote(e[2]);
+		const code = unquote(e[3]);
+
+		return person === undefined || code === undefined
+			? undefined
+			: {name: '', kind: 'entered', person, code, op: e[1] ? 'off' : 'on'};
+	}
+	return undefined;
+}
 
 /** Разбор выражения «$a and $b is 2» на условия; undefined — записано кодом. */
 export function parseExpr(expr: string): {conds: Cond[]; join: 'and' | 'or'} | undefined {
-	const parts = expr.trim().split(/\s+(and|or|&&|\|\|)\s+/);
-	const joins = parts.filter((_, i) => i % 2 === 1).map(j => (j === 'and' || j === '&&' ? 'and' : 'or'));
+	const {parts, joins: rawJoins} = splitJoins(expr.trim());
+	const joins = rawJoins.map(j => (j === 'and' || j === '&&' ? 'and' : 'or'));
 
 	if (joins.some(j => j !== joins[0])) {
 		return undefined;
@@ -80,8 +196,15 @@ export function parseExpr(expr: string): {conds: Cond[]; join: 'and' | 'or'} | u
 
 	const conds: Cond[] = [];
 
-	for (let i = 0; i < parts.length; i += 2) {
+	for (let i = 0; i < parts.length; i++) {
 		const part = parts[i].trim();
+		const special = parseSpecial(part);
+
+		if (special) {
+			conds.push(special);
+			continue;
+		}
+
 		const off = /^(?:not\s+|!\s*)\$([A-Za-z_]\w*)$/.exec(part);
 
 		if (off) {
@@ -109,16 +232,59 @@ export function parseExpr(expr: string): {conds: Cond[]; join: 'and' | 'or'} | u
 	return {conds, join: (joins[0] as 'and' | 'or') ?? 'and'};
 }
 
+function writeSpecial(c: Cond) {
+	if (c.kind === 'entered') {
+		const call = `setup.entered(${literal(c.person ?? '')}, ${literal(c.code ?? '')})`;
+
+		return c.op === 'off' ? `not ${call}` : call;
+	}
+
+	const call = `setup.visits(${literal(c.screen ?? '')})`;
+	const n = Math.max(0, Math.round(Number(c.value) || 0));
+
+	switch (c.op) {
+		case 'off':
+			return `${call} is 0`;
+		case 'ge':
+			return `${call} gte ${n}`;
+		case 'eq':
+			return `${call} is ${n}`;
+		default:
+			return `${call} gt 0`;
+	}
+}
+
 export function writeExpr(conds: Cond[], join: 'and' | 'or') {
 	return conds
 		.map(c =>
-			c.op === 'on'
+			c.kind
+				? writeSpecial(c)
+				: c.op === 'on'
 				? `$${c.name}`
 				: c.op === 'off'
 				? `not $${c.name}`
 				: `$${c.name} ${opWrite[c.op]} ${literal(c.value ?? 0)}`
 		)
 		.join(` ${join} `);
+}
+
+/**
+ * Коды таблицы, которые упоминаются в условиях «сотрудник ввёл код» (шаг 3.5):
+ * терминалу нужно знать, кто их вводит, — он спросит личный код.
+ */
+export function enteredCodes(texts: string[]) {
+	const codes = new Set<string>();
+
+	texts.forEach(text => {
+		for (const m of text.matchAll(enteredCodeRe)) {
+			const code = unquote(m[2]);
+
+			if (code !== undefined) {
+				codes.add(code.trim());
+			}
+		}
+	});
+	return codes;
 }
 
 /** Условия <<if>> с одним необязательным <<else>> (без <<elseif>>). */
@@ -334,8 +500,10 @@ export function caseInput(value: string) {
 export interface ValueShow {
 	from: number;
 	to: number;
-	/** Имя переменной без «$». */
+	/** Имя переменной без «$» ('' — показывается число заходов на экран). */
 	name: string;
+	/** Шаг 3.5: число заходов на этот экран (setup.visits). */
+	screen?: string;
 	/** Подпись перед значением («Глава»), без двоеточия. */
 	label: string;
 	/** Да-нет: слова для «да» и «нет». */
@@ -346,27 +514,31 @@ export interface ValueShow {
 }
 
 const valueRe =
-	/<span class="sg-value">(?:([^<]*?):\s)?<<=\s*\$([A-Za-z_]\w*)(?:\s*\?\s*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')\s*:\s*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'))?\s*>>(?: из (\d+(?:\.\d+)?))?<\/span>/g;
+	/<span class="sg-value">(?:([^<]*?):\s)?<<=\s*(?:setup\.visits\(\s*("(?:\\.|[^"\\])*")\s*\)|\$([A-Za-z_]\w*)(?:\s*\?\s*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')\s*:\s*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'))?)\s*>>(?: из (\d+(?:\.\d+)?))?<\/span>/g;
 
 export function findValues(text: string): ValueShow[] {
 	return [...text.matchAll(valueRe)].map(m => ({
 		from: m.index!,
 		to: m.index! + m[0].length,
 		label: m[1] ?? '',
-		name: m[2],
-		yes: m[3] === undefined ? undefined : String(parseLiteral(m[3])),
-		no: m[4] === undefined ? undefined : String(parseLiteral(m[4])),
-		of: m[5] === undefined ? undefined : Number(m[5])
+		name: m[3] ?? '',
+		screen: m[2] === undefined ? undefined : String(parseLiteral(m[2])),
+		yes: m[4] === undefined ? undefined : String(parseLiteral(m[4])),
+		no: m[5] === undefined ? undefined : String(parseLiteral(m[5])),
+		of: m[6] === undefined ? undefined : Number(m[6])
 	}));
 }
 
 export function writeValue(v: Omit<ValueShow, 'from' | 'to'>) {
 	const label = v.label.replace(/[<:]/g, '').trim();
 	const shown =
-		v.yes !== undefined || v.no !== undefined
+		v.screen !== undefined
+			? `<<= setup.visits(${literal(v.screen)})>>`
+			: v.yes !== undefined || v.no !== undefined
 			? `<<= $${v.name} ? ${literal(v.yes ?? '')} : ${literal(v.no ?? '')}>>`
 			: `<<= $${v.name}>>`;
-	const of = v.of !== undefined && v.yes === undefined && v.no === undefined ? ` из ${v.of}` : '';
+	const of =
+		v.of !== undefined && v.yes === undefined && v.no === undefined ? ` из ${v.of}` : '';
 
 	return `<span class="sg-value">${label ? `${label}: ` : ''}${shown}${of}</span>`;
 }

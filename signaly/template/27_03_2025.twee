@@ -990,7 +990,7 @@ setup.signalySounds = {
 
 
 /* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */
-/* Версия движка: 9. Обновляется программой «Twine СИГНАЛЫ».
+/* Версия движка: 10. Обновляется программой «Twine СИГНАЛЫ».
    Настройки — в окне «Оформление терминала» (они лежат в таблице стилей).
    Свой код пишите ниже конца этого блока. */
 (function () {
@@ -1035,7 +1035,7 @@ setup.signalySounds = {
 	// Предпросмотр в программе: без стартового экрана, автокопии и защиты.
 	var preview = window.SIGNALY_PREVIEW;
 
-	setup.signaly = {engine: 9, preview: !!preview};
+	setup.signaly = {engine: 10, preview: !!preview};
 
 	function showStartScreen(onClick) {
 		var screen = document.createElement('div');
@@ -2508,7 +2508,36 @@ setup.signalySounds = {
 			}
 		});
 		codeCollect = null;
+
+		// Шаг 3.5: код упомянут в условии «сотрудник ввёл код» — терминал
+		// спросит личный код, чтобы знать, кто ввёл.
+		var referenced = {};
+		var refRe = /setup\.entered\(\s*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')\s*,\s*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')\s*\)/g;
+
+		Story.filter(function () {
+			return true;
+		}).forEach(function (p) {
+			var m;
+
+			refRe.lastIndex = 0;
+			while ((m = refRe.exec(p.text))) {
+				referenced[unquoteArg(m[2]).trim()] = true;
+			}
+		});
+		codeTable.codes.forEach(function (c) {
+			if (referenced[c.code]) {
+				c.pin = true;
+			}
+		});
 		return codeTable;
+	}
+
+	function unquoteArg(s) {
+		try {
+			return s.charAt(0) === '"' ? JSON.parse(s) : s.slice(1, -1).replace(/\\(.)/g, '$1');
+		} catch (e) {
+			return s.slice(1, -1);
+		}
 	}
 
 	function usedMarks() {
@@ -2528,6 +2557,20 @@ setup.signalySounds = {
 	function runTableCode(c, person, value) {
 		if (c.once) {
 			usedMarks()[c.once === 'each' ? c.code + '|' + person.id : c.code] = true;
+		}
+		// Шаг 3.5: какие коды ввёл сотрудник — для условий «сотрудник ввёл код».
+		if (person) {
+			var entered = State.variables.sgEntered;
+
+			if (!entered || typeof entered !== 'object') {
+				entered = State.variables.sgEntered = {};
+			}
+			if (!Array.isArray(entered[person.id])) {
+				entered[person.id] = [];
+			}
+			if (entered[person.id].indexOf(c.code) === -1) {
+				entered[person.id].push(c.code);
+			}
 		}
 		State.temporary.code = value;
 		State.temporary.who = person ? person.id : '';
@@ -2865,6 +2908,79 @@ setup.signalySounds = {
 
 			$passageEl.empty().append($main, $nav, $img, $vars);
 		});
+	});
+
+	/* ----- События, заходы на экраны, коды сотрудников (шаг 3.5) ----- */
+
+	/* Событие — пассаж с тегом sg-event, первой строкой
+	     <<sg-event [repeat] [delay N] [priority N] условие>>.
+	   Терминал сам переходит на него, когда условие станет верным (проверка —
+	   при каждом изменении и 4 раза в секунду). Отметки событий — $sgEvents,
+	   откуда перешли — $sgEventFrom, заходы на экраны — $sgVisits, коды,
+	   введённые сотрудниками, — $sgEntered (всё попадает в автокопию,
+	   «Новая игра» стирает). */
+
+	// В самом экране команда события ничего не показывает.
+	Macro.add('sg-event', {
+		skipArgs: true,
+		handler: function () {}
+	});
+
+	function varObject(name) {
+		var v = State.variables;
+
+		if (!v[name] || typeof v[name] !== 'object') {
+			v[name] = {};
+		}
+		return v[name];
+	}
+
+	// Сколько раз заходили на экран (свой счётчик: у SugarCube история в один
+	// шаг, а после сбоя visited() начинает заново).
+	setup.visits = function (title) {
+		var visits = State.variables.sgVisits;
+
+		return (visits && Number(visits[String(title)])) || 0;
+	};
+
+	// Ввёл ли сотрудник код общей таблицы кодов.
+	setup.entered = function (person, code) {
+		var entered = State.variables.sgEntered;
+		var list = entered && entered[String(person).trim()];
+
+		return Array.isArray(list) && list.indexOf(String(code).trim()) !== -1;
+	};
+
+	var prevPassage = '';
+
+	$(document).on(':passageinit', function () {
+		prevPassage = State.passage;
+	});
+
+	$(document).on(':passagestart', function (ev) {
+		// После сбоя тот же экран показывается заново — это не новый заход.
+		if (restoring) {
+			return;
+		}
+
+		var visits = varObject('sgVisits');
+		var title = ev.passage.title;
+
+		visits[title] = (Number(visits[title]) || 0) + 1;
+	});
+
+	// «Вернуться на экран, где были»: туда, откуда терминал перешёл на
+	// событие; если события не было — на предыдущий экран.
+	Macro.add('sg-back', {
+		handler: function () {
+			var target = State.variables.sgEventFrom || prevPassage;
+
+			if (target && Story.has(target)) {
+				setTimeout(function () {
+					Engine.play(target);
+				}, Engine.DOM_DELAY || 40);
+			}
+		}
 	});
 
 	if (preview) {
@@ -3357,6 +3473,218 @@ setup.signalySounds = {
 				signalFor(m[2]);
 			}
 		});
+	});
+
+	/* ----- События: проверка и переход (шаг 3.5) ----- */
+
+	// Ответы автора: проверка сразу после любого изменения; по умолчанию один
+	// раз (repeat — снова, когда условие было ложным и стало верным); delay N —
+	// через N секунд после того, как условие стало верным (отсчёт в фоне,
+	// переживает смену экрана и сбой; условие снова ложно — отсчёт отменяется);
+	// несколько готовых событий — по очереди, по важности; с экрана события
+	// терминал не уводит — следующее событие ждёт, пока игроки уйдут с него.
+	var eventList = null;
+	var eventBusy = false;
+
+	function macroEnd(text, from) {
+		var quote = '';
+
+		for (var i = from; i < text.length - 1; i++) {
+			var ch = text.charAt(i);
+
+			if (quote) {
+				if (ch === '\\') {
+					i++;
+				} else if (ch === quote) {
+					quote = '';
+				}
+			} else if (ch === '"' || ch === "'") {
+				quote = ch;
+			} else if (ch === '>' && text.charAt(i + 1) === '>') {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	function eventArgs(args) {
+		var rest = args.trim();
+		var a = {repeat: false, delay: 0, priority: 0};
+		var m;
+
+		while ((m = /^(repeat|delay|priority)(?:\s+(-?\d+(?:[.,]\d+)?))?(?:\s+|$)/.exec(rest))) {
+			if (m[1] !== 'repeat' && m[2] === undefined) {
+				break;
+			}
+			if (m[1] === 'repeat') {
+				a.repeat = true;
+			} else if (m[1] === 'delay') {
+				a.delay = Math.max(0, Number(m[2].replace(',', '.')) || 0);
+			} else {
+				a.priority = Number(m[2].replace(',', '.')) || 0;
+			}
+			rest = rest.slice(m[0].length);
+		}
+		a.expr = rest.trim();
+		return a;
+	}
+
+	function events() {
+		if (eventList) {
+			return eventList;
+		}
+		eventList = [];
+		Story.filter(function (p) {
+			return p.tags.indexOf('sg-event') !== -1;
+		}).forEach(function (p) {
+			var m = /<<sg-event(?=[\s>])/.exec(p.text);
+			var end = m ? macroEnd(p.text, m.index + 2) : -1;
+
+			if (end === -1) {
+				return;
+			}
+
+			var a = eventArgs(p.text.slice(m.index + '<<sg-event'.length, end));
+
+			if (a.expr !== '') {
+				a.name = p.title;
+				eventList.push(a);
+			}
+		});
+		eventList.sort(function (x, y) {
+			return y.priority - x.priority || (x.name < y.name ? -1 : x.name > y.name ? 1 : 0);
+		});
+		return eventList;
+	}
+
+	function eventTrue(ev) {
+		try {
+			return !!Scripting.evalTwineScript(ev.expr);
+		} catch (e) {
+			if (!ev.failed) {
+				ev.failed = true;
+				console.error('СИГНАЛЫ: условие события «' + ev.name + '»', e);
+			}
+			return false;
+		}
+	}
+
+	function saveVars() {
+		if (!record) {
+			return;
+		}
+		record.vars = serial.stringify(State.variables);
+		record.time = Date.now();
+		writeCopy();
+	}
+
+	function checkEvents() {
+		if (!started || restoring || eventBusy || !State.passage || (Engine.isIdle && !Engine.isIdle())) {
+			return;
+		}
+
+		var list = events();
+
+		if (!list.length) {
+			return;
+		}
+
+		var marks = varObject('sgEvents');
+		var now = Date.now();
+		var changed = false;
+
+		list.forEach(function (ev) {
+			var m = marks[ev.name] || {};
+			var before = JSON.stringify(m);
+
+			if (m.done && !ev.repeat) {
+				return;
+			}
+			if (!eventTrue(ev)) {
+				delete m.due;
+				delete m.was;
+			} else if (!m.ready && !m.was) {
+				if (ev.delay > 0 && !m.due) {
+					m.due = now + ev.delay * 1000;
+				}
+				if (!m.due || now >= m.due) {
+					delete m.due;
+					m.ready = 1;
+					if (ev.repeat) {
+						m.was = 1;
+					}
+				}
+			}
+			if (JSON.stringify(m) !== before) {
+				changed = true;
+				if (Object.keys(m).length) {
+					marks[ev.name] = m;
+				} else {
+					delete marks[ev.name];
+				}
+			}
+		});
+
+		var current = State.passage;
+		var here = Story.has(current) && Story.get(current).tags.indexOf('sg-event') !== -1;
+		var next = null;
+
+		list.forEach(function (ev) {
+			var m = marks[ev.name];
+
+			if (!m || !m.ready) {
+				return;
+			}
+			if (ev.name === current) {
+				// Игроки уже на экране события.
+				delete m.ready;
+				if (!ev.repeat) {
+					m.done = 1;
+				}
+				changed = true;
+			} else if (!next && !here) {
+				next = ev;
+			}
+		});
+
+		if (!next) {
+			if (changed) {
+				saveVars();
+			}
+			return;
+		}
+
+		var mark = marks[next.name];
+
+		delete mark.ready;
+		if (!next.repeat) {
+			mark.done = 1;
+		}
+		State.variables.sgEventFrom = current;
+		if (Dialog.isOpen()) {
+			Dialog.close();
+		}
+		eventBusy = true;
+		try {
+			Engine.play(next.name);
+		} finally {
+			eventBusy = false;
+		}
+	}
+
+	setup.signaly.checkEvents = checkEvents;
+	setInterval(checkEvents, 250);
+	$(document).on(':passageend', function () {
+		setTimeout(checkEvents, 0);
+	});
+	['click', 'change', 'keyup'].forEach(function (type) {
+		document.addEventListener(
+			type,
+			function () {
+				setTimeout(checkEvents, 60);
+			},
+			true
+		);
 	});
 
 	/* ----- Стартовый экран ----- */

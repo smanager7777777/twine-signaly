@@ -27,6 +27,7 @@ import {
 import {findAudioInit} from '../../util/signaly/signaly-sounds';
 import {knownVariables} from '../../util/signaly/signaly-variables';
 import {CheckField, ChoiceField, TextField} from '../signaly-appearance/signaly-appearance-fields';
+import {CondListsContext, useCondLists} from '../passage-edit/signaly-logic-form';
 import {ActionList} from '../passage-edit/signaly-action-list';
 import {useLists} from '../passage-edit/signaly-block-panel';
 import {saveStoryWithUpgrade} from '../signaly-upgrade';
@@ -50,6 +51,7 @@ export const SignalyKeysWindow: React.FC<SignalyKeysWindowProps> = props => {
 	const l = (key: string, options?: Record<string, unknown>) => t(`signaly.keys.${key}`, options);
 	const {dispatch, stories} = useStoriesContext();
 	const {media, passages} = useLists(story);
+	const condLists = useCondLists(story);
 	const keysPassage =
 		story.passages.find(p => p.tags.includes(keysTag)) ?? story.passages.find(p => p.name === keysPassageName);
 	// Код горячих клавиш шаблона в JavaScript истории — сразу в таблицу (ответ 3А).
@@ -232,16 +234,18 @@ export const SignalyKeysWindow: React.FC<SignalyKeysWindowProps> = props => {
 						<TextField hint={l('labelHint')} label={l('label')} onChange={label => setRow({label})} value={row.label} />
 						<CheckField hint={l('askHint')} label={l('ask')} onChange={ask => setRow({ask})} value={row.ask} />
 						<h3>{t('signaly.actions.list')}</h3>
-						<ActionList
-							actions={row.actions}
-							audio={audio}
-							audioFiles={media.audio}
-							current=""
-							fileChoice={fileChoice}
-							onChange={actions => setRow({actions})}
-							passages={passages}
-							variables={variables}
-						/>
+						<CondListsContext.Provider value={condLists}>
+							<ActionList
+								actions={row.actions}
+								audio={audio}
+								audioFiles={media.audio}
+								current=""
+								fileChoice={fileChoice}
+								onChange={actions => setRow({actions})}
+								passages={passages}
+								variables={variables}
+							/>
+						</CondListsContext.Provider>
 						<ChoiceField
 							label={t('signaly.actions.goto')}
 							onChange={goto => setRow({goto})}

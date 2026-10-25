@@ -321,10 +321,19 @@ export function writeCodes(text: string, table: CodeTable) {
 /* ----- Проверки для окна ----- */
 
 /** Нужен ли коду личный код (ответ 2А): права, «для каждого», прогресс или _who. */
-export function needsPin(entry: Pick<TableCode, 'who' | 'once' | 'actions' | 'answer' | 'title'>) {
+export function needsPin(
+	entry: Pick<TableCode, 'who' | 'once' | 'actions' | 'answer' | 'title'> & {code?: string},
+	referenced?: Set<string>
+) {
 	const text = entry.answer + entry.title + entry.actions.map(writeAction).join('');
 
-	return entry.who.length > 0 || entry.once === 'each' || /<<sg-progress[\s>]|\b_who\b/.test(text);
+	return (
+		entry.who.length > 0 ||
+		entry.once === 'each' ||
+		/<<sg-progress[\s>]|\b_who\b/.test(text) ||
+		// Шаг 3.5: код упомянут в условии «сотрудник ввёл код» — нужно знать, кто ввёл.
+		(entry.code !== undefined && referenced?.has(entry.code.trim()) === true)
+	);
 }
 
 /** Повторы: значения, которые встречаются больше одного раза. */

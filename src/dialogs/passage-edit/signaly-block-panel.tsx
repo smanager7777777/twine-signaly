@@ -46,6 +46,9 @@ import {knownVariables} from '../../util/signaly/signaly-variables';
 import {findLinks} from '../../util/signaly/signaly-actions';
 import {findAudioInit} from '../../util/signaly/signaly-sounds';
 import {LinkActionsForm} from './signaly-link-actions-form';
+import {CondListsContext, useCondLists} from './signaly-logic-form';
+import {EventForm} from './signaly-event-form';
+import {eventTag, findEvent, setEventHead} from '../../util/signaly/signaly-events';
 
 export type PanelTarget =
 	| {kind: 'block'; index: number}
@@ -54,6 +57,7 @@ export type PanelTarget =
 	| {kind: 'states'; index: number}
 	| {kind: 'value'; index: number}
 	| {kind: 'link'; index: number}
+	| {kind: 'event'}
 	| {kind: 'kr2'};
 
 export interface SignalyBlockPanelProps {
@@ -66,6 +70,8 @@ export interface SignalyBlockPanelProps {
 	onText: (text: string) => void;
 	/** Включить или снять тег kr2 у пассажа. */
 	onKr2Tag: (on: boolean) => void;
+	/** Включить или снять тег sg-event (шаг 3.5). */
+	onEventTag: (on: boolean) => void;
 	onClose: () => void;
 }
 
@@ -133,9 +139,10 @@ export function useLists(story: Story) {
 /* ----- Панель ----- */
 
 export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
-	const {onClose, onKr2Tag, onText, passage, story, target, text} = props;
+	const {onClose, onEventTag, onKr2Tag, onText, passage, story, target, text} = props;
 	const {t} = useTranslation();
 	const {media, passages} = useLists(story);
+	const condLists = useCondLists(story);
 	const savedColors = React.useMemo(
 		() => (readAppearance(story.stylesheet) ?? defaultAppearance).savedColors,
 		[story.stylesheet]
@@ -187,7 +194,30 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 	let title = '';
 	let body: React.ReactNode = null;
 
-	if (target.kind === 'effect') {
+	if (target.kind === 'event') {
+		// Шаг 3.5: пассаж-событие.
+		const head = findEvent(text);
+
+		if (!head) {
+			return null;
+		}
+		title = t('signaly.events.title');
+		body = (
+			<EventForm
+				head={head}
+				onRemove={() => {
+					onText(setEventHead(text, undefined));
+					onEventTag(false);
+					onClose();
+				}}
+				onTag={() => onEventTag(true)}
+				onText={onText}
+				tagged={passage.tags.includes(eventTag)}
+				text={text}
+				variables={knownVariables(story.passages)}
+			/>
+		);
+	} else if (target.kind === 'effect') {
 		const effect = findEffects(text)[target.index];
 
 		if (!effect) {
@@ -666,7 +696,9 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 				<strong>{title}</strong>
 				<IconButton icon={<IconX />} iconOnly label={l('done')} onClick={onClose} />
 			</div>
-			<div className="signaly-block-panel-body">{body}</div>
+			<div className="signaly-block-panel-body">
+				<CondListsContext.Provider value={condLists}>{body}</CondListsContext.Provider>
+			</div>
 		</div>
 	);
 };
