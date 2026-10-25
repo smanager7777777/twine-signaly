@@ -777,6 +777,7 @@ const CodeForm: React.FC<CodeFormProps> = props => {
 			{block.values.button !== undefined && range('gap', l('code.gap'), 0, 6, 1, l('code.lines'))}
 			{check('focus', l('code.focus'))}
 			{check('clear', l('code.clear'))}
+			{check('table', l('code.table'), l('code.tableHint'))}
 			<TextField
 				label={l('code.var')}
 				onChange={value => set('var', value.trim() === '' ? undefined : value.trim())}

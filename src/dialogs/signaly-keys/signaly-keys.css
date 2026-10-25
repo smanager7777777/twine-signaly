@@ -19,3 +19,6 @@
 	font-family: var(--font-monospaced);
 	margin-right: 8px;
 }
+.signaly-codes-people {
+	margin-left: var(--grid-size);
+}

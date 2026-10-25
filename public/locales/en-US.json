@@ -769,7 +769,7 @@
 				"focus": "Focus the field on entry",
 				"clear": "Clear the field after input",
 				"var": "Remember input in a variable (e.g. $inputCode)",
-				"enterHint": "Enter works like the button. A game-wide code table comes in stage 3.",
+				"enterHint": "Enter works like the button.",
 				"code": "Code",
 				"value": "Code",
 				"add": "Add code",
@@ -777,7 +777,9 @@
 				"noWrong": "Do nothing on a wrong code",
 				"addWrong": "Show a message on a wrong code",
 				"wrongTitle": "Error",
-				"wrongText": "Wrong code"
+				"wrongText": "Wrong code",
+				"table": "Also check the shared code table",
+				"tableHint": "This field's codes first, then the shared table from the Codes window (Story tab). \"Wrong code\" — the message below, or the shared one from the Codes window."
 			},
 			"kr2": {
 				"title": "KR2 window",
@@ -1160,7 +1162,8 @@
 				"code": "Code",
 				"signal": "Signal sound",
 				"if": "If … then … else",
-				"delay": "After N seconds"
+				"delay": "After N seconds",
+				"progress": "Progress of the person +N"
 			},
 			"add": "Add action",
 			"addChoose": "Choose…",
@@ -1249,7 +1252,9 @@
 				"seconds": "After how many seconds",
 				"then": "Then do",
 				"hint": "If the game moves to another screen before the time is up, these actions are not done (this is how <<timed>> works in SugarCube)."
-			}
+			},
+			"progress": "How much to add to the progress of whoever entered the code",
+			"progressHint": "The progress variable comes from the person's row (People tab). Can be negative: −1."
 		},
 		"keys": {
 			"button": "Hotkeys",
@@ -1286,6 +1291,95 @@
 			"problems": {
 				"combo": "A combination must look like Shift+Z+letter or Shift+Z+digit.",
 				"duplicate": "One combination on several rows: {{combos}}."
+			}
+		},
+		"codes": {
+			"button": "Codes",
+			"title": "Codes",
+			"tabs": {
+				"codes": "Codes",
+				"people": "People",
+				"texts": "Error texts"
+			},
+			"intro": {
+				"codes": "The game's shared code table. Codes are entered into a Code field block with \"Also check the shared code table\" ticked.",
+				"people": "People: number or name, personal code (3 digits) and their own progress variable.",
+				"texts": "Shared replies, shown as a message window. A code can have its own \"No access\" and \"Already used\"."
+			},
+			"add": {
+				"codes": "Add code",
+				"people": "Add person"
+			},
+			"delete": "Delete",
+			"emptyCodes": "No codes.",
+			"emptyPeople": "No people.",
+			"code": "Code",
+			"codeHint": "What the player types. Leading and trailing spaces are ignored.",
+			"sameHere": "This code is already in the table.",
+			"label": "Label",
+			"labelHint": "For yourself. Players don't see it.",
+			"who": "Who can enter",
+			"whoAll": "Everyone",
+			"whoSome": "Selected people",
+			"noPeople": "Add people on the People tab first.",
+			"unknownPerson": "\"{{id}}\" is not in the table.",
+			"once": "One-time",
+			"onceNo": "No",
+			"onceAll": "For everyone",
+			"onceEach": "Once per person",
+			"onceShortAll": "one-time",
+			"onceShortEach": "once each",
+			"askPin": "The terminal will ask for a personal code in a second field.",
+			"oneStep": "Entered in one step, no personal code asked.",
+			"answer": "Reply on screen",
+			"answerTitle": "Window title",
+			"answerText": "Reply text",
+			"answerHint": "Shown as a message window after the actions. <<= _who>> — who entered; <<= _code>> — the code.",
+			"insertWho": "Insert: who entered",
+			"insertCode": "Insert: entered code",
+			"ownDenied": "Own \"No access\" text",
+			"ownUsed": "Own \"Already used\" text",
+			"ownHint": "Empty — shared: \"{{text}}\".",
+			"order": "Actions run in order, then the reply is shown, then the jump.",
+			"id": "Number or name",
+			"idHint": "Used in code permissions and in replies. No commas.",
+			"sameIdHere": "This number or name already exists.",
+			"pin": "Personal code",
+			"pinHint": "Three digits. Entered in the second field.",
+			"pinNot3": "A personal code is usually three digits.",
+			"samePinHere": "Another person has this personal code.",
+			"variable": "Progress variable",
+			"varHint": "Latin name, e.g. progress3. Empty — no progress.",
+			"varNew": "${{name}} is not in the Variables window — it counts as 0 until first used.",
+			"texts": {
+				"title": "Error window title",
+				"wrong": "Wrong code",
+				"denied": "No access",
+				"badpin": "Wrong personal code",
+				"used": "Already used",
+				"ask": "Second field prompt"
+			},
+			"textHints": {
+				"title": "Title of the message window for all replies below.",
+				"wrong": "No such code in the field or the table.",
+				"denied": "This person may not enter this code.",
+				"badpin": "No person has this personal code.",
+				"used": "A one-time code was entered again.",
+				"ask": "Text above the personal code field."
+			},
+			"where": "The table is stored in the passage \"{{name}}\" (tag sg-codes).",
+			"fields": "Code fields checking the table: {{list}}.",
+			"noFields": "No code field checks the table yet.",
+			"confirmDeleteCode": "Delete code {{code}}?",
+			"confirmDeletePerson": "Delete {{id}}? They will be removed from code permissions too.",
+			"problems": {
+				"emptyCode": "A code is empty.",
+				"sameCode": "Duplicate codes: {{list}}.",
+				"badId": "A person's number or name is empty (or has a comma).",
+				"sameId": "Duplicate people: {{list}}.",
+				"emptyPin": "A person has no personal code.",
+				"samePin": "Duplicate personal codes: {{list}}.",
+				"badVar": "Progress variable name: Latin letters, no spaces."
 			}
 		}
 	}

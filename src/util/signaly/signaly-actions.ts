@@ -115,6 +115,16 @@ export interface IfAction {
 	raw?: string;
 }
 
+/**
+ * «Прогресс вводящего +N» (шаг 3.4, ответ 4А) — только в общей таблице кодов:
+ * прибавляет N к переменной прогресса того сотрудника, кто ввёл код.
+ */
+export interface ProgressAction {
+	type: 'progress';
+	amount: number;
+	raw?: string;
+}
+
 /** «Через N секунд» (шаг 3.3, ответ 7А) — <<timed>>. */
 export interface DelayAction {
 	type: 'delay';
@@ -133,6 +143,7 @@ export type Action =
 	| TimerStopAction
 	| IfAction
 	| DelayAction
+	| ProgressAction
 	| CodeAction;
 export type ActionType = Action['type'];
 
@@ -472,6 +483,12 @@ function parseDelay(piece: string): DelayAction | undefined {
 	return {type: 'delay', seconds, actions: pieces.map(parseAction), multiline: piece.includes('\n'), raw: piece};
 }
 
+function parseProgress(piece: string): ProgressAction | undefined {
+	const m = /^<<sg-progress(?:\s+(-?\d+(?:\.\d+)?))?\s*>>$/.exec(piece);
+
+	return m ? {type: 'progress', amount: m[1] === undefined ? 1 : Number(m[1]), raw: piece} : undefined;
+}
+
 /** Одна команда (или кусок кода) внутри ссылки → действие. */
 export function parseAction(piece: string): Action {
 	return (
@@ -481,7 +498,8 @@ export function parseAction(piece: string): Action {
 		parseDialog(piece) ??
 		parseTimer(piece) ??
 		parseIf(piece) ??
-		parseDelay(piece) ?? {type: 'code', code: piece, raw: piece}
+		parseDelay(piece) ??
+		parseProgress(piece) ?? {type: 'code', code: piece, raw: piece}
 	);
 }
 
@@ -620,6 +638,8 @@ export function writeAction(action: Action): string {
 		}
 		case 'delay':
 			return `<<timed ${Number(action.seconds.toFixed(3))}s>>${writeActions(action.actions, action.multiline)}<</timed>>`;
+		case 'progress':
+			return `<<sg-progress ${Number(action.amount) || 0}>>`;
 		default:
 			return action.code;
 	}
@@ -872,6 +892,8 @@ export function newAction(type: ActionType, variable?: {name: string; type?: str
 			return {type: 'if', expr: `$${variable?.name ?? 'x'}`, then: [], multiline: true};
 		case 'delay':
 			return {type: 'delay', seconds: 1, actions: [], multiline: false};
+		case 'progress':
+			return {type: 'progress', amount: 1};
 		default:
 			return {type: 'code', code: ''};
 	}

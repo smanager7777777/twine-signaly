@@ -124,7 +124,8 @@ const specs: Record<BlockType | PartKind, ArgSpec> = {
 	code: {
 		pos: [],
 		keys: {var: 'string', button: 'string', gap: 'number'},
-		flags: ['password', 'focus', 'clear'],
+		// table — проверять ещё и по общей таблице кодов (шаг 3.4).
+		flags: ['password', 'focus', 'clear', 'table'],
 		container: true
 	},
 	place: {

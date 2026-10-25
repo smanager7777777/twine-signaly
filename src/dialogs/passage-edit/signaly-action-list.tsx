@@ -36,7 +36,18 @@ import {CondRows} from './signaly-logic-form';
 
 type L = (key: string, options?: Record<string, unknown>) => string;
 
-export const actionTypes: ActionType[] = ['set', 'audio', 'signal', 'dialog', 'timer', 'stop', 'if', 'delay', 'code'];
+export const actionTypes: ActionType[] = [
+	'set',
+	'progress',
+	'audio',
+	'signal',
+	'dialog',
+	'timer',
+	'stop',
+	'if',
+	'delay',
+	'code'
+];
 
 /** Что нужно спискам действий: переменные, звуки, экраны, файлы папки игры. */
 export interface ActionContext {
@@ -47,6 +58,8 @@ export interface ActionContext {
 	current: string;
 	fileChoice: (label: string, value: string, files: string[], onChange: (value: string) => void, none?: string) => React.ReactNode;
 	audioFiles: string[];
+	/** Список действий кода из общей таблицы: есть «Прогресс вводящего +N» (шаг 3.4). */
+	codes?: boolean;
 }
 
 export interface ActionListProps extends ActionContext {
@@ -67,7 +80,7 @@ const percentOf = (level: number | undefined, fallback: number) =>
 	level === undefined ? fallback : Math.round(level * 1000) / 10;
 
 export const ActionList: React.FC<ActionListProps> = props => {
-	const {actions, audio, audioFiles, current, fileChoice, nested, onChange, passages, variables} = props;
+	const {actions, audio, audioFiles, codes, current, fileChoice, nested, onChange, passages, variables} = props;
 	const {t} = useTranslation();
 	const l: L = (key, options) => t(`signaly.actions.${key}`, options);
 	const units = (key: string) => t(`signaly.appearance.units.${key}`);
@@ -502,6 +515,15 @@ export const ActionList: React.FC<ActionListProps> = props => {
 				return dialogForm(index, a);
 			case 'timer':
 				return timerForm(index, a);
+			case 'progress':
+				return (
+					<TextField
+						hint={l('progressHint')}
+						label={l('progress')}
+						onChange={v => edit(index, a, {amount: numberOf(v) ?? 0})}
+						value={String(a.amount)}
+					/>
+				);
 			case 'stop':
 				return (
 					<TextField
@@ -579,7 +601,9 @@ export const ActionList: React.FC<ActionListProps> = props => {
 						]);
 					}
 				}}
-				options={[{label: l('addChoose'), value: ''}, ...actionTypes.map(type => ({label: l(`types.${type}`), value: type}))]}
+				options={[{label: l('addChoose'), value: ''}, ...actionTypes
+						.filter(type => codes || type !== 'progress')
+						.map(type => ({label: l(`types.${type}`), value: type}))]}
 				value=""
 			/>
 		</div>

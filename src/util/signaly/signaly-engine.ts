@@ -26,7 +26,10 @@
 //   видео <<sg-chain>>;
 // - шаг 3.2: <<sg-open>>, <<sg-timer-stop>>;
 // - шаг 3.3: горячие клавиши мастера <<sg-key>> (пассаж с тегом sg-keys) и
-//   звук-сигнал <<sg-sound>>.
+//   звук-сигнал <<sg-sound>>;
+// - шаг 3.4: общая таблица кодов (пассаж с тегом sg-codes): поле кода со
+//   словом table, личный код во втором поле, права, одноразовые коды ($sgUsed),
+//   «прогресс вводящего» <<sg-progress>>, _who — кто ввёл.
 //
 // Код написан без обратных кавычек и без «${», потому что хранится в шаблонной
 // строке.
@@ -38,7 +41,7 @@ import {timerDefaults} from './signaly-screen-blocks';
 const glitchBase = [...glitchRules(defaultGlitch, ':where(.glitchy)'), glitchKeyframes].join('\n');
 
 /** Версия движка. Увеличивать при каждом изменении кода ниже. */
-export const signalyEngineVersion = 8;
+export const signalyEngineVersion = 9;
 
 export const signalyEngineStart =
 	'/* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */';
@@ -1446,10 +1449,193 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		}
 	}
 
+	/* ----- Общая таблица кодов (шаг 3.4) -----
+	   Пассаж с тегом sg-codes («Коды»):
+	     <<sg-replies title "Ошибка" wrong "…" denied "…" badpin "…" used "…" ask "…">>
+	     <<sg-person "3" pin "417" var "$progress3">>
+	     <<sg-entry "205" "Подпись" who "3, 5" once all|each title "…" goto "…" denied "…" used "…">>
+	     действия<<sg-answer>>ответ<</sg-entry>>
+	   Поле кода со словом table проверяет сначала свои коды, потом таблицу.
+	   Если коду важно, кто вводит (who, once each, <<sg-progress>>, _who), —
+	   под полем появляется второе поле для личного кода. Отметки одноразовых
+	   кодов — в $sgUsed (попадают в автокопию, «Новая игра» их стирает). */
+
+	var codeTable = null;
+	var codeCollect = null;
+	var codePerson = null;
+
+	Macro.add('sg-person', {
+		handler: function () {
+			if (!codeCollect) {
+				return;
+			}
+
+			var a = blockArgs(this, ['id'], ['pin', 'var'], []);
+
+			codeCollect.people.push({
+				id: a.id === undefined ? '' : String(a.id),
+				pin: a.pin === undefined ? '' : String(a.pin).trim(),
+				variable: a['var'] === undefined ? '' : String(a['var']).replace(/^\$/, '')
+			});
+		}
+	});
+
+	Macro.add('sg-replies', {
+		handler: function () {
+			if (!codeCollect) {
+				return;
+			}
+
+			var a = blockArgs(this, [], ['title', 'wrong', 'denied', 'badpin', 'used', 'ask'], []);
+
+			Object.keys(a).forEach(function (key) {
+				codeCollect.texts[key] = String(a[key]);
+			});
+		}
+	});
+
+	Macro.add('sg-entry', {
+		tags: ['sg-answer'],
+		handler: function () {
+			if (!codeCollect) {
+				return;
+			}
+
+			var a = blockArgs(this, ['code', 'label'], ['who', 'once', 'title', 'goto', 'denied', 'used'], []);
+			var actions = this.payload[0].contents;
+			var answer = this.payload[1] ? trimContent(this.payload[1].contents) : '';
+			var who = a.who === undefined ? [] : String(a.who).split(',').map(function (s) {
+				return s.trim();
+			}).filter(Boolean);
+
+			codeCollect.codes.push({
+				code: a.code === undefined ? '' : String(a.code).trim(),
+				who: who,
+				once: a.once === 'all' || a.once === 'each' ? a.once : '',
+				title: a.title === undefined ? '' : String(a.title),
+				goto: a.goto === undefined ? '' : String(a.goto),
+				denied: a.denied === undefined ? '' : String(a.denied),
+				used: a.used === undefined ? '' : String(a.used),
+				run: actions,
+				answer: answer,
+				pin:
+					who.length > 0 ||
+					a.once === 'each' ||
+					/<<sg-progress[\s>]|\b_who\b/.test(actions + answer + (a.title === undefined ? '' : a.title))
+			});
+		}
+	});
+
+	// Действие «Прогресс вводящего +N»: переменная прогресса того, кто ввёл код.
+	Macro.add('sg-progress', {
+		handler: function () {
+			var n = this.args.length ? Number(this.args[0]) : 1;
+
+			if (!codePerson || !codePerson.variable) {
+				return;
+			}
+			State.variables[codePerson.variable] =
+				(Number(State.variables[codePerson.variable]) || 0) + (isFinite(n) ? n : 0);
+		}
+	});
+
+	function codes() {
+		if (codeTable) {
+			return codeTable;
+		}
+		codeTable = {
+			people: [],
+			codes: [],
+			texts: {
+				title: 'Ошибка',
+				wrong: 'Неверный код',
+				denied: 'Нет доступа',
+				badpin: 'Неверный личный код',
+				used: 'Пусто',
+				ask: 'Введите личный код'
+			}
+		};
+		codeCollect = codeTable;
+		Story.filter(function (p) {
+			return p.tags.indexOf('sg-codes') !== -1;
+		}).forEach(function (p) {
+			try {
+				new Wikifier(document.createDocumentFragment(), p.text);
+			} catch (e) {
+				console.error('СИГНАЛЫ: таблица кодов', e);
+			}
+		});
+		codeCollect = null;
+		return codeTable;
+	}
+
+	function usedMarks() {
+		var v = State.variables;
+
+		if (!v.sgUsed || typeof v.sgUsed !== 'object') {
+			v.sgUsed = {};
+		}
+		return v.sgUsed;
+	}
+
+	function codeMessage(text) {
+		setup.signaly.openDialog({title: codes().texts.title, text: text});
+	}
+
+	// Код найден в таблице и проверен: действия, ответ, переход.
+	function runTableCode(c, person, value) {
+		if (c.once) {
+			usedMarks()[c.once === 'each' ? c.code + '|' + person.id : c.code] = true;
+		}
+		State.temporary.code = value;
+		State.temporary.who = person ? person.id : '';
+		codePerson = person;
+		try {
+			if (c.run.trim() !== '') {
+				Wikifier.wikifyEval(c.run);
+			}
+		} catch (e) {
+			console.error('СИГНАЛЫ: код ' + c.code, e);
+		}
+		codePerson = null;
+		if (c.title || c.answer) {
+			setup.signaly.openDialog({title: c.title, text: c.answer});
+		}
+		if (c.goto && Story.has(c.goto)) {
+			Engine.play(c.goto);
+		}
+	}
+
+	// Проверка с известным вводящим (или без него, если коду это не важно).
+	function checkTableCode(c, person, value) {
+		var marks = usedMarks();
+
+		if (person && c.who.length && c.who.indexOf(person.id) === -1) {
+			codeMessage(c.denied || codes().texts.denied);
+			return;
+		}
+		if ((c.once === 'all' && marks[c.code]) || (c.once === 'each' && person && marks[c.code + '|' + person.id])) {
+			codeMessage(c.used || codes().texts.used);
+			return;
+		}
+		runTableCode(c, person, value);
+	}
+
+	function findTableCode(value) {
+		var found = null;
+
+		codes().codes.forEach(function (c) {
+			if (!found && c.code !== '' && c.code === value) {
+				found = c;
+			}
+		});
+		return found;
+	}
+
 	Macro.add('sg-code', {
 		tags: ['sg-case', 'sg-wrong'],
 		handler: function () {
-			var a = blockArgs(this, [], ['var', 'button', 'gap'], ['password', 'focus', 'clear']);
+			var a = blockArgs(this, [], ['var', 'button', 'gap'], ['password', 'focus', 'clear', 'table']);
 			var cases = [];
 			var wrong = null;
 
@@ -1485,9 +1671,81 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 				});
 			}
 
+			// Шаг 3.4: второе поле — личный код того, кто вводит.
+			var pinHolder = document.createElement('span');
+
+			pinHolder.className = 'sg-code-pin';
+
+			function closePin() {
+				while (pinHolder.firstChild) {
+					pinHolder.removeChild(pinHolder.firstChild);
+				}
+			}
+
+			function askPin(entry, value) {
+				var texts = codes().texts;
+				var pin = document.createElement('input');
+
+				function checkPin() {
+					var typed = pin.value.trim();
+					var person = null;
+
+					codes().people.forEach(function (p) {
+						if (!person && p.pin !== '' && p.pin === typed) {
+							person = p;
+						}
+					});
+					closePin();
+					if (!person) {
+						codeMessage(texts.badpin);
+						return;
+					}
+					checkTableCode(entry, person, value);
+				}
+
+				pinHolder.appendChild(document.createElement('br'));
+				if (texts.ask) {
+					pinHolder.appendChild(document.createTextNode(texts.ask));
+					pinHolder.appendChild(document.createElement('br'));
+				}
+				pin.type = a.password ? 'password' : 'text';
+				pin.className = 'sg-code';
+				pin.setAttribute('tabindex', '0');
+				pin.addEventListener('keydown', function (ev) {
+					if (ev.key === 'Enter') {
+						ev.preventDefault();
+						checkPin();
+					}
+				});
+				pinHolder.appendChild(pin);
+				if (a.button) {
+					var gap = a.gap === undefined ? 1 : Math.max(0, Number(a.gap) || 0);
+
+					if (gap === 0) {
+						pinHolder.appendChild(document.createTextNode(' '));
+					}
+					for (var i = 0; i < gap; i++) {
+						pinHolder.appendChild(document.createElement('br'));
+					}
+					actionControl(pinHolder, a.button, true, checkPin);
+				}
+				pin.focus();
+			}
+
+			function tableEntry(entry, value) {
+				if (entry.once === 'all' && usedMarks()[entry.code]) {
+					codeMessage(entry.used || codes().texts.used);
+				} else if (entry.pin) {
+					askPin(entry, value);
+				} else {
+					checkTableCode(entry, null, value);
+				}
+			}
+
 			function confirm() {
 				var value = input.value;
 				var found = null;
+				var entry = null;
 
 				cases.forEach(function (c) {
 					if (!found && String(c.code) === value) {
@@ -1500,10 +1758,19 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 						State.variables[varName] = '';
 					}
 				}
+				closePin();
+				if (!found && a.table) {
+					entry = findTableCode(value.trim());
+				}
 				if (found) {
 					codeAction(found, value);
+				} else if (entry) {
+					tableEntry(entry, value.trim());
 				} else if (wrong) {
 					codeAction(wrong, value);
+				} else if (a.table) {
+					State.temporary.code = value;
+					codeMessage(codes().texts.wrong);
 				}
 			}
 
@@ -1525,6 +1792,9 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 					this.output.appendChild(document.createElement('br'));
 				}
 				actionControl(this.output, a.button, true, confirm);
+			}
+			if (a.table) {
+				this.output.appendChild(pinHolder);
 			}
 			if (a.focus) {
 				$(document).one(':passagedisplay', function () {
