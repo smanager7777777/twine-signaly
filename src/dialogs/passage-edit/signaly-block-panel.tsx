@@ -91,7 +91,7 @@ export const AreaField: React.FC<{
 	</div>
 );
 
-function useLists(story: Story) {
+export function useLists(story: Story) {
 	const {listMedia} = useGameFolder();
 	const [media, setMedia] = React.useState<{
 		img: string[];

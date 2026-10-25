@@ -1,0 +1,21 @@
+/* «Twine СИГНАЛЫ»: окно «Горячие клавиши» (общие стили — в signaly-appearance.css, signaly-kinds.css, signaly-sounds.css). */
+
+.signaly-keys-combo {
+	align-items: center;
+	display: flex;
+	gap: var(--grid-size);
+	margin: var(--grid-size) 0;
+}
+
+.signaly-keys-combo-value {
+	border: 1px solid var(--light-gray);
+	border-radius: 4px;
+	font-family: var(--font-monospaced);
+	font-size: 130%;
+	padding: 4px 10px;
+}
+
+.signaly-keys-item-combo {
+	font-family: var(--font-monospaced);
+	margin-right: 8px;
+}

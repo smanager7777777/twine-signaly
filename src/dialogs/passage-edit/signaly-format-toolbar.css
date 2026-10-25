@@ -113,3 +113,15 @@
 	gap: var(--grid-size);
 	margin: var(--grid-size) 0;
 }
+
+/* СИГНАЛЫ, шаг 3.3: вложенный список действий («Если», «Через N секунд»). */
+.signaly-action-list.nested {
+	border-left: 3px solid var(--light-gray);
+	margin: 0 0 var(--grid-size);
+	padding-left: var(--grid-size);
+}
+
+h5.signaly-block-subtitle {
+	font-size: 90%;
+	margin: var(--grid-size) 0 calc(var(--grid-size) / 2);
+}

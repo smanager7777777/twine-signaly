@@ -1,0 +1,70 @@
+// Код горячих клавиш шаблона 27_03_2025 (сборка 12) — для проверки переноса.
+/* ===== СИГНАЛЫ: конец движка терминала ===== */
+
+
+/* ===== Горячие клавиши мастера ===== */
+(function() {
+    var zPressed = false;
+
+
+      // Переменные для громкости звуков (диапазон от 0.0 до 1.0)
+    var soundAVolume = 1.0; // Громкость для Shift + Z + A (100%)
+    var soundBVolume = 1.0; // Громкость для Shift + Z + C (100%)
+
+    // Предварительная загрузка звуков для комбинаций клавиш
+    var soundA = new Audio("media/audio/msgsoundA.wav");
+    soundA.preload = "auto";
+    var soundB = new Audio("media/audio/click3.wav");
+    soundB.preload = "auto";
+      var soundC = new Audio("media/audio/radiovinyl.wav");
+    soundC.preload = "auto";
+
+
+
+      document.addEventListener('keydown', function(event) {
+        if (event.key.toLowerCase() === 'z') {
+            zPressed = true;
+        }
+        if (event.shiftKey && zPressed) {
+            switch (event.key.toLowerCase()) {
+                case 'a':
+                    Dialog.create("Мастерское сообщение");
+                    Dialog.wikiPassage("showPSGinfo");
+                    Dialog.open();
+                    // Воспроизведение звука для Shift + Z + A
+soundA.volume = soundAVolume;
+soundA.currentTime = 0;
+soundA.play().catch(function(error) {
+console.error("Ошибка", error);
+                    });
+                    break;
+
+
+                case 'b':
+                    Engine.play("gotoPSG");
+// Воспроизведение звука для Shift + Z + B
+soundB.volume = soundBVolume;
+soundB.currentTime = 0;
+soundB.play().catch(function(error) {
+console.error("Ошибка", error);
+});
+                    break;
+
+case 'c':
+soundC.play().catch(function(error) {
+console.error("Ошибка", error);
+});
+break;
+            }
+        }
+    });
+
+    document.addEventListener('keyup', function(event) {
+        if (event.key.toLowerCase() === 'z') {
+            zPressed = false;
+        }
+    });
+})();
+
+
+/* ===== Цвета кнопок и ссылок ===== */

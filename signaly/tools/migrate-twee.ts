@@ -11,7 +11,8 @@
 // (сессия 6). С шага 2.2 — звуки наведения и нажатия шаблона → наборы, звуковые
 // команды StoryInit → раздел окна «Звуки». С шага 2.3 — таймеры и иллюминатор
 // шаблона → блоки «Таймер» и «Цепочка видео». С шага 3.2 — окна-сообщения,
-// открытые кодом <<script>> в ссылках, → действие <<sg-open>>.
+// открытые кодом <<script>> в ссылках, → действие <<sg-open>>. С шага 3.3 —
+// код горячих клавиш шаблона → пассаж «Горячие клавиши» (тег sg-keys).
 
 import {readFileSync, writeFileSync} from 'fs';
 import {
@@ -29,6 +30,7 @@ import {movePlacesInTexts, withoutPlaces} from '../../src/util/signaly/signaly-p
 import {findAudioInit, readSounds, templateSounds, withAudioInit} from '../../src/util/signaly/signaly-sounds';
 import {moveTemplateTimers} from '../../src/util/signaly/signaly-timers';
 import {moveScriptDialogs} from '../../src/util/signaly/signaly-actions';
+import {freeSpot, keysPassageName, keysTag, moveTemplateKeys} from '../../src/util/signaly/signaly-keys';
 
 function section(source: string, header: RegExp) {
 	const match = header.exec(source);
@@ -181,6 +183,35 @@ if (init && findAudioInit(init.text).ranges.length) {
 	}
 	twee = chunks.join('');
 	result.moved.push(...timers.moved);
+}
+
+// Горячие клавиши (шаг 3.3) — пассажем «Горячие клавиши».
+{
+	const script = section(twee, scriptHeader)!;
+	const heads = [...twee.matchAll(/^:: ((?:\\.|[^\\[{\n])*?)\s*(?:\[([^\]]*)\])?\s*(\{[^\n]*\})?\s*$/gm)];
+	const passages = heads.map(h => ({name: h[1], tags: (h[2] ?? '').split(/\s+/).filter(Boolean)}));
+	const keys = moveTemplateKeys(script.text, passages);
+
+	if (keys) {
+		const spots = heads
+			.map(h => {
+				try {
+					const meta = JSON.parse(h[3] ?? '{}');
+					const [left, top] = String(meta.position ?? '0,0').split(',').map(Number);
+					const [width] = String(meta.size ?? '100,100').split(',').map(Number);
+
+					return {left, top, width};
+				} catch {
+					return {left: 0, top: 0, width: 100};
+				}
+			});
+		const {left, top} = freeSpot(spots);
+		const chunk = `:: ${keysPassageName} [${keysTag}] {"position":"${left},${top}","size":"100,100"}\n${keys.text}\n\n\n`;
+
+		twee = replaceSection(twee, script, keys.script.replace(/\s+$/, ''), script.to >= twee.length);
+		twee = twee.replace(scriptHeader, header => chunk + header);
+		result.moved.push('горячие клавиши шаблона → пассаж «Горячие клавиши»');
+	}
 }
 
 writeFileSync(output, twee);

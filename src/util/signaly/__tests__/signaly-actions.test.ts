@@ -1,7 +1,9 @@
 import {readFileSync} from 'fs';
 import {join} from 'path';
 import {
+	Action,
 	findLinks,
+	IfAction,
 	fitsMarkup,
 	moveScriptDialogs,
 	parseAction,
@@ -115,14 +117,14 @@ describe('действия ссылок и кнопок', () => {
 	it('ссылки шаблона понимаются формой', () => {
 		const buttons = findLinks(passage('audiobuttons'));
 
-		// РАД и АТМ — переключатель <<if>> (код), A–E — громкость.
+		// РАД и АТМ — переключатель «если … то … иначе» (шаг 3.3), A–E — громкость.
 		expect(buttons.map(b => b.label)).toEqual(['РАД', 'АТМ', 'A', 'B', 'C', 'D', 'E']);
-		expect(buttons[0].actions.map(a => a.type)).toEqual(['code']);
+		expect(buttons[0].actions.map(a => a.type)).toEqual(['if']);
 		expect(buttons.slice(2).every(b => b.actions.length === 1 && b.actions[0].type === 'audio')).toBe(true);
 
 		const radio = findLinks(passage('radio'));
 
-		expect(radio[0].actions.map(a => a.type)).toEqual(['audio', 'audio', 'code', 'set']);
+		expect(radio[0].actions.map(a => a.type)).toEqual(['audio', 'audio', 'delay', 'set']);
 		expect(radio[radio.length - 1]).toMatchObject({markup: true, label: 'Назад', passage: 'Start'});
 
 		const prcd = findLinks(passage('PRCDTEST'));
@@ -132,6 +134,81 @@ describe('действия ссылок и кнопок', () => {
 			{type: 'set', name: 'PRCD', value: 1},
 			{type: 'dialog', title: 'Процедура 001', passage: 'PRCDRESULT'}
 		]);
+	});
+
+	it('шаг 3.3: «если … то … иначе», «через N секунд», «звук-сигнал»', () => {
+		const rad = findLinks(passage('audiobuttons'))[0];
+		const toggle = rad.actions[0] as IfAction;
+
+		expect(toggle).toMatchObject({type: 'if', expr: '$radioplaying is 1', multiline: true});
+		expect(toggle.then.map(a => a.type)).toEqual(['set', 'audio']);
+		expect(toggle.else!.map(a => a.type)).toEqual(['set', 'set', 'audio', 'audio']);
+
+		// Записанное формой заново (без «как было») совпадает с текстом шаблона.
+		const fresh = (a: Action): Action => {
+			const copy = {...a, raw: undefined} as Action;
+
+			if (copy.type === 'if') {
+				copy.then = copy.then.map(fresh);
+				copy.else = copy.else?.map(fresh);
+			}
+			if (copy.type === 'delay') {
+				copy.actions = copy.actions.map(fresh);
+			}
+			return copy;
+		};
+
+		for (const name of ['audiobuttons', 'radio']) {
+			const text = passage(name);
+
+			for (const link of findLinks(text)) {
+				if (link.actions.some(a => a.type === 'if' || a.type === 'delay')) {
+					expect(writeAction(fresh(link.actions.find(a => a.type === 'if' || a.type === 'delay')!))).toBe(
+						link.actions.find(a => a.type === 'if' || a.type === 'delay')!.raw
+					);
+				}
+			}
+		}
+
+		const tracks = findLinks(passage('radio')).filter(l => l.label?.startsWith('Трек'));
+
+		expect(tracks).toHaveLength(3);
+		for (const track of tracks) {
+			expect(track.actions.map(a => a.type)).toEqual(['set', 'set', 'audio', 'audio', 'audio', 'delay']);
+			expect(track.actions[5]).toMatchObject({type: 'delay', seconds: 8, actions: [{type: 'audio', act: 'play'}]});
+		}
+
+		expect(parseAction('<<timed 500ms>><<set $a to 1>><</timed>>')).toMatchObject({type: 'delay', seconds: 0.5});
+		expect(parseAction('<<timed 1s t8n>>x<</timed>>').type).toBe('code');
+		expect(parseAction('<<timed 1s>>a<<next>>b<</timed>>').type).toBe('code');
+		expect(parseAction('<<if $a>>x<<elseif $b>>y<</if>>').type).toBe('code');
+		expect(
+			writeAction({
+				type: 'delay',
+				seconds: 2,
+				multiline: false,
+				actions: [{type: 'set', name: 'a', op: 'to', value: 1}]
+			})
+		).toBe('<<timed 2s>><<set $a to 1>><</timed>>');
+		expect(
+			writeAction({
+				type: 'if',
+				expr: '$chapter is 2',
+				multiline: false,
+				then: [{type: 'set', name: 'a', op: 'to', value: 1}],
+				else: [{type: 'signal', src: 'media/audio/x.wav', volume: 100, keep: false}]
+			})
+		).toBe('<<if $chapter is 2>><<set $a to 1>><<else>><<sg-sound "media/audio/x.wav" volume 100>><</if>>');
+
+		expect(parseAction('<<sg-sound "media/audio/radiovinyl.wav" volume 100 keep>>')).toMatchObject({
+			type: 'signal',
+			src: 'media/audio/radiovinyl.wav',
+			volume: 100,
+			keep: true
+		});
+		expect(parseAction('<<sg-sound "a.wav">>')).toMatchObject({type: 'signal', volume: 100, keep: false});
+		expect(writeAction({type: 'signal', src: 'a.wav', volume: 40, keep: true})).toBe('<<sg-sound "a.wav" volume 40 keep>>');
+		expect(parseAction('<<sg-sound "a.wav" loud>>').type).toBe('code');
 	});
 
 	it('[[…]] остаётся разметкой, пока хватает', () => {

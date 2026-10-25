@@ -112,34 +112,15 @@ const ValueInput: React.FC<{
 
 /* ----- Условие ----- */
 
-export const ConditionForm: React.FC<{
-	cond: Condition;
-	text: string;
-	onText: (text: string) => void;
+/** Строки условий: переменная, «включена / равна / …», значение; «все / хотя бы одно». */
+export const CondRows: React.FC<{
+	conds: Cond[];
+	join: 'and' | 'or';
+	onChange: (conds: Cond[], join: 'and' | 'or') => void;
 	variables: KnownVariable[];
-}> = ({cond, onText, text, variables}) => {
+}> = ({conds, join: currentJoin, onChange, variables}) => {
 	const l = useL();
-
-	if (!cond.conds) {
-		return (
-			<>
-				<div className="signaly-field-hint">{l('cond.code')}</div>
-				<TextField
-					label={l('cond.expr')}
-					onChange={expr => onText(replaceConditionHead(text, cond, expr))}
-					value={cond.expr}
-				/>
-				<CheckField
-					label={l('cond.else')}
-					onChange={on => onText(setConditionElse(text, cond, on, l('cond.elseSample')))}
-					value={cond.elseFrom !== undefined}
-				/>
-			</>
-		);
-	}
-
-	const conds = cond.conds;
-	const write = (next: Cond[], join = cond.join) => onText(replaceConditionHead(text, cond, writeExpr(next, join)));
+	const write = (next: Cond[], join = currentJoin) => onChange(next, join);
 	const change = (index: number, c: Partial<Cond>) =>
 		write(conds.map((x, i) => (i === index ? {...x, ...c} : x)));
 
@@ -205,9 +186,47 @@ export const ConditionForm: React.FC<{
 						{label: l('cond.and'), value: 'and'},
 						{label: l('cond.or'), value: 'or'}
 					]}
-					value={cond.join}
+					value={currentJoin}
 				/>
 			)}
+		</>
+	);
+};
+
+export const ConditionForm: React.FC<{
+	cond: Condition;
+	text: string;
+	onText: (text: string) => void;
+	variables: KnownVariable[];
+}> = ({cond, onText, text, variables}) => {
+	const l = useL();
+
+	if (!cond.conds) {
+		return (
+			<>
+				<div className="signaly-field-hint">{l('cond.code')}</div>
+				<TextField
+					label={l('cond.expr')}
+					onChange={expr => onText(replaceConditionHead(text, cond, expr))}
+					value={cond.expr}
+				/>
+				<CheckField
+					label={l('cond.else')}
+					onChange={on => onText(setConditionElse(text, cond, on, l('cond.elseSample')))}
+					value={cond.elseFrom !== undefined}
+				/>
+			</>
+		);
+	}
+
+	return (
+		<>
+			<CondRows
+				conds={cond.conds}
+				join={cond.join}
+				onChange={(next, join) => onText(replaceConditionHead(text, cond, writeExpr(next, join)))}
+				variables={variables}
+			/>
 			<CheckField
 				hint={l('cond.elseHint')}
 				label={l('cond.else')}

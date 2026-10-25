@@ -2,6 +2,7 @@ import * as React from 'react';
 import {ButtonBar} from '../../../../components/container/button-bar';
 import {RenameStoryButton} from '../../../../components/story/rename-story-button';
 import {SignalyAppearanceButton} from '../../../../dialogs/signaly-appearance';
+import {SignalyKeysButton} from '../../../../dialogs/signaly-keys';
 import {SignalyKindsButton} from '../../../../dialogs/signaly-kinds';
 import {SignalySoundsButton} from '../../../../dialogs/signaly-sounds';
 import {SignalyVariablesButton} from '../../../../dialogs/signaly-variables';
@@ -36,6 +37,7 @@ export const StoryActions: React.FC<StoryActionsProps> = props => {
 			<SignalyKindsButton story={story} />
 			<SignalySoundsButton story={story} />
 			<SignalyVariablesButton story={story} />
+			<SignalyKeysButton story={story} />
 		</ButtonBar>
 	);
 };

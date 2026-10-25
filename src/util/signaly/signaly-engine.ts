@@ -23,7 +23,10 @@
 //   нажимаются после допечатки, «тени» глитча печатаются вместе с текстом;
 // - шаг 2.2: звуки наведения и нажатия по наборам (setup.signalySounds);
 // - шаг 2.3: таймеры <<sg-timer>> (идут в фоне, переживают сбой) и цепочка
-//   видео <<sg-chain>>.
+//   видео <<sg-chain>>;
+// - шаг 3.2: <<sg-open>>, <<sg-timer-stop>>;
+// - шаг 3.3: горячие клавиши мастера <<sg-key>> (пассаж с тегом sg-keys) и
+//   звук-сигнал <<sg-sound>>.
 //
 // Код написан без обратных кавычек и без «${», потому что хранится в шаблонной
 // строке.
@@ -35,7 +38,7 @@ import {timerDefaults} from './signaly-screen-blocks';
 const glitchBase = [...glitchRules(defaultGlitch, ':where(.glitchy)'), glitchKeyframes].join('\n');
 
 /** Версия движка. Увеличивать при каждом изменении кода ниже. */
-export const signalyEngineVersion = 7;
+export const signalyEngineVersion = 8;
 
 export const signalyEngineStart =
 	'/* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */';
@@ -1842,7 +1845,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		});
 	}
 
-	/* ----- Новая игра: Shift+Z+N ----- */
+	/* ----- Новая игра: Shift+Z+N (клавиши можно поменять, шаг 3.3) ----- */
 
 	function newGame() {
 		stopped = true;
@@ -1877,29 +1880,271 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		Dialog.open();
 	}
 
-	var zDown = false;
+	/* ----- Горячие клавиши мастера (шаг 3.3) ----- */
 
-	document.addEventListener('keydown', function (ev) {
-		if (ev.code === 'KeyZ') {
-			zDown = true;
-		}
-		if (zDown && ev.shiftKey && ev.code === 'KeyN') {
-			ev.preventDefault();
-			askNewGame();
-		}
-		// Shift+Z+X — мастер закрывает экран тревоги.
-		if (zDown && ev.shiftKey && ev.code === 'KeyX') {
-			ev.preventDefault();
-			setup.signaly.closeAlarm();
+	// Таблица — пассаж с тегом sg-keys («Горячие клавиши»):
+	//   <<sg-key "Shift+Z+A" "Подпись" [goto "Экран"] [ask]>>действия<</sg-key>>
+	//   <<sg-key "Shift+Z+N" "Новая игра" builtin newgame>><</sg-key>>
+	// Удерживать Z и нажать Shift + букву или цифру. Встроенные «новая игра»
+	// (Shift+Z+N) и «закрыть тревогу» (Shift+Z+X) можно перевести на другие
+	// клавиши (ответ 6Б). Комбинация срабатывает и в поле ввода, а Z и буква в
+	// поле не попадают (ответ 5Б).
+	var keyTable = null;
+	var keyCollect = null;
+
+	Macro.add('sg-key', {
+		tags: null,
+		handler: function () {
+			if (!keyCollect) {
+				return;
+			}
+
+			var a = blockArgs(this, ['combo', 'label'], ['goto', 'builtin'], ['ask']);
+
+			keyCollect.push({
+				combo: comboName(a.combo),
+				label: a.label === undefined ? '' : String(a.label),
+				goto: a.goto === undefined ? '' : String(a.goto),
+				builtin: a.builtin === undefined ? '' : String(a.builtin),
+				ask: a.ask === true,
+				code: this.payload[0].contents
+			});
 		}
 	});
+
+	function comboName(combo) {
+		return String(combo || '').replace(/\s+/g, '').toUpperCase();
+	}
+
+	function keys() {
+		if (keyTable) {
+			return keyTable;
+		}
+		keyTable = [];
+		keyCollect = keyTable;
+		Story.filter(function (p) {
+			return p.tags.indexOf('sg-keys') !== -1;
+		}).forEach(function (p) {
+			try {
+				new Wikifier(document.createDocumentFragment(), p.text);
+			} catch (e) {
+				console.error('СИГНАЛЫ: горячие клавиши', e);
+			}
+		});
+		keyCollect = null;
+
+		var builtins = {newgame: 'SHIFT+Z+N', alarm: 'SHIFT+Z+X'};
+
+		keyTable.forEach(function (k) {
+			if (builtins[k.builtin]) {
+				builtins[k.builtin] = '';
+			}
+		});
+		// Встроенных нет в таблице — они на своих местах.
+		Object.keys(builtins).forEach(function (name) {
+			if (builtins[name]) {
+				keyTable.push({combo: builtins[name], builtin: name, code: ''});
+			}
+		});
+		return keyTable;
+	}
+
+	function confirmKey(label, then) {
+		Dialog.create(label || 'Горячая клавиша');
+
+		var body = $(Dialog.body());
+
+		$('<p></p>')
+			.text('Выполнить «' + (label || 'горячая клавиша') + '»?')
+			.appendTo(body);
+		$('<button type="button" class="sg-key-yes"></button>')
+			.text('Да')
+			.on('click', function () {
+				Dialog.close();
+				then();
+			})
+			.appendTo(body);
+		body.append(' ');
+		$('<button type="button" class="sg-key-no"></button>')
+			.text('Нет')
+			.on('click', function () {
+				Dialog.close();
+			})
+			.appendTo(body);
+		Dialog.open();
+	}
+
+	function runKey(k) {
+		if (k.builtin === 'newgame') {
+			askNewGame();
+			return;
+		}
+		if (k.builtin === 'alarm') {
+			setup.signaly.closeAlarm();
+			return;
+		}
+
+		var run = function () {
+			try {
+				if (k.code.trim() !== '') {
+					Wikifier.wikifyEval(k.code);
+				}
+			} catch (e) {
+				console.error('СИГНАЛЫ: горячая клавиша ' + k.combo, e);
+			}
+			if (k.goto) {
+				Engine.play(k.goto);
+			} else {
+				afterAction();
+			}
+		};
+
+		if (k.ask) {
+			confirmKey(k.label, run);
+		} else {
+			run();
+		}
+	}
+
+	var zDown = false;
+	var zInput = null;
+
+	function editable(el) {
+		return (
+			el &&
+			(el.tagName === 'TEXTAREA' ||
+				(el.tagName === 'INPUT' && /^(text|password|search|email|url|tel|number|)$/i.test(el.type || '')))
+		);
+	}
+
+	// Что было в поле до нажатия Z: если Z окажется частью комбинации, поле
+	// возвращается к этому виду (и переменная поля тоже).
+	function restoreInput() {
+		var snap = zInput;
+
+		zInput = null;
+		if (!snap || !snap.el.isConnected || snap.el.value === snap.value) {
+			return;
+		}
+		snap.el.value = snap.value;
+		try {
+			snap.el.setSelectionRange(snap.start, snap.end);
+		} catch (e) {
+			/* У поля нет выделения. */
+		}
+		snap.el.dispatchEvent(new Event('input', {bubbles: true}));
+	}
+
+	document.addEventListener(
+		'keydown',
+		function (ev) {
+			if (ev.code === 'KeyZ') {
+				if (!zDown && editable(ev.target)) {
+					zInput = {
+						el: ev.target,
+						value: ev.target.value,
+						start: ev.target.selectionStart,
+						end: ev.target.selectionEnd
+					};
+				}
+				zDown = true;
+				return;
+			}
+			if (!zDown || !ev.shiftKey || ev.ctrlKey || ev.altKey || ev.metaKey) {
+				return;
+			}
+
+			var m = /^(?:Key([A-Z])|Digit([0-9]))$/.exec(ev.code);
+
+			if (!m) {
+				return;
+			}
+
+			var combo = 'SHIFT+Z+' + (m[1] || m[2]);
+			var found = null;
+
+			keys().forEach(function (k) {
+				if (!found && k.combo === combo) {
+					found = k;
+				}
+			});
+			if (!found) {
+				return;
+			}
+			ev.preventDefault();
+			ev.stopPropagation();
+			restoreInput();
+			if (ev.repeat || !started) {
+				return;
+			}
+			runKey(found);
+		},
+		true
+	);
 	document.addEventListener('keyup', function (ev) {
 		if (ev.code === 'KeyZ') {
 			zDown = false;
+			zInput = null;
 		}
 	});
 	window.addEventListener('blur', function () {
 		zDown = false;
+		zInput = null;
+	});
+
+	/* ----- Звук-сигнал (шаг 3.3, ответ 3А) ----- */
+
+	// <<sg-sound "media/audio/x.wav" volume 100 [keep]>> — отдельный звук мимо
+	// SimpleAudio: его не задевают кнопки A–E, пауза и громкость групп.
+	// keep — не начинать заново, если ещё звучит.
+	var signalAudio = {};
+
+	function signalFor(src) {
+		if (!signalAudio[src]) {
+			var audio = new Audio(src);
+
+			audio.preload = 'auto';
+			audio.sgUi = true;
+			signalAudio[src] = audio;
+		}
+		return signalAudio[src];
+	}
+
+	Macro.add('sg-sound', {
+		handler: function () {
+			var a = blockArgs(this, ['src'], ['volume'], ['keep']);
+
+			if (!a.src || !uiSoundOn()) {
+				return;
+			}
+
+			var audio = signalFor(String(a.src));
+			var volume = a.volume === undefined ? 100 : Number(a.volume);
+
+			audio.volume = Math.max(0, Math.min(1, (isNaN(volume) ? 100 : volume) / 100));
+			if (!a.keep) {
+				audio.currentTime = 0;
+			}
+			audio.play().catch(function (e) {
+				console.error('СИГНАЛЫ: звук-сигнал', e);
+			});
+		}
+	});
+
+	// Файлы звуков-сигналов загружаются заранее, как в коде шаблона.
+	$(document).one(':passagestart', function () {
+		var re = /<<sg-sound\s+(["'])((?:\\.|(?!\1).)*)\1/g;
+
+		Story.filter(function () {
+			return true;
+		}).forEach(function (p) {
+			var m;
+
+			re.lastIndex = 0;
+			while ((m = re.exec(p.text))) {
+				signalFor(m[2]);
+			}
+		});
 	});
 
 	/* ----- Стартовый экран ----- */

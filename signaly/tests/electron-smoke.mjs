@@ -465,6 +465,10 @@ if (twee) {
 	await toEnd();
 	await addBlock('Цепочка видео (иллюминатор)');
 	check('цепочка видео: вставлена с двумя шагами', (await cmValue()).endsWith('<<sg-chain width 1000 height 1000>>\n<<sg-step "" next click loop muted>>\n<<sg-step "" next end>>\n<</sg-chain>>') && (await panel().locator('strong').textContent()) === 'Цепочка видео', (await cmValue()).slice(-140));
+	// Сначала снять фокус с редактора: сохранение текста меняет дату в окне
+	// «Подробности» над пассажем, и форма сдвигается (см. «Не показывать табло»).
+	await win.evaluate(() => document.activeElement && document.activeElement.blur());
+	await win.waitForTimeout(400);
 	await panel().getByRole('button', {name: 'Добавить шаг'}).click();
 	await win.waitForTimeout(300);
 	await panel().getByLabel('Цепочка заканчивается').selectOption('time');
@@ -595,7 +599,7 @@ if (twee) {
 	await btn(/^Закрыть$/).last().click();
 
 	const saved3 = fs.readFileSync(path.join(lib, fs.readdirSync(lib).find(f => f.startsWith('27_03_2025'))), 'utf8');
-	check('история: движок 7, KR2 в движке, оформление окон и эффектов', saved3.includes('Версия движка: 7') && saved3.includes('код окна KR2 перенесён в движок') && saved3.includes('#ui-dialog {') && saved3.includes('--sg-type-click: 1;') && saved3.includes('html .glitchy::after') && (saved3.includes('&lt;&lt;kr2layout 50 65&gt;&gt;') || saved3.includes('<<kr2layout 50 65>>')));
+	check('история: движок 8, KR2 в движке, оформление окон и эффектов', saved3.includes('Версия движка: 8') && saved3.includes('код окна KR2 перенесён в движок') && saved3.includes('#ui-dialog {') && saved3.includes('--sg-type-click: 1;') && saved3.includes('html .glitchy::after') && (saved3.includes('&lt;&lt;kr2layout 50 65&gt;&gt;') || saved3.includes('<<kr2layout 50 65>>')));
 	check('история: звуки шаблона стали наборами, кода звуков нет', saved3.includes('setup.signalySounds') && saved3.includes('звуки наведения и нажатия перенесены в наборы') && !saved3.includes('var hoverSounds'));
 
 	// Шаг 2.2: окно «Виды кнопок и ссылок» → «Звуки».

@@ -8,10 +8,14 @@
 //   открыть окно         — <<sg-open "Заголовок" passage "Экран">>текст<</sg-open>>
 //   запустить таймер     — <<sg-timer "Имя" minutes 1 goto "Экран" hidden>>
 //   остановить таймер    — <<sg-timer-stop "Имя">>
+//   звук-сигнал          — <<sg-sound "media/audio/x.wav" volume 100 [keep]>> (шаг 3.3)
+//   если … то … иначе    — <<if $x is 1>>действия<<else>>действия<</if>> (шаг 3.3)
+//   через N секунд       — <<timed 8s>>действия<</timed>> (шаг 3.3)
 // Чего форма не понимает, остаётся строкой «код» как есть. Нетронутое действие
 // записывается дословно (raw), поэтому открыть и закрыть форму ничего не меняет.
 
 import {arg, markupSafe, parseMarkup, plain} from './signaly-link-form';
+import {findConditions} from './signaly-logic';
 import {findBlocks, findClose, scanArgs, Values, writeBlockHead} from './signaly-screen-blocks';
 import {literal, parseLiteral, VarValue} from './signaly-variables';
 
@@ -86,7 +90,50 @@ export interface CodeAction {
 	raw?: string;
 }
 
-export type Action = SetAction | AudioAction | DialogAction | TimerAction | TimerStopAction | CodeAction;
+/**
+ * Звук-сигнал (шаг 3.3, ответ 3А): файл из папки игры мимо групп и громкости
+ * A–E. keep — не начинать заново, если ещё звучит.
+ */
+export interface SignalAction {
+	type: 'signal';
+	src: string;
+	/** Громкость 0–100 %. */
+	volume: number;
+	keep: boolean;
+	raw?: string;
+}
+
+/** «Если … то … иначе …» (шаг 3.3, ответ 7А). */
+export interface IfAction {
+	type: 'if';
+	/** Условие, как написано после if. */
+	expr: string;
+	then: Action[];
+	/** «Иначе»; undefined — его нет. */
+	else?: Action[];
+	multiline: boolean;
+	raw?: string;
+}
+
+/** «Через N секунд» (шаг 3.3, ответ 7А) — <<timed>>. */
+export interface DelayAction {
+	type: 'delay';
+	seconds: number;
+	actions: Action[];
+	multiline: boolean;
+	raw?: string;
+}
+
+export type Action =
+	| SetAction
+	| AudioAction
+	| SignalAction
+	| DialogAction
+	| TimerAction
+	| TimerStopAction
+	| IfAction
+	| DelayAction
+	| CodeAction;
 export type ActionType = Action['type'];
 
 /* ----- Разбор действий ----- */
@@ -342,14 +389,110 @@ function parseTimer(piece: string): TimerAction | TimerStopAction | undefined {
 	return {type: 'timer', values: block.values, extra: block.extra, raw: piece};
 }
 
+function parseSignal(piece: string): SignalAction | undefined {
+	if (!/^<<sg-sound\s/.test(piece)) {
+		return undefined;
+	}
+
+	const head = scanArgs(piece, '<<sg-sound'.length);
+	const src = head && plain(head.tokens[0]);
+
+	if (!head || head.end !== piece.length || src === undefined) {
+		return undefined;
+	}
+
+	const result: SignalAction = {type: 'signal', src, volume: 100, keep: false, raw: piece};
+	const words = head.tokens.slice(1);
+
+	while (words.length) {
+		const word = words.shift();
+
+		if (word === 'keep') {
+			result.keep = true;
+		} else if (word === 'volume' && words.length && isFinite(Number(words[0]))) {
+			result.volume = Number(words.shift());
+		} else {
+			return undefined;
+		}
+	}
+	return result;
+}
+
+function parseIf(piece: string): IfAction | undefined {
+	if (!/^<<if\s/.test(piece)) {
+		return undefined;
+	}
+
+	const cond = findConditions(piece).find(c => c.from === 0);
+
+	if (!cond || cond.to !== piece.length) {
+		return undefined;
+	}
+
+	const end = piece.length - '<</if>>'.length;
+
+	return {
+		type: 'if',
+		expr: cond.expr,
+		then: splitBody(piece.slice(cond.contentFrom, cond.contentTo)).map(parseAction),
+		...(cond.elseContentFrom !== undefined
+			? {else: splitBody(piece.slice(cond.elseContentFrom, end)).map(parseAction)}
+			: {}),
+		multiline: piece.includes('\n'),
+		raw: piece
+	};
+}
+
+/** Время <<timed>> в секундах: 8s, 1.5s, 500ms; undefined — не понять. */
+export function timeSeconds(word: string) {
+	const m = /^(\d+(?:\.\d+)?|\.\d+)(ms|s)$/i.exec(word);
+
+	return m ? Number(m[1]) / (m[2].toLowerCase() === 'ms' ? 1000 : 1) : undefined;
+}
+
+function parseDelay(piece: string): DelayAction | undefined {
+	if (!/^<<timed\s/.test(piece)) {
+		return undefined;
+	}
+
+	const head = scanArgs(piece, '<<timed'.length);
+	const close = head && findClose(piece, 'timed', head.end);
+	const seconds = head && head.tokens.length === 1 ? timeSeconds(head.tokens[0]) : undefined;
+
+	if (!head || !close || close.end !== piece.length || seconds === undefined) {
+		return undefined;
+	}
+
+	const pieces = splitBody(piece.slice(head.end, close.at));
+
+	// <<next>> — цепочка «через N, потом через M» — пока строкой «Код».
+	if (pieces.some(p => /^<<next[\s>]/.test(p))) {
+		return undefined;
+	}
+	return {type: 'delay', seconds, actions: pieces.map(parseAction), multiline: piece.includes('\n'), raw: piece};
+}
+
 /** Одна команда (или кусок кода) внутри ссылки → действие. */
 export function parseAction(piece: string): Action {
 	return (
 		parseSet(piece) ??
 		parseAudio(piece) ??
+		parseSignal(piece) ??
 		parseDialog(piece) ??
-		parseTimer(piece) ?? {type: 'code', code: piece, raw: piece}
+		parseTimer(piece) ??
+		parseIf(piece) ??
+		parseDelay(piece) ?? {type: 'code', code: piece, raw: piece}
 	);
+}
+
+/** Список действий в тексте: по одному на строке или подряд. */
+export function writeActions(actions: Action[], multiline: boolean) {
+	const list = actions.map(writeAction);
+
+	if (multiline || list.length > 1) {
+		return list.length ? `\n${list.join('\n')}\n` : '\n';
+	}
+	return list.join('');
 }
 
 /** Куски тела ссылки: команды (парные — вместе с закрывающей) и прочий текст. */
@@ -463,6 +606,20 @@ export function writeAction(action: Action): string {
 			return writeBlockHead('timer', {...action.values, start: undefined, hidden: true}, action.extra);
 		case 'stop':
 			return `<<sg-timer-stop ${arg(action.name)}>>`;
+		case 'signal':
+			return `<<sg-sound ${arg(action.src)} volume ${Number(action.volume.toFixed(1))}${action.keep ? ' keep' : ''}>>`;
+		case 'if': {
+			const multiline =
+				action.multiline || action.then.length > 1 || (action.else !== undefined && action.else.length > 1);
+
+			return (
+				`<<if ${action.expr.trim()}>>${writeActions(action.then, multiline)}` +
+				(action.else !== undefined ? `<<else>>${writeActions(action.else, multiline)}` : '') +
+				'<</if>>'
+			);
+		}
+		case 'delay':
+			return `<<timed ${Number(action.seconds.toFixed(3))}s>>${writeActions(action.actions, action.multiline)}<</timed>>`;
 		default:
 			return action.code;
 	}
@@ -709,6 +866,12 @@ export function newAction(type: ActionType, variable?: {name: string; type?: str
 			return {type: 'timer', values: {name: 'Таймер', minutes: 1, seconds: 0}, extra: []};
 		case 'stop':
 			return {type: 'stop', name: 'Таймер'};
+		case 'signal':
+			return {type: 'signal', src: '', volume: 100, keep: false};
+		case 'if':
+			return {type: 'if', expr: `$${variable?.name ?? 'x'}`, then: [], multiline: true};
+		case 'delay':
+			return {type: 'delay', seconds: 1, actions: [], multiline: false};
 		default:
 			return {type: 'code', code: ''};
 	}

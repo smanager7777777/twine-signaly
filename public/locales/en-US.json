@@ -1157,7 +1157,10 @@
 				"dialog": "Open dialog",
 				"timer": "Start timer",
 				"stop": "Stop timer",
-				"code": "Code"
+				"code": "Code",
+				"signal": "Signal sound",
+				"if": "If … then … else",
+				"delay": "After N seconds"
 			},
 			"add": "Add action",
 			"addChoose": "Choose…",
@@ -1226,6 +1229,63 @@
 				"setTime": "Seek",
 				"timeHint": "For example 999 — to the end of the track.",
 				"time": "To second"
+			},
+			"noneNested": "Empty — do nothing.",
+			"addNested": "Add an action here",
+			"signal": {
+				"file": "File from the game folder",
+				"volume": "Volume",
+				"keep": "Do not restart if still playing",
+				"keepHint": "Without the tick, pressing again starts the sound from the beginning.",
+				"hint": "Plays on its own: buttons A–E, pause and group volume do not affect it."
+			},
+			"if": {
+				"then": "Then (if the condition holds)",
+				"else": "Else",
+				"otherwise": "Else (if it does not hold)",
+				"confirmNoElse": "Remove “else” together with its actions?"
+			},
+			"delay": {
+				"seconds": "After how many seconds",
+				"then": "Then do",
+				"hint": "If the game moves to another screen before the time is up, these actions are not done (this is how <<timed>> works in SugarCube)."
+			}
+		},
+		"keys": {
+			"button": "Hotkeys",
+			"title": "Hotkeys",
+			"intro": "Game master combinations: hold Z and press Shift + a letter or digit. A combination does what a link can: change variables, play sound, open a window, start a timer, go to a screen.",
+			"fromTemplate": "Combinations from the code in Story JavaScript (Shift+Z+A, B, C) were moved into the table. Press “Save”: the code leaves Story JavaScript and the table becomes the “Горячие клавиши” passage.",
+			"unknownCode": "Story JavaScript has its own hotkey code that was not recognised. It still works — make sure the table does not use the same combinations.",
+			"add": "Add combination",
+			"delete": "Delete",
+			"builtin": "built in",
+			"builtins": {
+				"newgame": "New game",
+				"alarm": "Close alarm screen"
+			},
+			"builtinHints": {
+				"newgame": "Built-in engine command: asks “Start a new game?” and on “Yes” clears the autosave. Cannot be deleted; the combination can be changed.",
+				"alarm": "Built-in engine command: closes an alarm screen that only the game master may close. Cannot be deleted; the combination can be changed."
+			},
+			"noLabel": "(no label)",
+			"newLabel": "New combination",
+			"empty": "No combinations.",
+			"press": "Set by pressing",
+			"pressNow": "Hold Z and press Shift + a letter or digit… (Esc — cancel)",
+			"combo": "Combination",
+			"comboHint": "Choose from the list or press “Set by pressing”.",
+			"duplicateHere": "This combination is already used by another row.",
+			"label": "Label",
+			"labelHint": "For yourself: what the combination does. Players do not see it (except in the “Yes / No” window).",
+			"ask": "Ask before running",
+			"askHint": "Before the actions a window “Run «label»?” with “Yes” and “No” opens.",
+			"hint": "Actions run in order, then the screen changes. The combination works even when the cursor is in an input field: Z and the letter do not get into the field.",
+			"where": "The table is stored in the “{{name}}” passage (tag sg-keys) — it is visible on the map and works in plain Twine.",
+			"confirmDelete": "Delete combination {{combo}}?",
+			"problems": {
+				"combo": "A combination must look like Shift+Z+letter or Shift+Z+digit.",
+				"duplicate": "One combination on several rows: {{combos}}."
 			}
 		}
 	}
