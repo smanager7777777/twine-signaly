@@ -34,6 +34,7 @@ const story = fs.readFileSync(storyPath, 'utf8').replace(/\r\n/g, '\n');
 const test =
 	story
 		.replace(/(:: StoryInit[^\n]*\n)/, '$1<<set $tkProgress to 0>>\n<<set $tkN to 5>>\n')
+		.replace('"start": "Start"', '"start": "TkHome"')
 		.replace(/\s*$/, '\n') +
 	`
 :: Строка событий [sg-ticker] {"position":"0,0","size":"100,100"}
@@ -53,7 +54,7 @@ const twee = path.join(gameDir, 'ticker-test.twee');
 const html = path.join(gameDir, 'ticker-test.html');
 
 fs.writeFileSync(twee, test);
-execFileSync('node', [path.join(here, 'publish-twee.mjs'), twee, html, 'start=TkHome'], {stdio: 'pipe'});
+execFileSync('node', [path.join(here, 'publish-twee.mjs'), twee, html], {stdio: 'pipe'});
 
 const mime = {'.html': 'text/html; charset=utf-8', '.wav': 'audio/wav', '.mp3': 'audio/mpeg', '.jpg': 'image/jpeg', '.png': 'image/png'};
 const serve = dir =>
