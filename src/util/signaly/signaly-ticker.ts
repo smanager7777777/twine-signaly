@@ -3,7 +3,8 @@
 // тегом sg-ticker (виден на карте, правится и в обычном Twine):
 //   <<sg-ticker screen "Start" height 48 size 22 font "Consolas" speed 60
 //     pause 2 hold 8 change 1.5 mode fade order "new,general,seen">>
-//   <<sg-cycle var "$progress" spin 10 rate 20 sound "media/audio/x.wav" volume 100>>
+//   <<sg-cycle var "$progress" spin 10 gap 0.5 from "20,20,20,20,20"
+//     to "2,2,2,2,2" sound "media/audio/x.wav" volume 100>>
 //   <<sg-cycle-at 7 "00487">>                — прогресс 7 = цикл 00487
 //   <<sg-news "ВИП" general priority 1 minutes 10 times 3 color "#ff0000"
 //     bold italic effect blink>>условие<<sg-text>>текст<</sg-news>>
@@ -52,10 +53,14 @@ export interface CycleRow {
 export interface TickerCycle {
 	/** Переменная прогресса без $ ('' — цикла нет). */
 	variable: string;
-	/** Длительность смены цифр, секунды. */
+	/** Через сколько секунд останавливается самая правая цифра. */
 	spin: number;
-	/** Смен цифр в секунду в начале. */
-	rate: number;
+	/** Сколько секунд проходит до остановки каждой следующей цифры левее. */
+	gap: number;
+	/** Скорость каждой из 5 цифр в начале, смен в секунду, слева направо. */
+	from: number[];
+	/** Скорость каждой из 5 цифр к остановке. */
+	to: number[];
 	sound: string;
 	volume: number;
 	rows: CycleRow[];
@@ -98,7 +103,18 @@ export const defaultLine = (screen: string): TickerLine => ({
 	order: defaultOrder
 });
 
-export const defaultCycle: TickerCycle = {variable: '', spin: 10, rate: 20, sound: '', volume: 100, rows: []};
+export const cycleDigits = 5;
+
+export const defaultCycle: TickerCycle = {
+	variable: '',
+	spin: 10,
+	gap: 0.5,
+	from: [20, 20, 20, 20, 20],
+	to: [2, 2, 2, 2, 2],
+	sound: '',
+	volume: 100,
+	rows: []
+};
 
 export function newNews(news: News[]): News {
 	let n = news.length + 1;
@@ -214,6 +230,17 @@ function num(value: string | undefined, fallback: number) {
 	return value === undefined || value === '' || !isFinite(n) ? fallback : n;
 }
 
+/** Скорости пяти цифр: «20,20,20,20,20»; непонятное — значение по умолчанию. */
+function readRates(value: string | undefined, fallback: number[]) {
+	const words = (value ?? '').split(',');
+
+	return fallback.map((rate, i) => {
+		const n = Number(words[i]);
+
+		return words[i] !== undefined && words[i] !== '' && n > 0 ? n : rate;
+	});
+}
+
 function readOrder(value: string | undefined) {
 	const list = (value ?? '').split(',').filter((r): r is NewsRank => defaultOrder.includes(r as NewsRank));
 
@@ -242,11 +269,16 @@ export function readTicker(text: string, startScreen: string): TickerData {
 		line.order = readOrder(values.order);
 	}
 	if (cycleHead) {
-		const {values} = readWords(cycleHead.tokens, ['var', 'spin', 'rate', 'sound', 'volume']);
+		const {values} = readWords(cycleHead.tokens, ['var', 'spin', 'gap', 'from', 'to', 'rate', 'sound', 'volume']);
+		// rate — запись сборок до сессии 15: одна скорость на все цифры,
+		// к концу в 15 раз меньше.
+		const rate = num(values.rate, 0);
 
 		cycle.variable = (values.var ?? '').replace(/^\$/, '');
 		cycle.spin = num(values.spin, cycle.spin);
-		cycle.rate = num(values.rate, cycle.rate);
+		cycle.gap = num(values.gap, cycle.gap);
+		cycle.from = readRates(values.from, rate > 0 ? cycle.from.map(() => rate) : cycle.from);
+		cycle.to = readRates(values.to, rate > 0 ? cycle.to.map(() => Math.max(1, Math.round(rate / 15))) : cycle.to);
 		cycle.sound = values.sound ?? '';
 		cycle.volume = num(values.volume, cycle.volume);
 	}
@@ -330,7 +362,9 @@ function writeCycle(c: TickerCycle) {
 	const words = [
 		`var "$${c.variable}"`,
 		`spin ${c.spin}`,
-		`rate ${c.rate}`,
+		`gap ${c.gap}`,
+		`from "${c.from.join(',')}"`,
+		`to "${c.to.join(',')}"`,
 		...(c.sound ? [`sound ${arg(c.sound)}`, `volume ${c.volume}`] : [])
 	];
 

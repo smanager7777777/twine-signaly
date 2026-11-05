@@ -7,7 +7,7 @@
 
 import * as React from 'react';
 import {useTranslation} from 'react-i18next';
-import {Story, useStoriesContext} from '../../store/stories';
+import {Story, updatePassage, useStoriesContext} from '../../store/stories';
 import {saveStoryWithUpgrade} from '../signaly-upgrade';
 import {useGameFolder} from '../../store/use-game-folder';
 import {
@@ -15,8 +15,18 @@ import {
 	SignalyAppearance,
 	systemFonts,
 	withAppearance,
-	dialogFromAuthor
+	dialogFromAuthor,
+	inputFromAuthor
 } from '../../util/signaly/signaly-appearance';
+import {classUseCount} from '../../util/signaly/signaly-kinds';
+import {
+	screenTag,
+	screenTagPrefix,
+	ScreenView,
+	tagsWithView,
+	textStyleClass,
+	TextStyle
+} from '../../util/signaly/signaly-screens';
 import {folderToFileUrl} from '../../util/signaly/signaly-preview';
 import {
 	CheckField,
@@ -26,6 +36,9 @@ import {
 	TextField
 } from './signaly-appearance-fields';
 import {SignalyAppearancePreview, SignalyPreviewMute} from './signaly-appearance-preview';
+import {ScreenViewsTab, TextStylesTab} from './signaly-screens-tabs';
+import '../signaly-kinds/signaly-kinds.css';
+import '../signaly-sounds/signaly-sounds.css';
 import './signaly-appearance.css';
 
 export interface SignalyAppearanceWindowProps {
@@ -34,6 +47,8 @@ export interface SignalyAppearanceWindowProps {
 }
 
 const startScreenValue = '__sg-start__';
+
+type Tab = 'general' | 'screens' | 'styles';
 
 export const SignalyAppearanceWindow: React.FC<
 	SignalyAppearanceWindowProps
@@ -63,6 +78,9 @@ export const SignalyAppearanceWindow: React.FC<
 	const [sampleDialog, setSampleDialog] = React.useState(0);
 	const [fonts, setFonts] = React.useState<string[]>([]);
 	const [sounds, setSounds] = React.useState<string[]>([]);
+	const [tab, setTab] = React.useState<Tab>('general');
+	const [viewIndex, setViewIndex] = React.useState(0);
+	const [styleIndex, setStyleIndex] = React.useState(0);
 	const folder = gameFolder(story.id);
 
 	React.useEffect(() => {
@@ -71,10 +89,40 @@ export const SignalyAppearanceWindow: React.FC<
 	}, [folder, story.id]); // eslint-disable-line
 
 	const stylesheet = withAppearance(prepared.stylesheet, appearance);
+	const view: ScreenView | undefined = tab === 'screens' ? appearance.screens[viewIndex] : undefined;
+	const textStyle: TextStyle | undefined = tab === 'styles' ? appearance.textStyles[styleIndex] : undefined;
+	const shownId = screen === startScreenValue ? story.startPassage : screen;
+	const sample = t('signaly.textStyles.sample');
+	const styleClass = textStyle ? textStyleClass(textStyle) : '';
+	// Вкладки видов и стилей показывают выбранную заготовку на выбранном экране:
+	// в историю это не записывается.
 	const previewStory = React.useMemo(
-		() => ({...story, script: prepared.script, stylesheet}),
-		[prepared.script, story, stylesheet]
+		() => ({
+			...story,
+			script: prepared.script,
+			stylesheet,
+			passages: story.passages.map(p =>
+				p.id !== shownId
+					? p
+					: view
+					? {...p, tags: tagsWithView(p.tags, view)}
+					: styleClass
+					? {...p, text: `<span class="${styleClass}">${sample}</span>\n\n${p.text}`}
+					: p
+			)
+		}),
+		[prepared.script, sample, shownId, story, styleClass, stylesheet, view]
 	);
+	const shownKey = view ? `view:${view.id}` : styleClass;
+	const firstShow = React.useRef(true);
+
+	React.useEffect(() => {
+		if (firstShow.current) {
+			firstShow.current = false;
+			return;
+		}
+		setRefresh(r => r + 1);
+	}, [shownKey]);
 
 	function change<K extends keyof SignalyAppearance>(
 		key: K,
@@ -99,6 +147,29 @@ export const SignalyAppearanceWindow: React.FC<
 		setSaved(false);
 	}
 
+	// Включая поля ввода, берём значения из правила автора input, textarea.
+	function turnInputs(on: boolean) {
+		setAppearance(current => ({
+			...current,
+			...(on ? inputFromAuthor(prepared.stylesheet) : {}),
+			inputOn: on
+		}));
+		setSaved(false);
+	}
+
+	// Выбрали вид, которым уже пользуется экран, — показать этот экран.
+	function selectView(index: number) {
+		const chosen = appearance.screens[index];
+		const user = chosen && story.passages.find(p => p.tags.includes(screenTag(chosen)));
+
+		setViewIndex(index);
+		if (user && !story.passages.find(p => p.id === shownId)?.tags.includes(screenTag(chosen))) {
+			setScreen(user.id);
+		}
+	}
+
+	const passageTexts = story.passages.map(p => p.text);
+
 	function saveColor(color: string) {
 		if (!appearance.savedColors.includes(color)) {
 			change('savedColors', [...appearance.savedColors, color]);
@@ -116,6 +187,14 @@ export const SignalyAppearanceWindow: React.FC<
 		saveStoryWithUpgrade(dispatch, stories, story, {
 			script: prepared.script,
 			stylesheet
+		});
+		// Удалённые виды экранов: экраны становятся обычными.
+		story.passages.forEach(p => {
+			const known = appearance.screens.find(v => p.tags.includes(screenTag(v)));
+
+			if (!known && p.tags.some(tag => tag.startsWith(screenTagPrefix))) {
+				dispatch(updatePassage(story, p, {tags: tagsWithView(p.tags, undefined)}));
+			}
 		});
 		setSaved(true);
 		setSavedOnce(true);
@@ -217,6 +296,46 @@ export const SignalyAppearanceWindow: React.FC<
 			</header>
 			<div className="signaly-appearance-body">
 				<div className="signaly-appearance-settings">
+					<div className="signaly-tabs" role="tablist">
+						{(['general', 'screens', 'styles'] as const).map(name => (
+							<button
+								aria-selected={tab === name}
+								className="signaly-tab"
+								key={name}
+								onClick={() => setTab(name)}
+								role="tab"
+								type="button"
+							>
+								{t(`signaly.appearance.tabs.${name}`)}
+							</button>
+						))}
+					</div>
+					{tab === 'screens' && (
+						<ScreenViewsTab
+							fonts={fonts}
+							onChange={screens => change('screens', screens)}
+							onSaveColor={saveColor}
+							onSelect={selectView}
+							savedColors={appearance.savedColors}
+							selected={viewIndex}
+							used={id => story.passages.filter(p => p.tags.includes(screenTag({id}))).length}
+							views={appearance.screens}
+						/>
+					)}
+					{tab === 'styles' && (
+						<TextStylesTab
+							fonts={fonts}
+							onChange={styles => change('textStyles', styles)}
+							onSaveColor={saveColor}
+							onSelect={setStyleIndex}
+							savedColors={appearance.savedColors}
+							selected={styleIndex}
+							styles={appearance.textStyles}
+							used={id => classUseCount(textStyleClass({id}), passageTexts)}
+						/>
+					)}
+					{tab === 'general' && (
+					<>
 					{!upToDate && prepared.moved.length === 0 && !savedOnce && (
 						<div className="signaly-notice">
 							{t('signaly.appearance.updated')}
@@ -381,6 +500,37 @@ export const SignalyAppearanceWindow: React.FC<
 					</section>
 
 					<section>
+						<h3>{t('signaly.appearance.sections.inputs')}</h3>
+						<CheckField
+							hint={hint('inputOn')}
+							label={label('inputOn')}
+							onChange={turnInputs}
+							value={appearance.inputOn}
+						/>
+						{appearance.inputOn && (
+							<>
+								{color('inputBg')}
+								{color('inputColor')}
+								{color('inputBorderColor')}
+								{range('inputBorderWidth', 0, 20, px)}
+								{range('inputGlow', 0, 60, px)}
+								<ChoiceField
+									label={label('inputFont')}
+									onChange={value => change('inputFont', value)}
+									options={[
+										{label: t('signaly.appearance.inputFontSame'), value: ''},
+										...systemFonts.map(f => ({label: f, value: f})),
+										...fonts.map(f => ({label: f.replace(/^media\/fonts\//, ''), value: f}))
+									]}
+									value={appearance.inputFont}
+								/>
+								{range('inputSize', 10, 80, px)}
+								{range('inputWidth', 0, 1500, px)}
+							</>
+						)}
+					</section>
+
+					<section>
 						<h3>{t('signaly.appearance.sections.text')}</h3>
 						{check('typeClick')}
 						{check('typeSeen')}
@@ -393,16 +543,20 @@ export const SignalyAppearanceWindow: React.FC<
 						{range('glitchShift', 0, 30, px, 0.5)}
 						{range('glitchSpeed', 0.2, 10, seconds, 0.1)}
 					</section>
+					</>
+					)}
 				</div>
 
 				<div className="signaly-appearance-preview">
 					<div className="signaly-preview-toolbar">
 						<label>
 							{t('signaly.appearance.preview.screen')}{' '}
-							<select onChange={e => setScreen(e.target.value)} value={screen}>
-								<option value={startScreenValue}>
-									{t('signaly.appearance.preview.startScreen')}
-								</option>
+							<select onChange={e => setScreen(e.target.value)} value={tab === 'general' ? screen : shownId}>
+								{tab === 'general' && (
+									<option value={startScreenValue}>
+										{t('signaly.appearance.preview.startScreen')}
+									</option>
+								)}
 								{passages.map(p => (
 									<option key={p.id} value={p.id}>
 										{p.name}
@@ -436,8 +590,8 @@ export const SignalyAppearanceWindow: React.FC<
 					)}
 					<SignalyAppearancePreview
 						baseUrl={folder ? folderToFileUrl(folder) : undefined}
-						mode={screen === startScreenValue ? 'start' : 'passage'}
-						passageId={screen === startScreenValue ? undefined : screen}
+						mode={tab === 'general' && screen === startScreenValue ? 'start' : 'passage'}
+						passageId={tab === 'general' && screen === startScreenValue ? undefined : shownId}
 						refresh={refresh}
 						sampleDialog={sampleDialog}
 						story={previewStory}

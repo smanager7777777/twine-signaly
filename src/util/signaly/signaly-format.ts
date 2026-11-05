@@ -274,6 +274,24 @@ export function kindAt(text: string, from: number, to: number, kinds: string[]) 
  * Назначить вид выделенному. Внутри обёртки другого вида — меняет класс;
  * cls === '' — снимает вид. Без выделения вставляет образец ссылки.
  */
+/** Стиль текста: как вид, но без выделения вставляется образец текста, а не ссылка. */
+export function applyTextStyle(
+	text: string,
+	from: number,
+	to: number,
+	cls: string,
+	styles: string[],
+	sample: string
+): Edit | undefined {
+	if (from !== to || cls === '' || enclosingTag(text, from, to, r => r.classes.some(c => styles.includes(c)))) {
+		return applyKind(text, from, to, cls, styles, '');
+	}
+
+	const open = `<span class="${cls}">`;
+
+	return replace(from, to, `${open}${sample}</span>`, from + open.length, from + open.length + sample.length);
+}
+
 export function applyKind(
 	text: string,
 	from: number,

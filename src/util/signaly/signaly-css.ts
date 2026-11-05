@@ -25,6 +25,23 @@ export interface CssDeclaration {
 	to: number;
 }
 
+/** Строка для CSS: "текст" с экранированием. */
+export function cssString(value: string) {
+	return (
+		'"' +
+		value
+			// eslint-disable-next-line no-control-regex
+			.replace(/[\u0000-\u001f\u007f]/g, ' ')
+			.replace(/\\/g, '\\\\')
+			.replace(/"/g, '\\"') +
+		'"'
+	);
+}
+
+export function cssUrl(path: string) {
+	return `url(${cssString(path)})`;
+}
+
 function skipComment(css: string, at: number) {
 	const end = css.indexOf('*/', at + 2);
 

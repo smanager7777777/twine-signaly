@@ -33,6 +33,8 @@
 // - шаг 3.5: события (пассажи с тегом sg-event, <<sg-event условие>>), свой
 //   счётчик заходов на экраны setup.visits(), коды, введённые сотрудниками,
 //   setup.entered(), «Вернуться на экран, где были» <<sg-back>>;
+// - сессия 15: звук цикла — когда игроки видят счётчик; цифры останавливаются
+//   справа налево, у каждой своя скорость в начале и в конце;
 // - сессия 14: событие ждёт, пока закроют окно-сообщение; шаг 4.1 — строка
 //   событий и цикл на главном экране (пассаж с тегом sg-ticker).
 //
@@ -46,7 +48,7 @@ import {timerDefaults} from './signaly-screen-blocks';
 const glitchBase = [...glitchRules(defaultGlitch, ':where(.glitchy)'), glitchKeyframes].join('\n');
 
 /** Версия движка. Увеличивать при каждом изменении кода ниже. */
-export const signalyEngineVersion = 11;
+export const signalyEngineVersion = 12;
 
 export const signalyEngineStart =
 	'/* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */';
@@ -2084,7 +2086,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	Macro.add('sg-cycle', {
 		handler: function () {
 			if (tickerCollect) {
-				tickerCollect.cycle = blockArgs(this, [], ['var', 'spin', 'rate', 'sound', 'volume'], []);
+				tickerCollect.cycle = blockArgs(this, [], ['var', 'spin', 'gap', 'from', 'to', 'rate', 'sound', 'volume'], []);
 			}
 		}
 	});
@@ -2164,14 +2166,35 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		if (t.cycle) {
 			t.cycle.name = String(t.cycle['var'] || '').replace(/^\$/, '');
 			t.cycle.spin = number(t.cycle.spin, 10);
-			t.cycle.rate = Math.max(1, number(t.cycle.rate, 20));
+			t.cycle.gap = Math.max(0, number(t.cycle.gap, 0.5));
+			// rate — запись сборок до сессии 15: одна скорость в начале на все цифры.
+			var firstRate = number(t.cycle.rate, 20);
+
+			t.cycle.from = digitRates(t.cycle.from, firstRate);
+			t.cycle.to = digitRates(t.cycle.to, t.cycle.rate === undefined ? 2 : Math.max(1, Math.round(firstRate / 15)));
 			t.cycle.volume = number(t.cycle.volume, 100);
+			if (!preview && t.cycle.sound) {
+				signalFor(String(t.cycle.sound));
+			}
 			t.rows.sort(function (x, y) {
 				return x.progress - y.progress;
 			});
 		}
 		tickerTable = t;
 		return t;
+	}
+
+	// Скорости пяти цифр слева направо: «20,20,20,20,20», смен в секунду.
+	function digitRates(list, fallback) {
+		var words = String(list === undefined ? '' : list).split(',');
+		var rates = [];
+
+		for (var i = 0; i < 5; i++) {
+			var rate = Number(words[i]);
+
+			rates.push(words[i] !== undefined && words[i] !== '' && rate > 0 ? rate : Math.max(0.1, fallback));
+		}
+		return rates;
 	}
 
 	function padCycle(value, length) {
@@ -2208,25 +2231,33 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		});
 	}
 
-	// Меняются только разряды, начиная с первого изменившегося слева.
+	// Меняются только разряды, начиная с первого изменившегося слева. Самая
+	// правая цифра останавливается через spin секунд, каждая следующая левее —
+	// ещё через gap секунд. Скорость цифры идёт от from к to за всё её время.
 	function startSpin(from, to, t) {
 		var length = Math.max(from.length, to.length);
 		var a = padCycle(from, length);
 		var b = padCycle(to, length);
 		var first = 0;
+		var cells = [];
+		var duration = Math.max(0, t.cycle.spin) * 1000;
+		var gap = t.cycle.gap * 1000;
 
 		while (first < length && a.charAt(first) === b.charAt(first)) {
 			first++;
 		}
-		tickerSpin = {
-			to: b,
-			digits: a.split(''),
-			first: first,
-			start: performance.now(),
-			next: 0,
-			duration: Math.max(0, t.cycle.spin) * 1000,
-			step: 1000 / t.cycle.rate
-		};
+		for (var i = first; i < length; i++) {
+			var slot = i - length + 5;
+
+			cells.push({
+				index: i,
+				stop: duration + (length - 1 - i) * gap,
+				from: t.cycle.from[slot],
+				to: t.cycle.to[slot],
+				next: 0
+			});
+		}
+		tickerSpin = {to: b, digits: a.split(''), cells: cells, start: performance.now()};
 		showCycle(a);
 	}
 
@@ -2237,26 +2268,40 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			return;
 		}
 
-		var part = spin.duration > 0 ? (now - spin.start) / spin.duration : 1;
+		var elapsed = now - spin.start;
+		var left = 0;
+		var changed = false;
 
-		if (part >= 1) {
+		spin.cells.forEach(function (cell) {
+			if (cell.done) {
+				return;
+			}
+			if (elapsed >= cell.stop) {
+				cell.done = true;
+				spin.digits[cell.index] = spin.to.charAt(cell.index);
+				changed = true;
+				return;
+			}
+			left++;
+			if (now < cell.next) {
+				return;
+			}
+
+			var digit = Math.floor(Math.random() * 9);
+
+			spin.digits[cell.index] = String(digit >= Number(spin.digits[cell.index]) ? digit + 1 : digit);
+			cell.next = now + 1000 / (cell.from + (cell.to - cell.from) * (elapsed / cell.stop));
+			changed = true;
+		});
+		if (changed) {
+			showCycle(spin.digits.join(''));
+		}
+		if (left === 0) {
 			tickerSpin = null;
 			showCycle(spin.to);
 			varObject('sgTicker').seen = spin.to;
 			saveVars();
-			return;
 		}
-		if (now < spin.next) {
-			return;
-		}
-		for (var i = spin.first; i < spin.digits.length; i++) {
-			var digit = Math.floor(Math.random() * 9);
-
-			spin.digits[i] = String(digit >= Number(spin.digits[i]) ? digit + 1 : digit);
-		}
-		showCycle(spin.digits.join(''));
-		// Постепенно замедляется: к концу цифры меняются в 15 раз реже.
-		spin.next = now + spin.step * (1 + 14 * part * part * part);
 	}
 
 	function newsTrue(n) {
@@ -2343,17 +2388,18 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			} else if (store.cycle !== target) {
 				store.cycle = target;
 				changed = true;
-				if (!preview && t.cycle.sound) {
-					var audio = signalFor(String(t.cycle.sound));
-
-					audio.volume = Math.max(0, Math.min(1, t.cycle.volume / 100));
-					audio.currentTime = 0;
-					audio.play().catch(function () {});
-				}
 			}
 			if (tickerStrip && tickerStrip.isConnected) {
 				if (store.seen !== target && (!tickerSpin || tickerSpin.to !== target)) {
 					startSpin(tickerSpin ? tickerNum.textContent : store.seen, target, t);
+					// Звук — когда игроки видят счётчик (ответ 7б, сессия 15).
+					if (!preview && t.cycle.sound) {
+						var audio = signalFor(String(t.cycle.sound));
+
+						audio.volume = Math.max(0, Math.min(1, t.cycle.volume / 100));
+						audio.currentTime = 0;
+						audio.play().catch(function () {});
+					}
 				} else if (store.seen === target && !tickerSpin && tickerNum.textContent !== target) {
 					showCycle(target);
 				}

@@ -26,6 +26,10 @@
 	margin: 4px 0;
 }
 
+.signaly-ticker-rates {
+	grid-template-columns: 1.4fr 1fr 1fr;
+}
+
 .signaly-ticker-row input {
 	box-sizing: border-box;
 	width: 100%;

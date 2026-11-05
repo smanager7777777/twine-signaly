@@ -14,6 +14,8 @@ import {
 	cutRanges,
 	CssDeclaration,
 	CssRule,
+	cssString,
+	cssUrl,
 	declarations,
 	normalizeHex,
 	parsePx,
@@ -21,13 +23,27 @@ import {
 	topLevelRules
 } from './signaly-css';
 import {
+	flickerKeyframes,
+	inputCss,
+	InputLook,
+	noiseKeyframes,
+	noiseRule,
+	sanitizeStyles,
+	sanitizeViews,
+	screensCss,
+	ScreenView,
+	TextStyle,
+	textStylesCss,
+	vignetteRule
+} from './signaly-screens';
+import {
 	signalyEngineBlock,
 	signalyEngineEnd,
 	signalyEngineStart,
 	signalyEngineVersion
 } from './signaly-engine';
 
-export interface SignalyAppearance extends GlitchSettings {
+export interface SignalyAppearance extends GlitchSettings, InputLook {
 	/** Экран (вся страница). */
 	pageBg: string;
 	textColor: string;
@@ -95,6 +111,14 @@ export interface SignalyAppearance extends GlitchSettings {
 	 */
 	typeClick: boolean;
 	typeSeen: boolean;
+	/**
+	 * Поля ввода (шаг 4.2, ответ 6А). Выключено — как в стилях автора; значения
+	 * по умолчанию — из правила input, textarea шаблона.
+	 */
+	inputOn: boolean;
+	/** Виды экранов и стили текста (шаг 4.2, ответы 1А, 2А, 5А). */
+	screens: ScreenView[];
+	textStyles: TextStyle[];
 }
 
 /** Значения по умолчанию — как в шаблоне автора 27_03_2025. */
@@ -149,6 +173,17 @@ export const defaultAppearance: SignalyAppearance = {
 	dialogTitleLine: 1,
 	typeClick: true,
 	typeSeen: true,
+	inputOn: false,
+	inputBg: '#000000',
+	inputColor: '#00cc00',
+	inputBorderColor: '#00cc00',
+	inputBorderWidth: 1,
+	inputGlow: 5,
+	inputFont: '',
+	inputSize: 25,
+	inputWidth: 0,
+	screens: [],
+	textStyles: [],
 	...defaultGlitch
 };
 
@@ -173,23 +208,6 @@ export const engineMarkers: BlockMarkers = {
 
 const dataPrefix = '/* СИГНАЛЫ-настройки: ';
 
-/** Строка для CSS: "текст" с экранированием. */
-function cssString(value: string) {
-	return (
-		'"' +
-		value
-			// eslint-disable-next-line no-control-regex
-			.replace(/[\u0000-\u001f\u007f]/g, ' ')
-			.replace(/\\/g, '\\\\')
-			.replace(/"/g, '\\"') +
-		'"'
-	);
-}
-
-function cssUrl(path: string) {
-	return `url(${cssString(path)})`;
-}
-
 function fontFamily(a: SignalyAppearance) {
 	const fallback = `${cssString(a.font || 'Courier New')}, monospace`;
 
@@ -198,15 +216,6 @@ function fontFamily(a: SignalyAppearance) {
 
 function round(value: number) {
 	return Math.round(value * 1000) / 1000;
-}
-
-function noiseImage() {
-	return cssUrl(
-		"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'>" +
-			"<filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/>" +
-			"<feColorMatrix type='saturate' values='0'/></filter>" +
-			"<rect width='100%' height='100%' filter='url(%23n)'/></svg>"
-	);
 }
 
 /** CSS блока оформления (без меток). */
@@ -283,6 +292,8 @@ export function appearanceCss(a: SignalyAppearance): string {
 			? '\tbox-shadow: 0 0 var(--sg-glow-size) var(--sg-glow-color), 0 0 calc(var(--sg-glow-size) * 2) var(--sg-glow-color);'
 			: '\tbox-shadow: none;',
 		'\twidth: var(--sg-win-width);',
+		// У SugarCube max-width: 54em — окно не должно зависеть от размера текста.
+		'\tmax-width: none;',
 		'\theight: var(--sg-win-height);',
 		'\tpadding: var(--sg-win-padding);',
 		'\tbox-sizing: border-box;',
@@ -302,13 +313,7 @@ export function appearanceCss(a: SignalyAppearance): string {
 	lines.push('}');
 
 	if (a.flicker) {
-		lines.push(
-			'@keyframes sg-flicker {',
-			'\t0% { opacity: 1; }',
-			`\t50% { opacity: ${round(1 - a.flickerDepth / 100)}; }`,
-			'\t100% { opacity: 1; }',
-			'}'
-		);
+		lines.push(...flickerKeyframes(a.flickerDepth));
 	}
 
 	if (a.noSelect) {
@@ -330,36 +335,10 @@ export function appearanceCss(a: SignalyAppearance): string {
 		'}'
 	);
 	if (a.vignette > 0) {
-		lines.push(
-			'#sg-fx::before {',
-			'\tcontent: "";',
-			'\tposition: absolute;',
-			'\tinset: 0;',
-			'\tpointer-events: none;',
-			`\tbackground: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, ${round(
-				a.vignette / 100
-			)}) 100%);`,
-			'}'
-		);
+		lines.push(...vignetteRule('#sg-fx::before', a.vignette));
 	}
 	if (a.noise > 0) {
-		lines.push(
-			'#sg-fx::after {',
-			'\tcontent: "";',
-			'\tposition: absolute;',
-			'\tinset: 0;',
-			'\tpointer-events: none;',
-			`\tbackground-image: ${noiseImage()};`,
-			`\topacity: ${round(a.noise / 100)};`,
-			'\tanimation: sg-noise 0.4s steps(1, end) infinite;',
-			'}',
-			'@keyframes sg-noise {',
-			'\t0% { background-position: 0 0; }',
-			'\t25% { background-position: -97px 53px; }',
-			'\t50% { background-position: 61px -89px; }',
-			'\t75% { background-position: -43px -127px; }',
-			'}'
-		);
+		lines.push(...noiseRule('#sg-fx::after', a.noise), ...noiseKeyframes);
 	}
 
 	// Стартовый экран.
@@ -394,8 +373,18 @@ export function appearanceCss(a: SignalyAppearance): string {
 		lines.push(...dialogCss(a));
 	}
 
+	if (a.inputOn) {
+		lines.push(...inputCss(a));
+	}
+
 	// Глитч-текст (шаг 2.1): правила сильнее правил .glitchy автора.
 	lines.push(...glitchRules(a, 'html .glitchy'), glitchKeyframes);
+
+	// Виды экранов и стили текста (шаг 4.2) — сильнее общих правил.
+	lines.push(
+		...screensCss(a.screens, {...a, fontFamily: fontFamily(a)}),
+		...textStylesCss(a.textStyles)
+	);
 
 	return lines.join('\n');
 }
@@ -487,6 +476,41 @@ export function dialogFromAuthor(css: string): Partial<SignalyAppearance> {
 
 	if (line) {
 		set('dialogTitleLine', Number(line[1]));
+	}
+	return result;
+}
+
+/** Значения полей ввода из правила автора input, textarea (шаг 4.2, ответ 6А). */
+export function inputFromAuthor(css: string): Partial<SignalyAppearance> {
+	const result: Partial<SignalyAppearance> = {};
+	const rule = topLevelRules(css).find(r => !r.at && r.selector === 'input, textarea');
+	const map: Record<string, string> = {};
+
+	if (rule) {
+		declarations(css, rule).forEach(d => (map[d.property] = d.value));
+	}
+
+	const bg = normalizeHex(map['background-color'] ?? '');
+	const color = normalizeHex(map.color ?? '');
+	const size = parsePx(map['font-size'] ?? '');
+	const border = /^(\d+(?:\.\d+)?)px\s+solid\s+(#[0-9a-f]{3,6})$/i.exec(map.border ?? '');
+	const glow = /^0\s+0\s+(\d+(?:\.\d+)?)px/.exec(map['box-shadow'] ?? '');
+
+	if (bg) {
+		result.inputBg = bg;
+	}
+	if (color) {
+		result.inputColor = color;
+	}
+	if (size !== undefined) {
+		result.inputSize = size;
+	}
+	if (border) {
+		result.inputBorderWidth = Number(border[1]);
+		result.inputBorderColor = normalizeHex(border[2]) ?? result.inputBorderColor;
+	}
+	if (glow) {
+		result.inputGlow = Number(glow[1]);
 	}
 	return result;
 }
@@ -589,7 +613,11 @@ export function sanitizeAppearance(data: any): SignalyAppearance {
 			const value = data[key];
 			const fallback = defaultAppearance[key];
 
-			if (Array.isArray(fallback)) {
+			if (key === 'screens') {
+				result.screens = sanitizeViews(value);
+			} else if (key === 'textStyles') {
+				result.textStyles = sanitizeStyles(value);
+			} else if (Array.isArray(fallback)) {
 				if (Array.isArray(value)) {
 					(result as any)[key] = value
 						.map(item => normalizeHex(String(item)))

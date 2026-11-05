@@ -23,6 +23,7 @@ import {writeExpr} from '../../util/signaly/signaly-logic';
 import {folderToFileUrl} from '../../util/signaly/signaly-preview';
 import {
 	copyNews,
+	cycleDigits,
 	News,
 	newNews,
 	newsConds,
@@ -429,6 +430,13 @@ export const SignalyTickerWindow: React.FC<SignalyTickerWindowProps> = props => 
 		const cycle = data.cycle;
 		const setCell = (index: number, patch: Partial<TickerData['cycle']['rows'][0]>) =>
 			setCycle({rows: cycle.rows.map((r, i) => (i === index ? {...r, ...patch} : r))});
+		const setRate = (key: 'from' | 'to', index: number, input: string) => {
+			const n = numberOf(input);
+
+			if (n !== undefined && n > 0) {
+				setCycle({[key]: cycle[key].map((rate, i) => (i === index ? n : rate))});
+			}
+		};
 		const addRow = () => {
 			const last = cycle.rows[cycle.rows.length - 1];
 
@@ -481,7 +489,35 @@ export const SignalyTickerWindow: React.FC<SignalyTickerWindowProps> = props => 
 						</div>
 						<h3>{l('cycle.spinTitle')}</h3>
 						<RangeField hint={l('cycle.spinHint')} label={l('cycle.spin')} max={60} min={0} onChange={spin => setCycle({spin})} step={0.5} unit={seconds} value={cycle.spin} />
-						<RangeField hint={l('cycle.rateHint')} label={l('cycle.rate')} max={60} min={1} onChange={rate => setCycle({rate})} unit={l('cycle.rateUnit')} value={cycle.rate} />
+						<RangeField hint={l('cycle.gapHint')} label={l('cycle.gap')} max={10} min={0} onChange={gap => setCycle({gap})} step={0.1} unit={seconds} value={cycle.gap} />
+						<h3>{l('cycle.ratesTitle')}</h3>
+						<p className="signaly-field-hint">{l('cycle.ratesHint')}</p>
+						<div className="signaly-ticker-row signaly-ticker-rates">
+							<strong>{l('cycle.digit')}</strong>
+							<strong>{l('cycle.rateFrom')}</strong>
+							<strong>{l('cycle.rateTo')}</strong>
+						</div>
+						{Array.from({length: cycleDigits}, (_, i) => (
+							<div className="signaly-ticker-row signaly-ticker-rates" key={i}>
+								<span>{l('cycle.digitName', {n: i + 1})}</span>
+								<input
+									aria-label={l('cycle.rateFromOf', {n: i + 1})}
+									min={0.1}
+									onChange={e => setRate('from', i, e.target.value)}
+									step={1}
+									type="number"
+									value={cycle.from[i]}
+								/>
+								<input
+									aria-label={l('cycle.rateToOf', {n: i + 1})}
+									min={0.1}
+									onChange={e => setRate('to', i, e.target.value)}
+									step={1}
+									type="number"
+									value={cycle.to[i]}
+								/>
+							</div>
+						))}
 						<h3>{l('cycle.soundTitle')}</h3>
 						<ChoiceField
 							hint={media.audio.length === 0 ? t('signaly.blocks.noFiles') : l('cycle.soundHint')}

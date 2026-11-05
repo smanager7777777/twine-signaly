@@ -13,6 +13,8 @@ import {
 	IconClick,
 	IconHeading,
 	IconItalic,
+	IconLayout,
+	IconLetterCase,
 	IconList,
 	IconPalette,
 	IconWand,
@@ -44,11 +46,13 @@ import {
 	withEngine
 } from '../../util/signaly/signaly-appearance';
 import {normalizeHex} from '../../util/signaly/signaly-css';
+import {ScreenView, tagsWithView, textStyleClass, viewOfTags} from '../../util/signaly/signaly-screens';
 import {
 	Align,
 	alignAt,
 	applyAlign,
 	applyKind,
+	applyTextStyle,
 	Edit,
 	enclosingTag,
 	insertRule,
@@ -111,6 +115,7 @@ interface CursorInfo {
 	align: Align | '';
 	color?: string;
 	size?: string;
+	textStyle?: string;
 }
 
 const sizes = ['50%', '75%', '125%', '150%', '200%', '300%'];
@@ -221,10 +226,11 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 		() => (data?.kinds ?? []).filter(k => k.cls !== ''),
 		[data]
 	);
-	const savedColors = React.useMemo(
-		() => (readAppearance(story.stylesheet) ?? defaultAppearance).savedColors,
-		[story.stylesheet]
-	);
+	const look = React.useMemo(() => readAppearance(story.stylesheet) ?? defaultAppearance, [story.stylesheet]);
+	const savedColors = look.savedColors;
+	const views = look.screens;
+	const textStyles = look.textStyles;
+	const styleClasses = React.useMemo(() => textStyles.map(textStyleClass), [textStyles]);
 	const kindClasses = React.useMemo(() => kinds.map(k => k.cls), [kinds]);
 	const [panel, setPanel] = React.useState<PanelTarget>();
 	const [text, setText] = React.useState('');
@@ -264,9 +270,10 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 			form: linkFormAt(text, from, to, kindRange(text, from, to)),
 			align: alignAt(text, from, to),
 			color: styleAt(text, from, to, 'color'),
-			size: styleAt(text, from, to, 'font-size')
+			size: styleAt(text, from, to, 'font-size'),
+			textStyle: kindAt(text, from, to, styleClasses)
 		});
-	}, [editor, kindClasses, kindRange, selection]);
+	}, [editor, kindClasses, kindRange, selection, styleClasses]);
 
 	React.useEffect(() => {
 		if (!editor) {
@@ -405,6 +412,10 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 			saveStoryWithUpgrade(dispatch, stories, story, {script: withEngine(story.script)}, passage.name);
 			setEngineUpdated(true);
 		}
+	}
+
+	function setView(view: ScreenView | undefined) {
+		dispatch(updatePassage(story, passage, {tags: tagsWithView(passage.tags, view)}));
 	}
 
 	function setEventTag(on: boolean) {
@@ -601,6 +612,8 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 
 	const label = (key: string) => t(`signaly.format.${key}`);
 	const kindName = kinds.find(k => k.cls === info.kind)?.name;
+	const currentView = viewOfTags(passage.tags, views);
+	const textStyleName = textStyles.find(s => textStyleClass(s) === info.textStyle)?.name;
 	const off = disabled || !editor;
 
 	return (
@@ -771,6 +784,32 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 				/>
 				<MenuButton
 					disabled={off}
+					icon={<IconLetterCase />}
+					items={
+						textStyles.length === 0
+							? [{disabled: true, label: t('signaly.textStyles.none'), onClick: () => {}}]
+							: [
+									...textStyles.map(s => ({
+										checkable: true as const,
+										checked: info.textStyle === textStyleClass(s),
+										label: s.name,
+										onClick: () =>
+											run((text, from, to) =>
+												applyTextStyle(text, from, to, textStyleClass(s), styleClasses, t('signaly.textStyles.sampleWord'))
+											)
+									})),
+									{separator: true as const},
+									{
+										disabled: !info.textStyle,
+										label: t('signaly.textStyles.remove'),
+										onClick: () => run((text, from, to) => applyTextStyle(text, from, to, '', styleClasses, ''))
+									}
+							  ]
+					}
+					label={textStyleName ? `${t('signaly.textStyles.button')}: ${textStyleName}` : t('signaly.textStyles.button')}
+				/>
+				<MenuButton
+					disabled={off}
 					icon={<IconWand />}
 					items={effectItems.map(type => ({
 						label: t(`signaly.effects.add.${type}`),
@@ -789,6 +828,30 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 						onClick: () => addBlock(type)
 					}))}
 					label={t('signaly.blocks.add.button')}
+				/>
+				<MenuButton
+					disabled={off}
+					icon={<IconLayout />}
+					items={
+						views.length === 0
+							? [{disabled: true, label: t('signaly.screens.none'), onClick: () => {}}]
+							: [
+									{
+										checkable: true as const,
+										checked: !currentView,
+										label: t('signaly.screens.plain'),
+										onClick: () => setView(undefined)
+									},
+									{separator: true as const},
+									...views.map(v => ({
+										checkable: true as const,
+										checked: currentView === v,
+										label: v.name,
+										onClick: () => setView(v)
+									}))
+							  ]
+					}
+					label={currentView ? `${t('signaly.screens.button')}: ${currentView.name}` : t('signaly.screens.button')}
 				/>
 				<SignalyPreviewButton passageId={passage.id} />
 			</ButtonBar>

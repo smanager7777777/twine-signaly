@@ -493,7 +493,8 @@
 				"protect": "Screen Protection",
 				"start": "Start Screen",
 				"dialogs": "Message windows",
-				"text": "Text effects"
+				"text": "Text effects",
+				"inputs": "Input fields"
 			},
 			"fields": {
 				"pageBg": "Screen background",
@@ -541,7 +542,16 @@
 				"glitchShadow1": "First shadow",
 				"glitchShadow2": "Second shadow",
 				"glitchShift": "Stripe shift",
-				"glitchSpeed": "Speed: one cycle in"
+				"glitchSpeed": "Speed: one cycle in",
+				"inputOn": "Set up input fields here",
+				"inputBg": "Field background",
+				"inputColor": "Field text color",
+				"inputBorderColor": "Border and glow color",
+				"inputBorderWidth": "Border width",
+				"inputGlow": "Glow",
+				"inputFont": "Font",
+				"inputSize": "Text size",
+				"inputWidth": "Field width"
 			},
 			"hints": {
 				"savedColors": "Colors of this story. In any color field: ★ adds the color here; a swatch applies it.",
@@ -549,7 +559,9 @@
 				"lineScroll": "No smooth scrolling: one wheel notch, one line of text.",
 				"dialogOn": "Off — standard SugarCube windows. When turned on, values are taken from your .ui-dialog rules.",
 				"typeClick": "A click outside links and buttons; space works too.",
-				"typeSeen": "Players came back to a screen — the text isn't typed again."
+				"typeSeen": "Players came back to a screen — the text isn't typed again.",
+				"inputOn": "Code fields and other inputs. Off: the look comes from the stylesheet. Turning it on takes the values from there.",
+				"inputWidth": "0 means as is."
 			},
 			"preview": {
 				"title": "Terminal preview",
@@ -566,7 +578,13 @@
 			"sampleDialogTitle": "Sample window",
 			"sampleDialogText": "This is how the game's message windows look.",
 			"glitch": "Glitch",
-			"glitchHint": "For every glitch. To see it, choose a screen with glitch in the preview."
+			"glitchHint": "For every glitch. To see it, choose a screen with glitch in the preview.",
+			"tabs": {
+				"general": "General",
+				"screens": "Screen views",
+				"styles": "Text styles"
+			},
+			"inputFontSame": "As is"
 		},
 		"kinds": {
 			"button": "Button and Link Styles",
@@ -1523,16 +1541,23 @@
 				"addRow": "+ Add",
 				"deleteRow": "Delete row",
 				"spinTitle": "Digit change on the main screen",
-				"spin": "Duration",
-				"spinHint": "Only changed digits and those to their right spin.",
-				"rate": "Starting speed",
-				"rateUnit": "changes/s",
-				"rateHint": "Digits slow down and stop on the new value.",
+				"spin": "When the first digit stops",
+				"spinHint": "Only changed digits and those to the right of them spin. The rightmost stops first.",
 				"soundTitle": "Cycle change sound",
 				"sound": "Sound",
-				"soundHint": "Plays at the moment of change, on any screen.",
+				"soundHint": "Plays when players see the counter: on entering the main screen, or at once if they are already there.",
 				"noSound": "No sound",
-				"volume": "Volume"
+				"volume": "Volume",
+				"gap": "Delay between digit stops",
+				"gapHint": "Time until the next digit to the left stops. 0 means all at once.",
+				"ratesTitle": "Digit speed",
+				"ratesHint": "Changes per second. Speed moves smoothly from start to end and cuts off when the digit stops. Gradual slowdown: 20 and 2. Almost no slowdown and a sharp stop: 30 and 20.",
+				"digit": "Digit",
+				"digitName": "{{n}} from left",
+				"rateFrom": "At start",
+				"rateTo": "Before stop",
+				"rateFromOf": "Digit {{n}} speed at start",
+				"rateToOf": "Digit {{n}} speed before stop"
 			},
 			"problems": {
 				"emptyName": "A message has no name.",
@@ -1540,6 +1565,120 @@
 				"badCycle": "A cycle is 1 to 5 digits.",
 				"duplicateProgress": "Duplicate progress: {{values}}.",
 				"noScreen": "No main screen selected."
+			}
+		},
+		"screens": {
+			"button": "Screen view",
+			"plain": "Regular screen",
+			"none": "No screen views yet: create them in Terminal Appearance",
+			"intro": "A preset for special screens: lockdown, alarm, loading. Assign it with the Screen view button above the text. Anything not set comes from the General tab. The preview on the right shows the chosen view on the chosen screen; nothing is written to the story.",
+			"empty": "No views yet. Press Add.",
+			"newName": "Screen view",
+			"copySuffix": "copy",
+			"name": "Name",
+			"nameHint": "You can rename it: screens keep the view.",
+			"same": "As usual",
+			"list": {
+				"add": "Add",
+				"copy": "Copy",
+				"delete": "Delete",
+				"confirmDelete": "Delete screen view “{{name}}”?",
+				"confirmDeleteUsed": "Screen view “{{name}}” is used by {{count}} screen(s). They will become regular. Delete?"
+			},
+			"sections": {
+				"frame": "Frame",
+				"window": "Window",
+				"colors": "Colors",
+				"text": "Text",
+				"effects": "Effects"
+			},
+			"frame": {
+				"none": "No frame",
+				"own": "Custom"
+			},
+			"size": {
+				"full": "Full screen",
+				"own": "Custom size"
+			},
+			"sizeHint": "On-screen buttons and pictures stay where they are on regular screens.",
+			"switch": {
+				"on": "On",
+				"off": "Off"
+			},
+			"fields": {
+				"frame": "Frame",
+				"borderWidth": "Border width",
+				"borderColor": "Border color",
+				"glowSize": "Border glow",
+				"glowColor": "Glow color",
+				"size": "Window size",
+				"winWidth": "Window width",
+				"winHeight": "Window height",
+				"winOffsetX": "Shift window right",
+				"winOffsetY": "Shift window down",
+				"paddingOwn": "Custom padding around the text",
+				"padding": "Padding",
+				"pageBgOwn": "Custom background around the window",
+				"pageBg": "Background around the window",
+				"winBgOwn": "Custom window background",
+				"winBg": "Window background",
+				"textColorOwn": "Custom text color",
+				"textColor": "Text color",
+				"font": "Font",
+				"fontSizeOwn": "Custom text size",
+				"fontSize": "Text size",
+				"textPlace": "Text position",
+				"flicker": "Flicker",
+				"vignette": "Vignette",
+				"noise": "Noise",
+				"fxValue": "Effect strength"
+			},
+			"winBgHint": "For a full fill: full-screen window and a custom window background.",
+			"textColorHint": "Link and button colors come from their kind.",
+			"placeSame": "As usual: top left.",
+			"place": {
+				"tl": "Top left",
+				"tc": "Top center",
+				"tr": "Top right",
+				"ml": "Middle left",
+				"mc": "Center",
+				"mr": "Middle right",
+				"bl": "Bottom left",
+				"bc": "Bottom center",
+				"br": "Bottom right"
+			}
+		},
+		"textStyles": {
+			"button": "Text style",
+			"none": "No text styles yet: create them in Terminal Appearance",
+			"remove": "Remove style",
+			"sampleWord": "text",
+			"sample": "Sample text in this style",
+			"intro": "A preset for individual text: select it in the passage and pick a style with the Text style button. Anything not set stays as the surrounding text. The preview shows a sample; it is not written to the story.",
+			"empty": "No styles yet. Press Add.",
+			"newName": "Style",
+			"copySuffix": "copy",
+			"name": "Name",
+			"same": "As surrounding text",
+			"font": "Font",
+			"sizeOwn": "Custom size",
+			"size": "Size",
+			"colorOwn": "Custom color",
+			"color": "Color",
+			"glow": "Glow",
+			"glowHint": "0 means no glow.",
+			"glowColorOwn": "Custom glow color",
+			"glowColor": "Glow color",
+			"lineHeightOwn": "Custom line spacing",
+			"lineHeight": "Line spacing",
+			"lineHeightHint": "Text with its own spacing becomes a separate block: good for a paragraph, not a word within a line.",
+			"lineHeightUnit": "×",
+			"list": {
+				"add": "Add",
+				"copy": "Copy",
+				"delete": "Delete",
+				"confirmDelete": "Delete style “{{name}}”?",
+				"confirmDeleteUsed": "Style “{{name}}” is used on {{count}} screen(s). The text stays, without the style. Delete?"
 			}
 		}
 	}

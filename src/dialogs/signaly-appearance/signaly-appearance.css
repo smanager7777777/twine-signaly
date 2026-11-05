@@ -275,3 +275,23 @@
 	gap: 4px;
 	white-space: nowrap;
 }
+
+/* Положение текста на экране: девять мест (шаг 4.2). */
+.signaly-place-grid {
+	display: grid;
+	gap: 4px;
+	grid-template-columns: repeat(3, 36px);
+	grid-template-rows: repeat(3, 26px);
+}
+
+.signaly-place-cell {
+	background: var(--white);
+	border: 1px solid var(--gray);
+	cursor: pointer;
+	padding: 0;
+}
+
+.signaly-place-cell[aria-pressed='true'] {
+	background: var(--blue);
+	border-color: var(--blue);
+}

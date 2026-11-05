@@ -16,7 +16,7 @@ import {
 
 const sample: TickerData = {
 	line: {...defaultLine('Start'), height: 60, font: 'media/fonts/a b.woff2', mode: 'scroll', order: ['general', 'new', 'seen']},
-	cycle: {...defaultCycle, variable: 'progress', spin: 4, rate: 30, sound: 'media/audio/c.wav', volume: 70, rows: [{progress: 0, value: '00012'}, {progress: 7, value: '00487'}]},
+	cycle: {...defaultCycle, variable: 'progress', spin: 4, gap: 0.7, from: [30, 30, 25, 20, 10], to: [20, 20, 15, 5, 1], sound: 'media/audio/c.wav', volume: 70, rows: [{progress: 0, value: '00012'}, {progress: 7, value: '00487'}]},
 	news: [
 		{...newNews([]), name: 'Общее "1"', text: 'Текст <<= $x>> и "кавычки"', general: true},
 		{
@@ -47,7 +47,7 @@ describe('строка событий', () => {
 		const text = writeTicker('', sample);
 
 		expect(text).toContain('<<sg-ticker screen "Start" height 60 size 22 font "media/fonts/a b.woff2" speed 60 pause 2 hold 8 change 1.5 mode scroll order "general,new,seen">>');
-		expect(text).toContain('<<sg-cycle var "$progress" spin 4 rate 30 sound "media/audio/c.wav" volume 70>>');
+		expect(text).toContain('<<sg-cycle var "$progress" spin 4 gap 0.7 from "30,30,25,20,10" to "20,20,15,5,1" sound "media/audio/c.wav" volume 70>>');
 		expect(text).toContain('<<sg-cycle-at 7 "00487">>');
 		expect(writeNews(sample.news[1])).toBe(
 			'<<sg-news "ВИП" priority 2 minutes 10 times 3 color "#ff0000" bold italic effect glitch>>$vip and setup.visits("Экран >> 1") gt 0<<sg-text>>Для ВИП<</sg-news>>'
@@ -120,5 +120,20 @@ describe('движок: код строки событий', () => {
 
 		expect(names.length).toBeGreaterThan(20);
 		expect(names.filter(n => new RegExp(`(?:function|var) ${n}\\b`).test(rest))).toEqual([]);
+	});
+
+	it('понимает запись сборок до сессии 15: одна скорость на все цифры', () => {
+		const {cycle} = readTicker('<<sg-ticker screen "Start">>\n<<sg-cycle var "$p" spin 4 rate 30>>', 'Start');
+
+		expect(cycle.gap).toBe(defaultCycle.gap);
+		expect(cycle.from).toEqual([30, 30, 30, 30, 30]);
+		expect(cycle.to).toEqual([2, 2, 2, 2, 2]);
+	});
+
+	it('непонятная скорость цифры заменяется значением по умолчанию', () => {
+		const {cycle} = readTicker('<<sg-cycle var "$p" from "10,,x,0,5" to "1">>', 'Start');
+
+		expect(cycle.from).toEqual([10, 20, 20, 20, 5]);
+		expect(cycle.to).toEqual([1, 2, 2, 2, 2]);
 	});
 });

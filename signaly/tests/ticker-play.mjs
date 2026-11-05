@@ -20,7 +20,7 @@ const news = (name, text, more) => ({...newNews([]), name, text, ...more});
 const long = 'Очень длинное сообщение бегущей строки '.repeat(6).trim();
 const tickerText = writeTicker('', {
 	line: {...defaultLine('TkHome'), height: 50, size: 24, speed: 400, pause: 1, hold: 1, change: 0.4},
-	cycle: {...defaultCycle, variable: 'tkProgress', spin: 2, rate: 30, sound: 'media/audio/click3.wav', volume: 50, rows: [{progress: 0, value: '00012'}, {progress: 2, value: '00037'}, {progress: 3, value: '01845'}, {progress: 4, value: '01902'}]},
+	cycle: {...defaultCycle, variable: 'tkProgress', spin: 1.4, gap: 0.3, from: [30, 30, 30, 30, 30], to: [2, 2, 2, 30, 3], sound: 'media/audio/click3.wav', volume: 50, rows: [{progress: 0, value: '00012'}, {progress: 2, value: '00037'}, {progress: 3, value: '01845'}, {progress: 4, value: '01902'}]},
 	news: [
 		news('Первое общее', 'Общее один', {general: true}),
 		news('Второе общее', 'Общее два', {general: true, expr: '$tkSecond'}),
@@ -265,7 +265,7 @@ async function run(url, prefix) {
 	await page.waitForTimeout(400);
 	const played = await page.evaluate(() => window.sgPlayed.filter(s => s.includes('click3')).length);
 
-	say('звук — в момент смены, на другом экране', played === 1, played);
+	say('на другом экране звука нет', played === 0, played);
 	say('$sgTicker: цикл новый, увиденный старый', await page.evaluate(() => {
 		const s = SugarCube.State.variables.sgTicker;
 
@@ -275,16 +275,32 @@ async function run(url, prefix) {
 	const frames = [];
 	const started = Date.now();
 
-	while (Date.now() - started < 1700) {
-		frames.push(await cycle());
-		await page.waitForTimeout(20);
+	while (Date.now() - started < 1950) {
+		frames.push({at: Date.now() - started, text: await cycle()});
+		await page.waitForTimeout(15);
 	}
-	say('при входе цифры меняются хаотично', new Set(frames).size > 6, new Set(frames).size);
-	say('меняются только два правых разряда', frames.every(f => f.startsWith('000')), frames.find(f => !f.startsWith('000')));
-	const changesEarly = frames.slice(0, 30).filter((f, i, a) => i && f !== a[i - 1]).length;
-	const changesLate = frames.slice(-30).filter((f, i, a) => i && f !== a[i - 1]).length;
+	const heard = await page.evaluate(() => window.sgPlayed.filter(s => s.includes('click3')).length);
+	const digitChanges = (index, from, to) =>
+		frames.filter((f, i, a) => i && f.at >= from && f.at < to && f.text[index] !== a[i - 1].text[index]).length;
+	const lastChange = index => {
+		let at = 0;
 
-	say('постепенно замедляются', changesLate < changesEarly, `${changesEarly} → ${changesLate}`);
+		frames.forEach((f, i, a) => {
+			if (i && f.text[index] !== a[i - 1].text[index]) {
+				at = f.at;
+			}
+		});
+		return at;
+	};
+
+	say('звук — когда игроки увидели счётчик, один раз', heard === 1, heard);
+	say('при входе цифры меняются хаотично', new Set(frames.map(f => f.text)).size > 6, new Set(frames.map(f => f.text)).size);
+	say('меняются только два правых разряда', frames.every(f => f.text.startsWith('000')), frames.find(f => !f.text.startsWith('000'))?.text);
+	say('цифра со скоростью 30 → 3 замедляется', digitChanges(4, 800, 1400) < digitChanges(4, 0, 600), `${digitChanges(4, 0, 600)} → ${digitChanges(4, 800, 1400)}`);
+	say('цифра со скоростью 30 → 30 не замедляется', digitChanges(3, 800, 1400) >= digitChanges(3, 0, 600) * 0.7, `${digitChanges(3, 0, 600)} → ${digitChanges(3, 800, 1400)}`);
+	say('правая цифра останавливается первой', lastChange(4) < lastChange(3), `${lastChange(4)} и ${lastChange(3)}`);
+	say('задержка между цифрами 0,3 с', Math.abs(lastChange(3) - lastChange(4) - 300) < 180, lastChange(3) - lastChange(4));
+	say('правая стоит на новой цифре, пока левая ещё меняется', frames.filter(f => f.at > lastChange(4)).every(f => f.text[4] === '7'));
 	await page.waitForTimeout(700);
 	say('останавливаются на заданном значении', (await cycle()) === '00037', await cycle());
 	say('увиденный цикл записан', await page.evaluate(() => SugarCube.State.variables.sgTicker.seen === '00037'));
