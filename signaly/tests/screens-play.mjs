@@ -29,6 +29,8 @@ const settings = {
 	inputBg: '#112233',
 	inputColor: '#ffee00',
 	inputBorderColor: '#ff00ff',
+	inputHoverBg: '#aa0000',
+	inputHoverBorderColor: '#00aa00',
 	inputBorderWidth: 3,
 	inputGlow: 0,
 	inputSize: 31,
@@ -300,6 +302,20 @@ async function run(url, prefix) {
 
 	say('поле ввода: цвета и рамка', field.bg === 'rgb(17, 34, 51)' && field.color === 'rgb(255, 238, 0)' && field.border === '3px' && field.borderColor === 'rgb(255, 0, 255)', field);
 	say('поле ввода: размер, ширина, без свечения', field.size === '31px' && field.width === 333 && field.shadow === 'none', field);
+
+	// Ответ 7А (шаг 4.3): свои цвета при наведении и при вводе с клавиатуры.
+	const fieldColors = () => page.evaluate(() => {
+		const css = getComputedStyle(document.querySelector('input.sg-code'));
+
+		return css.backgroundColor + ' ' + css.borderTopColor;
+	});
+
+	await page.hover('input.sg-code');
+	await page.waitForTimeout(100);
+	say('поле ввода при наведении: свои цвета', (await fieldColors()) === 'rgb(170, 0, 0) rgb(0, 170, 0)', await fieldColors());
+	await page.mouse.move(5, 5);
+	await page.waitForTimeout(100);
+	say('мышь ушла — цвета поля обычные', (await fieldColors()) === 'rgb(17, 34, 51) rgb(255, 0, 255)', await fieldColors());
 
 	/* Сбой */
 	await go('ScRed');

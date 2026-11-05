@@ -134,6 +134,10 @@ describe('оформление: виды, стили, поля', () => {
 	it('без настройки полей правила полей нет', () => {
 		expect(appearanceCss(defaultAppearance)).not.toContain('html input');
 		expect(appearanceCss({...defaultAppearance, inputOn: true})).toContain('html input, html textarea {');
+		// Ответ 7А: цвета при наведении; по умолчанию — как у SugarCube.
+		expect(appearanceCss({...defaultAppearance, inputOn: true})).toContain(
+			'html input:hover, html textarea:hover, html[data-outlines] input:focus, html[data-outlines] textarea:focus {\n\tbackground-color: #333333;\n\tborder-color: #eeeeee;\n}'
+		);
 	});
 
 	it('значения полей — из правила автора', () => {

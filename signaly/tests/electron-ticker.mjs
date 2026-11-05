@@ -1,7 +1,7 @@
 // Проверка программы (Electron), сессия 14, шаг 4.1: окно «Строка событий».
 // Вкладки «Сообщения», «Строка», «Цикл»; добавить, копировать, ▲, сортировка;
 // порядок показа; таблица цикла; предпросмотр и «Показать смену цикла»;
-// «Сохранить» — пассаж с тегом sg-ticker, движок 12.
+// «Сохранить» — пассаж с тегом sg-ticker, движок 13.
 // Запуск: TWEE=<шаблон> MEDIA=<папка с пустышками> SHOT=<снимок.png>
 //   xvfb-run -a -s "-screen 0 1600x1000x24" node signaly/tests/electron-ticker.mjs <playwright>
 import {createRequire} from 'module';
@@ -160,7 +160,7 @@ const file = storyFile();
 const item = passageIn(file, 'Строка событий');
 
 check('пассаж с тегом sg-ticker', /tags="sg-ticker"/.test(item.tag), item.tag);
-check('движок 12', file.includes('Версия движка: 12'));
+check('движок 13', file.includes('Версия движка: 13'));
 check('строка, цикл, сообщения — в тексте пассажа', item.text.includes('<<sg-ticker screen "Start"') && item.text.includes('mode scroll') && item.text.includes('<<sg-cycle var "$progress" spin 10 gap 0.5 from "20,20,20,20,20" to "2,2,2,2,2" sound') && item.text.includes('<<sg-cycle-at 7 "00487">>') && item.text.includes('<<sg-news "Общее" general>><<sg-text>>Корабль идёт по курсу<</sg-news>>'), item.text);
 check('условие и настройки ВИП', /<<sg-news "ВИП" priority 2 minutes 10 times 3 color "#ff0000" bold effect blink>>\$\w+<<sg-text>>Сообщение для ВИП/.test(item.text), item.text);
 

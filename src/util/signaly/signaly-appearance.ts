@@ -177,6 +177,8 @@ export const defaultAppearance: SignalyAppearance = {
 	inputBg: '#000000',
 	inputColor: '#00cc00',
 	inputBorderColor: '#00cc00',
+	inputHoverBg: '#333333',
+	inputHoverBorderColor: '#eeeeee',
 	inputBorderWidth: 1,
 	inputGlow: 5,
 	inputFont: '',

@@ -463,6 +463,8 @@ export interface InputLook {
 	inputBg: string;
 	inputColor: string;
 	inputBorderColor: string;
+	inputHoverBg: string;
+	inputHoverBorderColor: string;
 	inputBorderWidth: number;
 	inputGlow: number;
 	inputFont: string;
@@ -486,7 +488,13 @@ export function inputCss(a: InputLook) {
 		...(a.inputWidth > 0 ? [`\twidth: ${round(a.inputWidth)}px;`, '\tbox-sizing: border-box;'] : []),
 		'}',
 		// У SugarCube input[type=text] { min-width: 18em } сильнее простого правила.
-		...(a.inputWidth > 0 ? ['html input[type] { min-width: 0; }'] : [])
+		...(a.inputWidth > 0 ? ['html input[type] { min-width: 0; }'] : []),
+		// Ответ 7А (шаг 4.3): SugarCube красит поле при наведении, а при вводе с
+		// клавиатуры (data-outlines) — и в фокусе; своё правило сильнее.
+		'html input:hover, html textarea:hover, html[data-outlines] input:focus, html[data-outlines] textarea:focus {',
+		`\tbackground-color: ${a.inputHoverBg};`,
+		`\tborder-color: ${a.inputHoverBorderColor};`,
+		'}'
 	);
 	return lines;
 }

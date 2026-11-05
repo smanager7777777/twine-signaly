@@ -125,3 +125,10 @@ h5.signaly-block-subtitle {
 	font-size: 90%;
 	margin: var(--grid-size) 0 calc(var(--grid-size) / 2);
 }
+
+/* Форма «Доступ» (шаг 4.3): источники одного вида — одной группой. */
+.signaly-access-group {
+	border-left: 2px solid var(--light-gray);
+	margin: 6px 0;
+	padding-left: 8px;
+}

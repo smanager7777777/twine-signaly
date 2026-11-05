@@ -47,7 +47,9 @@ import {findLinks} from '../../util/signaly/signaly-actions';
 import {findAudioInit} from '../../util/signaly/signaly-sounds';
 import {LinkActionsForm} from './signaly-link-actions-form';
 import {CondListsContext, useCondLists} from './signaly-logic-form';
+import {AccessForm} from './signaly-access-form';
 import {EventForm} from './signaly-event-form';
+import {accessTag, findAccess, setAccess} from '../../util/signaly/signaly-access';
 import {eventTag, findEvent, setEventHead} from '../../util/signaly/signaly-events';
 
 export type PanelTarget =
@@ -58,6 +60,7 @@ export type PanelTarget =
 	| {kind: 'value'; index: number}
 	| {kind: 'link'; index: number}
 	| {kind: 'event'}
+	| {kind: 'access'}
 	| {kind: 'kr2'};
 
 export interface SignalyBlockPanelProps {
@@ -72,6 +75,10 @@ export interface SignalyBlockPanelProps {
 	onKr2Tag: (on: boolean) => void;
 	/** Включить или снять тег sg-event (шаг 3.5). */
 	onEventTag: (on: boolean) => void;
+	/** Включить или снять тег sg-access (шаг 4.3). */
+	onAccessTag: (on: boolean) => void;
+	/** Сделать пассаж общим пассажем блокировки (шаг 4.3). */
+	onSharedLock: (name: string) => void;
 	onClose: () => void;
 }
 
@@ -139,7 +146,7 @@ export function useLists(story: Story) {
 /* ----- Панель ----- */
 
 export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
-	const {onClose, onEventTag, onKr2Tag, onText, passage, story, target, text} = props;
+	const {onAccessTag, onClose, onEventTag, onKr2Tag, onSharedLock, onText, passage, story, target, text} = props;
 	const {t} = useTranslation();
 	const {media, passages} = useLists(story);
 	const condLists = useCondLists(story);
@@ -194,7 +201,33 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 	let title = '';
 	let body: React.ReactNode = null;
 
-	if (target.kind === 'event') {
+	if (target.kind === 'access') {
+		// Шаг 4.3: закрытый экран.
+		const head = findAccess(text);
+
+		if (!head) {
+			return null;
+		}
+		title = t('signaly.access.title');
+		body = (
+			<AccessForm
+				head={head}
+				onRemove={() => {
+					onText(setAccess(text, undefined));
+					onAccessTag(false);
+					onClose();
+				}}
+				onSharedLock={onSharedLock}
+				onTag={() => onAccessTag(true)}
+				onText={onText}
+				passage={passage}
+				story={story}
+				tagged={passage.tags.includes(accessTag)}
+				text={text}
+				variables={knownVariables(story.passages)}
+			/>
+		);
+	} else if (target.kind === 'event') {
 		// Шаг 3.5: пассаж-событие.
 		const head = findEvent(text);
 

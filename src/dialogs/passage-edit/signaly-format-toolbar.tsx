@@ -8,6 +8,7 @@ import {
 	IconAlignCenter,
 	IconArrowFork,
 	IconBolt,
+	IconLock,
 	IconAlignRight,
 	IconBold,
 	IconClick,
@@ -33,6 +34,7 @@ import {IconButton} from '../../components/control/icon-button';
 import {MenuButton} from '../../components/control/menu-button';
 import {
 	Passage,
+	setTagColor,
 	Story,
 	updatePassage,
 	updateStory,
@@ -98,6 +100,15 @@ import {knownVariables} from '../../util/signaly/signaly-variables';
 import {SignalyPreviewButton} from '../signaly-passage-preview';
 import {saveStoryWithUpgrade} from '../signaly-upgrade';
 import {PanelTarget, SignalyBlockPanel} from './signaly-block-panel';
+import {
+	accessTag,
+	accessTagColor,
+	findAccess,
+	lockTag,
+	lockTagColor,
+	newAccess,
+	setAccess
+} from '../../util/signaly/signaly-access';
 import {eventTag, findEvent, setEventHead} from '../../util/signaly/signaly-events';
 import './signaly-format-toolbar.css';
 
@@ -189,6 +200,12 @@ function clickTargets(value: string) {
 
 	if (event) {
 		targets.push({from: event.from, to: event.to, target: {kind: 'event'}});
+	}
+	// Шаг 4.3: команда доступа.
+	const access = findAccess(value);
+
+	if (access) {
+		targets.push({from: access.from, to: access.to, target: {kind: 'access'}});
 	}
 	return targets;
 }
@@ -424,6 +441,50 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 		dispatch(updatePassage(story, passage, {tags: on ? [...tags, eventTag] : tags}));
 	}
 
+	// Тег sg-access с цветом на карте (шаг 4.3, ответ 6А).
+	function setAccessTag(on: boolean) {
+		const tags = passage.tags.filter(tag => tag !== accessTag);
+
+		dispatch(updatePassage(story, passage, {tags: on ? [...tags, accessTag] : tags}));
+		if (on && !story.tagColors[accessTag]) {
+			dispatch(setTagColor(story, accessTag, accessTagColor));
+		}
+	}
+
+	// Общий пассаж блокировки — обычный пассаж с тегом sg-lock (ответ 5А).
+	function setSharedLock(name: string) {
+		story.passages.forEach(p => {
+			const has = p.tags.includes(lockTag);
+
+			if (has && p.name !== name) {
+				dispatch(updatePassage(story, p, {tags: p.tags.filter(tag => tag !== lockTag)}));
+			} else if (!has && p.name === name) {
+				dispatch(updatePassage(story, p, {tags: [...p.tags, lockTag]}));
+			}
+		});
+		if (name && !story.tagColors[lockTag]) {
+			dispatch(setTagColor(story, lockTag, lockTagColor));
+		}
+	}
+
+	// «Доступ» (шаг 4.3, ответ 1А): первой строкой <<sg-access условие>>, тег
+	// sg-access; если у экрана он уже есть — открыть форму.
+	function addAccess() {
+		if (!editor) {
+			return;
+		}
+
+		const value = editor.getDoc().getValue();
+
+		if (!findAccess(value)) {
+			writeText(setAccess(value, newAccess(`$${firstVariable().name}`)));
+		}
+		if (!passage.tags.includes(accessTag)) {
+			setAccessTag(true);
+		}
+		setPanel({kind: 'access'});
+	}
+
 	// «Событие» (шаг 3.5, ответ 1А): первой строкой <<sg-event условие>>, тег
 	// sg-event; если пассаж уже событие — открыть форму.
 	function addEvent() {
@@ -615,6 +676,10 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 	const currentView = viewOfTags(passage.tags, views);
 	const textStyleName = textStyles.find(s => textStyleClass(s) === info.textStyle)?.name;
 	const off = disabled || !editor;
+	const accessExpr = text.includes('<<sg-access') ? findAccess(text)?.expr ?? '' : '';
+	const accessLabel = accessExpr
+		? `${t('signaly.access.button')}: ${accessExpr.length > 24 ? accessExpr.slice(0, 24) + '…' : accessExpr}`
+		: t('signaly.access.button');
 
 	return (
 		<div className="signaly-format-toolbar">
@@ -820,6 +885,7 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 				<IconButton disabled={off} icon={<IconClick />} label={t('signaly.actions.button')} onClick={addAction} />
 				<IconButton disabled={off} icon={<IconArrowFork />} label={label('condition')} onClick={addCondition} />
 				<IconButton disabled={off} icon={<IconBolt />} label={t('signaly.events.button')} onClick={addEvent} />
+				<IconButton disabled={off} icon={<IconLock />} label={accessLabel} onClick={addAccess} />
 				<MenuButton
 					disabled={off}
 					icon={<IconSquarePlus />}
@@ -862,9 +928,11 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 			)}
 			{panel && editor && (
 				<SignalyBlockPanel
+					onAccessTag={setAccessTag}
 					onClose={() => setPanel(undefined)}
 					onEventTag={setEventTag}
 					onKr2Tag={setKr2Tag}
+					onSharedLock={setSharedLock}
 					onText={writeText}
 					passage={passage}
 					story={story}

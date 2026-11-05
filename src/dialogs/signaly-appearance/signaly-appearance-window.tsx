@@ -512,6 +512,8 @@ export const SignalyAppearanceWindow: React.FC<
 								{color('inputBg')}
 								{color('inputColor')}
 								{color('inputBorderColor')}
+								{color('inputHoverBg')}
+								{color('inputHoverBorderColor')}
 								{range('inputBorderWidth', 0, 20, px)}
 								{range('inputGlow', 0, 60, px)}
 								<ChoiceField

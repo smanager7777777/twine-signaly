@@ -990,7 +990,7 @@ setup.signalySounds = {
 
 
 /* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */
-/* Версия движка: 12. Обновляется программой «Twine СИГНАЛЫ».
+/* Версия движка: 13. Обновляется программой «Twine СИГНАЛЫ».
    Настройки — в окне «Оформление терминала» (они лежат в таблице стилей).
    Свой код пишите ниже конца этого блока. */
 (function () {
@@ -1035,7 +1035,7 @@ setup.signalySounds = {
 	// Предпросмотр в программе: без стартового экрана, автокопии и защиты.
 	var preview = window.SIGNALY_PREVIEW;
 
-	setup.signaly = {engine: 12, preview: !!preview};
+	setup.signaly = {engine: 13, preview: !!preview};
 
 	function showStartScreen(onClick) {
 		var screen = document.createElement('div');
@@ -1152,6 +1152,9 @@ setup.signalySounds = {
 		// Сессия 7: ссылка в печатающемся тексте ждёт конца своей надписи;
 		// глитч и мигание до своего начала — обычный текст.
 		'.sg-type-wait { pointer-events: none !important; }\n' +
+		// Шаг 4.3: ссылка на закрытый экран — скрыта или не нажимается.
+		'.sg-acc-hide { display: none !important; }\n' +
+		'.sg-acc-off { pointer-events: none !important; }\n' +
 		'.sg-blink.sg-off { animation: none; }\n' +
 		'html .glitchy.sg-off { color: inherit; }\n' +
 		'html .glitchy.sg-off::before, html .glitchy.sg-off::after { content: none; }\n' +
@@ -1431,7 +1434,7 @@ setup.signalySounds = {
 			setup.signaly.openDialog({title: t.title, passage: t.passage, text: t.text});
 		}
 		if (t.goto && Story.has(t.goto)) {
-			Engine.play(t.goto);
+			accessGo(t.goto, 'auto', 'timer:' + name);
 		}
 	}
 
@@ -1638,7 +1641,7 @@ setup.signalySounds = {
 				}
 				done = true;
 				if (a.goto && Story.has(a.goto)) {
-					Engine.play(a.goto);
+					accessGo(a.goto, 'auto', 'chain:' + State.passage);
 				}
 			}
 
@@ -2208,7 +2211,7 @@ setup.signalySounds = {
 		var target = el.getAttribute('data-sg-goto');
 
 		if (target && Story.has(target)) {
-			Engine.play(target);
+			accessGo(target, 'auto', 'alarm:' + State.passage);
 		}
 	}
 
@@ -2387,7 +2390,7 @@ setup.signalySounds = {
 			setup.signaly.openDialog(o);
 		}
 		if (o.goto && Story.has(o.goto)) {
-			Engine.play(o.goto);
+			accessGo(o.goto, 'code', String(code));
 		}
 	}
 
@@ -2587,7 +2590,7 @@ setup.signalySounds = {
 			setup.signaly.openDialog({title: c.title, text: c.answer});
 		}
 		if (c.goto && Story.has(c.goto)) {
-			Engine.play(c.goto);
+			accessGo(c.goto, 'code', c.code);
 		}
 	}
 
@@ -2720,11 +2723,40 @@ setup.signalySounds = {
 			function tableEntry(entry, value) {
 				if (entry.once === 'all' && usedMarks()[entry.code]) {
 					codeMessage(entry.used || codes().texts.used);
+				} else if (accessEarly(entry.goto, entry.code, tableRefuse(entry))) {
+					return;
 				} else if (entry.pin) {
 					askPin(entry, value);
 				} else {
 					checkTableCode(entry, null, value);
 				}
+			}
+
+			// Шаг 4.3: чем ответить, если код пришёл на закрытый экран раньше времени.
+			function tableRefuse(entry) {
+				return {
+					wrong: function () {
+						codeMessage(codes().texts.wrong);
+					},
+					denied: function () {
+						codeMessage(entry.denied || codes().texts.denied);
+					}
+				};
+			}
+
+			function fieldRefuse(value) {
+				return {
+					wrong: function () {
+						if (wrong) {
+							codeAction(wrong, value);
+						} else {
+							codeMessage(codes().texts.wrong);
+						}
+					},
+					denied: function () {
+						codeMessage(codes().texts.denied);
+					}
+				};
 			}
 
 			function confirm() {
@@ -2746,6 +2778,9 @@ setup.signalySounds = {
 				closePin();
 				if (!found && a.table) {
 					entry = findTableCode(value.trim());
+				}
+				if (found && accessEarly(found.goto, String(found.code), fieldRefuse(value))) {
+					return;
 				}
 				if (found) {
 					codeAction(found, value);
@@ -2977,11 +3012,323 @@ setup.signalySounds = {
 
 			if (target && Story.has(target)) {
 				setTimeout(function () {
-					Engine.play(target);
+					// Назад ведёт туда, где уже были, — доступ не проверяется.
+					accessSkip = true;
+					try {
+						Engine.play(target);
+					} finally {
+						accessSkip = false;
+					}
 				}, Engine.DOM_DELAY || 40);
 			}
 		}
 	});
+
+	/* ----- Закрытые экраны (шаг 4.3) ----- */
+
+	// Экран с тегом sg-access: <<sg-access слова>>условие<<sg-rule …>><</sg-access>>.
+	// Условие верно — экран открыт. Пока оно ложно, каждый источник (ссылка,
+	// код, клавиша мастера, событие, таймер, тревога, цепочка видео) ведёт себя,
+	// как задано: hide, off, block, pass, wrong, denied, stay. Общий пассаж
+	// блокировки — пассаж с тегом sg-lock.
+	var accessCollect = null;
+	var accessTable = null;
+	var accessSkip = false;
+	var accessLink = null;
+
+	Macro.add('sg-access', {
+		tags: ['sg-rule'],
+		handler: function () {
+			if (!accessCollect) {
+				return;
+			}
+
+			var a = blockArgs(this, [], ['lock', 'links', 'codes', 'keys', 'events', 'auto'], []);
+			var rec = {
+				name: accessCollect.name,
+				expr: this.payload[0].contents.trim(),
+				lock: a.lock === undefined ? '' : String(a.lock),
+				groups: {
+					link: a.links || 'hide',
+					code: a.codes || 'block',
+					key: a.keys || 'pass',
+					event: a.events || 'pass',
+					auto: a.auto || 'pass'
+				},
+				rules: {}
+			};
+
+			this.payload.slice(1).forEach(function (part) {
+				var kind = String(part.args[0]);
+				var o = blockArgs({args: part.args.slice(2)}, [], ['from', 'do', 'to'], []);
+				var id = String(part.args[1]);
+
+				if (kind === 'link') {
+					id = String(o.from) + '\n' + id;
+				} else if (kind === 'key') {
+					id = comboName(id);
+				}
+				rec.rules[kind + '\n' + id] = {action: String(o['do']), to: o.to === undefined ? '' : String(o.to)};
+			});
+			accessCollect.table[rec.name] = rec;
+		}
+	});
+
+	function access() {
+		if (accessTable) {
+			return accessTable;
+		}
+		accessTable = {};
+		Story.filter(function (p) {
+			return p.tags.indexOf('sg-access') !== -1;
+		}).forEach(function (p) {
+			var open = p.text.indexOf('<<sg-access');
+			var close = p.text.indexOf('<</sg-access>>', open);
+
+			if (open === -1 || close === -1) {
+				return;
+			}
+			accessCollect = {name: p.title, table: accessTable};
+			try {
+				new Wikifier(document.createDocumentFragment(), p.text.slice(open, close + '<</sg-access>>'.length));
+			} catch (e) {
+				console.error('СИГНАЛЫ: доступ к экрану «' + p.title + '»', e);
+			}
+			accessCollect = null;
+		});
+		return accessTable;
+	}
+
+	function accessClosed(title) {
+		var rec = access()[title];
+
+		if (!rec || rec.expr === '') {
+			return false;
+		}
+		try {
+			return !Scripting.evalTwineScript(rec.expr);
+		} catch (e) {
+			if (!rec.failed) {
+				rec.failed = true;
+				console.error('СИГНАЛЫ: условие доступа к экрану «' + title + '»', e);
+			}
+			return false;
+		}
+	}
+
+	function accessRule(title, kind, id) {
+		var rec = access()[title];
+
+		return rec.rules[kind + '\n' + id] || {action: rec.groups[kind] || 'pass', to: ''};
+	}
+
+	// Куда уводит блокировка: свой пассаж источника, экрана, общий.
+	function accessLock(title, rule) {
+		var rec = access()[title];
+		var shared = Story.filter(function (p) {
+			return p.tags.indexOf('sg-lock') !== -1;
+		});
+		var to = rule.to || rec.lock || (shared.length ? shared[0].title : '');
+
+		return to && to !== title && Story.has(to) ? to : '';
+	}
+
+	// Куда на самом деле вести; null — остаться на месте.
+	function accessRoute(dest, kind, id) {
+		var from = State.passage;
+
+		if (preview || restoring || !from || dest === from || !accessClosed(dest)) {
+			return dest;
+		}
+
+		var rule = accessRule(dest, kind, id);
+
+		if (rule.action === 'pass') {
+			return dest;
+		}
+		if (rule.action === 'stay') {
+			return null;
+		}
+
+		var lock = accessLock(dest, rule);
+
+		if (!lock || lock === from) {
+			return null;
+		}
+		// «Вернуться на экран, где были» ведёт туда, откуда пришли (ответ 5А).
+		State.variables.sgEventFrom = from;
+		return lock;
+	}
+
+	function accessGo(dest, kind, id) {
+		var to = accessRoute(dest, kind, id);
+
+		if (to === null) {
+			return false;
+		}
+		accessSkip = true;
+		try {
+			Engine.play(to);
+		} finally {
+			accessSkip = false;
+		}
+		return true;
+	}
+
+	// Код ведёт на закрытый экран: true — код не принят (действия не выполнены,
+	// одноразовый не потрачен).
+	function accessEarly(dest, code, refuse) {
+		if (preview || !dest || !Story.has(dest) || dest === State.passage || !accessClosed(dest)) {
+			return false;
+		}
+
+		var rule = accessRule(dest, 'code', code);
+
+		if (rule.action === 'pass') {
+			return false;
+		}
+		if (rule.action === 'denied') {
+			refuse.denied();
+			return true;
+		}
+		if (rule.action === 'block' && accessLock(dest, rule) && accessGo(dest, 'code', code)) {
+			return true;
+		}
+		refuse.wrong();
+		return true;
+	}
+
+	// Событие на закрытый экран с поведением «ждать».
+	function accessWaits(name) {
+		return !!access()[name] && accessClosed(name) && accessRule(name, 'event', '').action === 'stay';
+	}
+
+	function accessLinkId(el) {
+		return State.passage + '\n' + el.textContent.replace(/\s+/g, ' ').trim();
+	}
+
+	// Поведение ссылки: своё правило или общее. Пока надпись печатается, она
+	// совпадает с правилом только началом.
+	function accessLinkRule(title, el) {
+		var rec = access()[title];
+		var id = accessLinkId(el);
+		var key = 'link\n' + id;
+
+		if (rec.rules[key]) {
+			return rec.rules[key];
+		}
+		if (el.closest('.macro-type:not(.macro-type-done):not(.macro-type-target)')) {
+			var keys = Object.keys(rec.rules);
+
+			for (var i = 0; i < keys.length; i++) {
+				if (keys[i].indexOf(key) === 0) {
+					return rec.rules[keys[i]];
+				}
+			}
+		}
+		return {action: rec.groups.link || 'hide', to: ''};
+	}
+
+	function accessLineEdge(node, side) {
+		var next = node[side];
+
+		while (
+			next &&
+			((next.nodeType === 3 && next.nodeValue.trim() === '') ||
+				(next.nodeType === 1 && next.classList.contains('sg-acc-hide')))
+		) {
+			next = next[side];
+		}
+		return next;
+	}
+
+	// В обёртке нет ничего, кроме node и уже скрытого.
+	function accessOnly(span, node) {
+		for (var c = span.firstChild; c; c = c.nextSibling) {
+			var empty =
+				c === node ||
+				(c.nodeType === 3 && c.nodeValue.trim() === '') ||
+				(c.nodeType === 1 && (c.tagName === 'BR' || c.classList.contains('sg-acc-hide')));
+
+			if (!empty) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	function isBr(node) {
+		return !!node && node.nodeType === 1 && node.tagName === 'BR';
+	}
+
+	// Ответ 4А: ссылка исчезает вместе с обёрткой вида и переводом строки, если
+	// в строке больше ничего нет; кнопка на экране исчезает целиком.
+	function accessHide(el) {
+		var top = el.closest('.sg-place');
+
+		if (top) {
+			top.classList.add('sg-acc-hide');
+			return;
+		}
+		top = el;
+		while (top.parentNode.tagName === 'SPAN' && accessOnly(top.parentNode, top)) {
+			top = top.parentNode;
+		}
+		top.classList.add('sg-acc-hide');
+
+		var before = accessLineEdge(top, 'previousSibling');
+		var after = accessLineEdge(top, 'nextSibling');
+
+		if ((before && !isBr(before)) || (after && !isBr(after))) {
+			return;
+		}
+		if (isBr(after)) {
+			after.classList.add('sg-acc-hide');
+		} else if (isBr(before)) {
+			before.classList.add('sg-acc-hide');
+		}
+	}
+
+	function accessScan() {
+		var marked = document.querySelectorAll('.sg-acc-hide, .sg-acc-off');
+
+		for (var i = 0; i < marked.length; i++) {
+			var el = marked[i];
+
+			el.classList.remove('sg-acc-hide');
+			if (el.classList.contains('sg-acc-off')) {
+				el.classList.remove('sg-acc-off');
+				el.removeAttribute('aria-disabled');
+				el.setAttribute('tabindex', '0');
+			}
+		}
+
+		var links = document.querySelectorAll('a[data-passage], button[data-passage]');
+
+		for (var j = 0; j < links.length; j++) {
+			var link = links[j];
+			var title = link.getAttribute('data-passage');
+
+			if (!access()[title] || title === State.passage || !accessClosed(title)) {
+				continue;
+			}
+
+			var rule = accessLinkRule(title, link);
+			var action = rule.action;
+
+			// Некуда вести — ссылка просто не нажимается.
+			if (action === 'block' && !accessLock(title, rule)) {
+				action = 'off';
+			}
+			if (action === 'hide') {
+				accessHide(link);
+			} else if (action === 'off') {
+				link.classList.add('sg-acc-off');
+				link.setAttribute('aria-disabled', 'true');
+				link.setAttribute('tabindex', '-1');
+			}
+		}
+	}
 
 	/* ----- Строка событий и цикл (шаг 4.1) ----- */
 
@@ -3963,9 +4310,7 @@ setup.signalySounds = {
 			} catch (e) {
 				console.error('СИГНАЛЫ: горячая клавиша ' + k.combo, e);
 			}
-			if (k.goto) {
-				Engine.play(k.goto);
-			} else {
+			if (!k.goto || !accessGo(k.goto, 'key', k.combo)) {
 				afterAction();
 			}
 		};
@@ -4243,7 +4588,7 @@ setup.signalySounds = {
 			if (m.done && !ev.repeat) {
 				return;
 			}
-			if (!eventTrue(ev)) {
+			if (!eventTrue(ev) || accessWaits(ev.name)) {
 				delete m.due;
 				delete m.was;
 			} else if (!m.ready && !m.was) {
@@ -4315,7 +4660,7 @@ setup.signalySounds = {
 		State.variables.sgEventFrom = current;
 		eventBusy = true;
 		try {
-			Engine.play(next.name);
+			accessGo(next.name, 'event', '');
 		} finally {
 			eventBusy = false;
 		}
@@ -4335,6 +4680,40 @@ setup.signalySounds = {
 			true
 		);
 	});
+
+	/* ----- Закрытые экраны в игре (шаг 4.3) ----- */
+
+	if (
+		Story.filter(function (p) {
+			return p.tags.indexOf('sg-access') !== -1;
+		}).length
+	) {
+		// Какую ссылку нажали: переход SugarCube сделает уже после щелчка.
+		document.addEventListener(
+			'click',
+			function (ev) {
+				var el = ev.target.closest ? ev.target.closest('a[data-passage], button[data-passage]') : null;
+
+				accessLink = el;
+			},
+			true
+		);
+		Config.navigation.override = function (title) {
+			var el = accessLink;
+
+			accessLink = null;
+			if (accessSkip || !access()[title]) {
+				return title;
+			}
+
+			var to = accessRoute(title, 'link', el ? accessLinkId(el) : '');
+
+			return to === null ? State.passage : to;
+		};
+		$(document).on(':passagedisplay', accessScan);
+		setInterval(accessScan, 250);
+		new MutationObserver(accessScan).observe(document.body, {childList: true, subtree: true, characterData: true});
+	}
 
 	/* ----- Стартовый экран ----- */
 
@@ -4571,7 +4950,7 @@ setup.initXiaomi = function () {
 /* ===== СИГНАЛЫ: оформление терминала — не редактировать вручную ===== */
 /* Меняется в окне «Оформление терминала» программы «Twine СИГНАЛЫ».
    В своих стилях можно брать эти значения: var(--sg-text), var(--sg-font-size) и т. д. */
-/* СИГНАЛЫ-настройки: {"v":1,"pageBg":"#000000","textColor":"#00cc00","font":"Courier New","fontFile":"","fontSize":25,"winWidth":1050,"winHeight":1050,"winPadding":20,"winOffsetX":0,"winOffsetY":0,"winBg":"#000000","borderWidth":2,"borderColor":"#00cc00","glowColor":"#00cc00","glowSize":10,"flicker":true,"flickerPeriod":0.1,"flickerDepth":5,"vignette":0,"noise":0,"noSelect":false,"noContextMenu":false,"noZoom":false,"hideCursor":0,"lineScroll":false,"startText":"Нажмите, чтобы запустить систему","startSound":"","startVolume":100,"savedColors":["#00cc00","#ffbf00","#cc0000","#cccc00","#cc00cc","#000000"],"dialogOn":true,"dialogBg":"#000000","dialogColor":"#00cc00","dialogSize":25,"dialogBorderColor":"#00cc00","dialogBorderWidth":2,"dialogGlow":10,"dialogTitleBg":"#000000","dialogTitleColor":"#00cc00","dialogTitleSize":25,"dialogTitleLine":1,"typeClick":true,"typeSeen":true,"inputOn":true,"inputBg":"#000000","inputColor":"#00cc00","inputBorderColor":"#00cc00","inputBorderWidth":1,"inputGlow":5,"inputFont":"","inputSize":25,"inputWidth":0,"screens":[],"textStyles":[],"glitchColor":"#00cc00","glitchBg":"#111111","glitchShadow1":"#0000ff","glitchShadow2":"#ff0000","glitchShift":5,"glitchSpeed":2} */
+/* СИГНАЛЫ-настройки: {"v":1,"pageBg":"#000000","textColor":"#00cc00","font":"Courier New","fontFile":"","fontSize":25,"winWidth":1050,"winHeight":1050,"winPadding":20,"winOffsetX":0,"winOffsetY":0,"winBg":"#000000","borderWidth":2,"borderColor":"#00cc00","glowColor":"#00cc00","glowSize":10,"flicker":true,"flickerPeriod":0.1,"flickerDepth":5,"vignette":0,"noise":0,"noSelect":false,"noContextMenu":false,"noZoom":false,"hideCursor":0,"lineScroll":false,"startText":"Нажмите, чтобы запустить систему","startSound":"","startVolume":100,"savedColors":["#00cc00","#ffbf00","#cc0000","#cccc00","#cc00cc","#000000"],"dialogOn":true,"dialogBg":"#000000","dialogColor":"#00cc00","dialogSize":25,"dialogBorderColor":"#00cc00","dialogBorderWidth":2,"dialogGlow":10,"dialogTitleBg":"#000000","dialogTitleColor":"#00cc00","dialogTitleSize":25,"dialogTitleLine":1,"typeClick":true,"typeSeen":true,"inputOn":true,"inputBg":"#000000","inputColor":"#00cc00","inputBorderColor":"#00cc00","inputHoverBg":"#333333","inputHoverBorderColor":"#eeeeee","inputBorderWidth":1,"inputGlow":5,"inputFont":"","inputSize":25,"inputWidth":0,"screens":[],"textStyles":[],"glitchColor":"#00cc00","glitchBg":"#111111","glitchShadow1":"#0000ff","glitchShadow2":"#ff0000","glitchShift":5,"glitchSpeed":2} */
 :root {
 	--sg-page-bg: #000000;
 	--sg-text: #00cc00;
@@ -4685,6 +5064,10 @@ html input, html textarea {
 	border: 1px solid #00cc00;
 	box-shadow: 0 0 5px #00cc00;
 	font-size: 25px;
+}
+html input:hover, html textarea:hover, html[data-outlines] input:focus, html[data-outlines] textarea:focus {
+	background-color: #333333;
+	border-color: #eeeeee;
 }
 html .glitchy { color: #00cc00; position: relative; }
 html .glitchy::before { content: attr(data-text); width: calc(100% + 0.5em); position: absolute; left: -9px; text-shadow: 1px 0 #0000ff; top: -5px; color: #00cc00; background: #111111; overflow: hidden; clip-path: polygon(0 0); pointer-events: none; animation: sg-glitch-2 3s infinite linear alternate-reverse; }

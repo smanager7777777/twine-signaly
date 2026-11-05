@@ -551,7 +551,9 @@
 				"inputGlow": "Glow",
 				"inputFont": "Font",
 				"inputSize": "Text size",
-				"inputWidth": "Field width"
+				"inputWidth": "Field width",
+				"inputHoverBg": "Background color on hover",
+				"inputHoverBorderColor": "Border color on hover"
 			},
 			"hints": {
 				"savedColors": "Colors of this story. In any color field: ★ adds the color here; a swatch applies it.",
@@ -1680,6 +1682,73 @@
 				"confirmDelete": "Delete style “{{name}}”?",
 				"confirmDeleteUsed": "Style “{{name}}” is used on {{count}} screen(s). The text stays, without the style. Delete?"
 			}
+		},
+		"access": {
+			"button": "Access",
+			"title": "Screen access",
+			"when": "The screen is open when",
+			"lockTitle": "Lock passage",
+			"lock": "Lock passage of this screen",
+			"lockShared": "Shared: {{name}}",
+			"lockSharedNone": "Shared (not chosen)",
+			"shared": "Shared lock passage",
+			"sharedNone": "Not chosen",
+			"sharedHint": "One for the whole game, for screens without their own. It is an ordinary passage and gets the sg-lock tag.",
+			"noLock": "No lock passage is chosen. Until one is, a link with this behavior cannot be clicked and a code answers “Wrong code”.",
+			"sources": "What leads to this screen",
+			"sourcesHint": "What each source does while the screen is closed. The top row of a group is the default; below it each source can have its own behavior.",
+			"group": {
+				"link": "Links and buttons",
+				"code": "Passwords and codes",
+				"key": "Master keys",
+				"event": "Event (this screen)",
+				"auto": "Timers, alarm, video chain"
+			},
+			"action": {
+				"link": {
+					"hide": "Do not show",
+					"off": "Show but not clickable",
+					"block": "Lead to the lock passage",
+					"pass": "Let through"
+				},
+				"code": {
+					"block": "Lead to the lock passage",
+					"wrong": "Answer “Wrong code”",
+					"denied": "Answer “No access”",
+					"pass": "Let through"
+				},
+				"key": {
+					"pass": "Let through",
+					"block": "Lead to the lock passage",
+					"stay": "Do not go"
+				},
+				"event": {
+					"pass": "Let through",
+					"block": "Lead to the lock passage",
+					"stay": "Wait until the screen opens"
+				},
+				"auto": {
+					"pass": "Let through",
+					"block": "Lead to the lock passage",
+					"stay": "Do not go"
+				}
+			},
+			"same": "Same as all: {{action}}",
+			"to": "Lead to: {{name}}",
+			"toScreen": "Lock passage of the screen",
+			"source": {
+				"link": "Link “{{label}}” on screen {{from}}",
+				"button": "Button “{{label}}” on screen {{from}}",
+				"timer": "Timer “{{label}}”",
+				"alarm": "Alarm on screen {{label}}",
+				"chain": "Video chain on screen {{label}}"
+			},
+			"stale": "(no longer in the game)",
+			"hint": "The condition is checked all the time: a link appears as soon as the screen opens. A code is checked before its actions, so an early code is not used up. The preview shows all links; check with Play. In the text: the first line <<sg-access …>> and the sg-access tag.",
+			"remove": "Remove access",
+			"confirmRemove": "The screen becomes open to everyone (the <<sg-access …>> command and the tag are removed, the rest of the text stays). Remove?",
+			"noTag": "The passage has no sg-access tag: the terminal lets everyone through.",
+			"addTag": "Add the tag"
 		}
 	}
 }
