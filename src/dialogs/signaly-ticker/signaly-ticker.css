@@ -1,0 +1,43 @@
+/* «Twine СИГНАЛЫ»: окно «Строка событий» (общие стили — в signaly-appearance.css, signaly-kinds.css, signaly-sounds.css). */
+
+.signaly-ticker-window .signaly-appearance-body {
+	grid-template-columns: minmax(420px, 500px) 1fr;
+}
+
+.signaly-ticker-preview {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	min-width: 0;
+}
+
+.signaly-ticker-preview-bar {
+	align-items: center;
+	display: flex;
+	gap: var(--grid-size);
+	padding: calc(var(--grid-size) / 2) var(--grid-size);
+}
+
+.signaly-ticker-row {
+	align-items: center;
+	display: grid;
+	gap: 6px;
+	grid-template-columns: 1fr 1fr auto;
+	margin: 4px 0;
+}
+
+.signaly-ticker-row input {
+	box-sizing: border-box;
+	width: 100%;
+}
+
+.signaly-ticker-order {
+	align-items: center;
+	display: flex;
+	gap: 6px;
+	margin: 4px 0;
+}
+
+.signaly-ticker-order span {
+	flex: 1;
+}

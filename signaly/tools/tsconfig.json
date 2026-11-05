@@ -12,6 +12,7 @@
     "migrate-twee.ts",
     "../../src/util/signaly/signaly-variables.ts",
     "../../src/util/signaly/signaly-logic.ts",
-    "../../src/util/signaly/signaly-codes.ts"
+    "../../src/util/signaly/signaly-codes.ts",
+    "../../src/util/signaly/signaly-ticker.ts"
   ]
 }

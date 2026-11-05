@@ -1425,6 +1425,122 @@
 			"confirmRemove": "The screen stops being an event (the first line <<sg-event …>> and the tag are removed, the rest of the text stays). Remove?",
 			"noTag": "The passage has no sg-event tag — the terminal will not go to it.",
 			"addTag": "Add tag"
+		},
+		"ticker": {
+			"button": "Event line",
+			"title": "Event line",
+			"tabs": {
+				"news": "Messages",
+				"line": "Line",
+				"cycle": "Cycle"
+			},
+			"intro": {
+				"news": "Messages of the top line on the main screen. Conditions and limits are checked all the time on any screen; the line is shown on the main screen only.",
+				"line": "The line sits on one screen only. Its frame matches the terminal window. On-screen buttons from the top corners move down by the line height.",
+				"cycle": "“Цикл XXXXX” in the top right corner. Its value depends on the progress variable."
+			},
+			"up": "Up",
+			"down": "Down",
+			"confirmDelete": "Delete message “{{name}}”?",
+			"demo": "Show cycle change",
+			"demoHint": "Main screen preview: settings apply at once, no sound.",
+			"news": {
+				"empty": "No messages yet. Press Add.",
+				"noName": "(no name)",
+				"add": "Add",
+				"copy": "Copy",
+				"delete": "Delete",
+				"sortName": "By name",
+				"sortPriority": "By priority",
+				"generalMark": "general",
+				"name": "Name",
+				"nameHint": "For you only, players do not see it. Each message has its own name.",
+				"text": "Text",
+				"textHint": "You can insert a variable: <<= $name>>. Text that fits stays still, longer text scrolls.",
+				"general": "General",
+				"generalHint": "Only one general message is shown: the one switched on last. Otherwise it takes turns with the others.",
+				"when": "When it switches on",
+				"whenChoice": "Show",
+				"always": "Always",
+				"byCond": "When the condition is met",
+				"how": "How long it is shown",
+				"minutes": "Minutes after switching on",
+				"minutesHint": "0 — no limit. Counted on any screen.",
+				"times": "Times to show",
+				"timesHint": "0 — no limit.",
+				"priority": "Priority",
+				"priorityHint": "Within the queue: higher goes first. Equal — by list order.",
+				"look": "Look",
+				"ownColor": "Own colour",
+				"color": "Colour",
+				"bold": "Bold",
+				"italic": "Italic",
+				"effect": "Effect",
+				"effects": {
+					"none": "None",
+					"blink": "Blink",
+					"glitch": "Glitch"
+				}
+			},
+			"line": {
+				"screen": "Main screen",
+				"screenHint": "The screen that shows the line. By default — the story's start screen.",
+				"height": "Line height",
+				"size": "Text size",
+				"font": "Font",
+				"fontTerminal": "Same as terminal",
+				"scroll": "Scrolling long text",
+				"speed": "Speed",
+				"speedUnit": "px/s",
+				"speedHint": "For text that does not fit in the line.",
+				"pause": "Pause before scrolling",
+				"pauseHint": "How long the text stays before it moves.",
+				"changeTitle": "Changing messages",
+				"hold": "Time on screen",
+				"holdHint": "For text that fits. Long text changes once it has scrolled.",
+				"mode": "Change style",
+				"modes": {
+					"fade": "Fade out and in",
+					"scroll": "Scroll"
+				},
+				"change": "Change duration",
+				"order": "Show first",
+				"orderHint": "Message queue. Within each group — by priority, then list order.",
+				"ranks": {
+					"new": "New (not shown yet)",
+					"general": "General",
+					"seen": "Already seen"
+				}
+			},
+			"cycle": {
+				"variable": "Progress variable",
+				"variableHint": "When the variable changes, the cycle changes.",
+				"none": "Do not show the cycle",
+				"rows": "Cycle values",
+				"rowsHint": "The row with the highest progress not above the current one is used. None — 00000.",
+				"progress": "Progress",
+				"value": "Cycle",
+				"addRow": "+ Add",
+				"deleteRow": "Delete row",
+				"spinTitle": "Digit change on the main screen",
+				"spin": "Duration",
+				"spinHint": "Only changed digits and those to their right spin.",
+				"rate": "Starting speed",
+				"rateUnit": "changes/s",
+				"rateHint": "Digits slow down and stop on the new value.",
+				"soundTitle": "Cycle change sound",
+				"sound": "Sound",
+				"soundHint": "Plays at the moment of change, on any screen.",
+				"noSound": "No sound",
+				"volume": "Volume"
+			},
+			"problems": {
+				"emptyName": "A message has no name.",
+				"duplicateNames": "Duplicate names: {{names}}.",
+				"badCycle": "A cycle is 1 to 5 digits.",
+				"duplicateProgress": "Duplicate progress: {{values}}.",
+				"noScreen": "No main screen selected."
+			}
 		}
 	}
 }

@@ -6,6 +6,7 @@ import {SignalyCodesButton} from '../../../../dialogs/signaly-codes';
 import {SignalyKeysButton} from '../../../../dialogs/signaly-keys';
 import {SignalyKindsButton} from '../../../../dialogs/signaly-kinds';
 import {SignalySoundsButton} from '../../../../dialogs/signaly-sounds';
+import {SignalyTickerButton} from '../../../../dialogs/signaly-ticker';
 import {SignalyVariablesButton} from '../../../../dialogs/signaly-variables';
 import {Story, updateStory, useStoriesContext} from '../../../../store/stories';
 import {DetailsButton} from './details-button';
@@ -40,6 +41,7 @@ export const StoryActions: React.FC<StoryActionsProps> = props => {
 			<SignalyVariablesButton story={story} />
 			<SignalyKeysButton story={story} />
 			<SignalyCodesButton story={story} />
+			<SignalyTickerButton story={story} />
 		</ButtonBar>
 	);
 };

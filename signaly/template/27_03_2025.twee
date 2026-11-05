@@ -990,7 +990,7 @@ setup.signalySounds = {
 
 
 /* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */
-/* Версия движка: 10. Обновляется программой «Twine СИГНАЛЫ».
+/* Версия движка: 11. Обновляется программой «Twine СИГНАЛЫ».
    Настройки — в окне «Оформление терминала» (они лежат в таблице стилей).
    Свой код пишите ниже конца этого блока. */
 (function () {
@@ -1035,7 +1035,7 @@ setup.signalySounds = {
 	// Предпросмотр в программе: без стартового экрана, автокопии и защиты.
 	var preview = window.SIGNALY_PREVIEW;
 
-	setup.signaly = {engine: 10, preview: !!preview};
+	setup.signaly = {engine: 11, preview: !!preview};
 
 	function showStartScreen(onClick) {
 		var screen = document.createElement('div');
@@ -1212,7 +1212,7 @@ setup.signalySounds = {
 				: 'calc(50% - ' + halfW + ' + ' + offX + ' + ' + x + ')';
 			el.style[bottom ? 'bottom' : 'top'] = bottom
 				? 'calc(50% - ' + halfH + ' - ' + offY + ' + ' + y + ')'
-				: 'calc(50% - ' + halfH + ' + ' + offY + ' + ' + y + ')';
+				: 'calc(50% - ' + halfH + ' + ' + offY + ' + ' + y + ' + var(--sg-place-shift, 0px))';
 		}
 	}
 
@@ -2983,6 +2983,605 @@ setup.signalySounds = {
 		}
 	});
 
+	/* ----- Строка событий и цикл (шаг 4.1) ----- */
+
+	// Настройки — пассаж с тегом sg-ticker: <<sg-ticker>>, <<sg-cycle>>,
+	// <<sg-cycle-at>>, <<sg-news>>. Строка стоит только на одном экране
+	// (главном); условия и смена цикла проверяются всё время, на любом экране.
+	// $sgTicker = {msgs: {имя: {at, shown}}, cycle, seen}: когда сообщение
+	// включилось и сколько раз показано; цикл сейчас; цикл, который видели.
+	var tickerCollect = null;
+	var tickerTable = null;
+	var tickerStrip = null;
+	var tickerLine = null;
+	var tickerNum = null;
+	var tickerSpin = null;
+	var tk = {phase: 'idle', at: 0, cur: null, old: null, round: {}, active: [], live: {}, general: null};
+
+	engineStyle.textContent +=
+		'#sg-ticker { position: sticky; top: calc(-1 * var(--sg-win-padding, 20px)); z-index: 10; display: flex; gap: 6px; box-sizing: border-box; ' +
+		'padding: 4px; margin: calc(-1 * var(--sg-win-padding, 20px)) calc(-1 * var(--sg-win-padding, 20px)) 8px; ' +
+		'background: var(--sg-win-bg, #000); line-height: 1.2; }\n' +
+		'.sg-tk-box { box-sizing: border-box; background: var(--sg-win-bg, #000); ' +
+		'border: var(--sg-border-width, 2px) solid var(--sg-border-color, currentColor); ' +
+		'box-shadow: 0 0 var(--sg-glow-size, 0) var(--sg-glow-color, transparent); }\n' +
+		'.sg-tk-line { flex: 1 1 auto; min-width: 0; position: relative; overflow: hidden; }\n' +
+		'.sg-tk-msg { position: absolute; left: 10px; top: 50%; white-space: nowrap; will-change: transform, opacity; }\n' +
+		'.sg-tk-cycle { flex: 0 0 auto; display: flex; align-items: center; gap: 0.5em; padding: 0 12px; white-space: nowrap; }\n' +
+		'.sg-tk-num span { display: inline-block; width: 1ch; text-align: center; }\n';
+
+	Macro.add('sg-ticker', {
+		handler: function () {
+			if (tickerCollect) {
+				tickerCollect.line = blockArgs(this, [], ['screen', 'height', 'size', 'font', 'speed', 'pause', 'hold', 'change', 'mode', 'order'], []);
+			}
+		}
+	});
+
+	Macro.add('sg-cycle', {
+		handler: function () {
+			if (tickerCollect) {
+				tickerCollect.cycle = blockArgs(this, [], ['var', 'spin', 'rate', 'sound', 'volume'], []);
+			}
+		}
+	});
+
+	Macro.add('sg-cycle-at', {
+		handler: function () {
+			if (tickerCollect) {
+				var a = blockArgs(this, ['progress', 'value'], [], []);
+
+				tickerCollect.rows.push({progress: Number(a.progress) || 0, value: String(a.value === undefined ? '' : a.value)});
+			}
+		}
+	});
+
+	Macro.add('sg-news', {
+		tags: ['sg-text'],
+		handler: function () {
+			if (!tickerCollect) {
+				return;
+			}
+
+			var a = blockArgs(this, ['name'], ['priority', 'minutes', 'times', 'color', 'effect'], ['general', 'bold', 'italic']);
+
+			a.name = String(a.name === undefined ? '' : a.name);
+			a.expr = this.payload[0].contents.trim();
+			a.text = this.payload[1] ? this.payload[1].contents.trim() : '';
+			a.priority = Number(a.priority) || 0;
+			a.minutes = Number(a.minutes) || 0;
+			a.times = Number(a.times) || 0;
+			a.index = tickerCollect.news.length;
+			tickerCollect.news.push(a);
+		}
+	});
+
+	function ticker() {
+		if (tickerTable !== null) {
+			return tickerTable;
+		}
+
+		var t = {line: null, cycle: null, rows: [], news: []};
+
+		tickerCollect = t;
+		Story.filter(function (p) {
+			return p.tags.indexOf('sg-ticker') !== -1;
+		}).forEach(function (p) {
+			try {
+				new Wikifier(document.createDocumentFragment(), p.text);
+			} catch (e) {
+				console.error('СИГНАЛЫ: строка событий', e);
+			}
+		});
+		tickerCollect = null;
+		if (!t.line) {
+			tickerTable = false;
+			return false;
+		}
+
+		var a = t.line;
+		var number = function (value, fallback) {
+			var n = Number(value);
+
+			return value === undefined || isNaN(n) ? fallback : n;
+		};
+
+		t.line = {
+			screen: String(a.screen || ''),
+			height: number(a.height, 48),
+			size: number(a.size, 22),
+			font: String(a.font || ''),
+			speed: Math.max(1, number(a.speed, 60)),
+			pause: number(a.pause, 2),
+			hold: number(a.hold, 8),
+			change: number(a.change, 1.5),
+			mode: a.mode === 'scroll' ? 'scroll' : 'fade',
+			order: String(a.order || 'new,general,seen').split(',')
+		};
+		if (t.cycle) {
+			t.cycle.name = String(t.cycle['var'] || '').replace(/^\$/, '');
+			t.cycle.spin = number(t.cycle.spin, 10);
+			t.cycle.rate = Math.max(1, number(t.cycle.rate, 20));
+			t.cycle.volume = number(t.cycle.volume, 100);
+			t.rows.sort(function (x, y) {
+				return x.progress - y.progress;
+			});
+		}
+		tickerTable = t;
+		return t;
+	}
+
+	function pad(value, length) {
+		return String(value).padStart(length, '0');
+	}
+
+	// Цикл — строка таблицы с наибольшим прогрессом, не больше текущего.
+	function cycleTarget(t) {
+		if (!t.cycle || !t.cycle.name) {
+			return null;
+		}
+
+		var progress = Number(State.variables[t.cycle.name]) || 0;
+		var value = '00000';
+
+		t.rows.forEach(function (row) {
+			if (row.progress <= progress) {
+				value = row.value;
+			}
+		});
+		return pad(value, 5);
+	}
+
+	function showCycle(value) {
+		if (!tickerNum) {
+			return;
+		}
+		tickerNum.textContent = '';
+		String(value).split('').forEach(function (digit) {
+			var cell = document.createElement('span');
+
+			cell.textContent = digit;
+			tickerNum.appendChild(cell);
+		});
+	}
+
+	// Меняются только разряды, начиная с первого изменившегося слева.
+	function startSpin(from, to, t) {
+		var length = Math.max(from.length, to.length);
+		var a = pad(from, length);
+		var b = pad(to, length);
+		var first = 0;
+
+		while (first < length && a.charAt(first) === b.charAt(first)) {
+			first++;
+		}
+		tickerSpin = {
+			to: b,
+			digits: a.split(''),
+			first: first,
+			start: performance.now(),
+			next: 0,
+			duration: Math.max(0, t.cycle.spin) * 1000,
+			step: 1000 / t.cycle.rate
+		};
+		showCycle(a);
+	}
+
+	function spinFrame(now) {
+		var spin = tickerSpin;
+
+		if (!spin) {
+			return;
+		}
+
+		var part = spin.duration > 0 ? (now - spin.start) / spin.duration : 1;
+
+		if (part >= 1) {
+			tickerSpin = null;
+			showCycle(spin.to);
+			varObject('sgTicker').seen = spin.to;
+			saveVars();
+			return;
+		}
+		if (now < spin.next) {
+			return;
+		}
+		for (var i = spin.first; i < spin.digits.length; i++) {
+			var digit = Math.floor(Math.random() * 9);
+
+			spin.digits[i] = String(digit >= Number(spin.digits[i]) ? digit + 1 : digit);
+		}
+		showCycle(spin.digits.join(''));
+		// Постепенно замедляется: к концу цифры меняются в 15 раз реже.
+		spin.next = now + spin.step * (1 + 14 * part * part * part);
+	}
+
+	function newsTrue(n) {
+		if (n.expr === '') {
+			return true;
+		}
+		try {
+			return !!Scripting.evalTwineScript(n.expr);
+		} catch (e) {
+			if (!n.failed) {
+				n.failed = true;
+				console.error('СИГНАЛЫ: условие сообщения «' + n.name + '»', e);
+			}
+			return false;
+		}
+	}
+
+	// Какие сообщения можно показывать: из общих — только включившееся последним
+	// (новое общее сменяет старое).
+	function tickerRefresh(t, marks, now) {
+		var live = {};
+		var fresh = [];
+		var general = null;
+
+		t.news.forEach(function (n) {
+			var m = marks[n.name];
+
+			if (!m || (n.minutes > 0 && now >= m.at + n.minutes * 60000)) {
+				return;
+			}
+			live[n.name] = true;
+			if (n.times > 0 && m.shown >= n.times) {
+				return;
+			}
+			if (n.general && (!general || m.at >= marks[general.name].at)) {
+				general = n;
+			}
+			fresh.push(n);
+		});
+		tk.live = live;
+		tk.general = general;
+		tk.active = fresh.filter(function (n) {
+			return !n.general || n === general;
+		});
+	}
+
+	function tickerCheck() {
+		if (restoring || !State.passage || (!preview && !started) || (Engine.isIdle && !Engine.isIdle())) {
+			return;
+		}
+
+		var t = ticker();
+
+		if (!t) {
+			return;
+		}
+
+		var store = varObject('sgTicker');
+		var marks = store.msgs || (store.msgs = {});
+		var now = Date.now();
+		var changed = false;
+
+		t.news.forEach(function (n) {
+			var on = newsTrue(n);
+
+			if (on && !marks[n.name]) {
+				marks[n.name] = {at: now, shown: 0};
+				changed = true;
+			} else if (!on && marks[n.name]) {
+				delete marks[n.name];
+				delete tk.round[n.name];
+				changed = true;
+			}
+		});
+		tickerRefresh(t, marks, now);
+
+		var target = cycleTarget(t);
+
+		if (target !== null) {
+			if (store.cycle === undefined) {
+				store.cycle = target;
+				store.seen = target;
+				changed = true;
+			} else if (store.cycle !== target) {
+				store.cycle = target;
+				changed = true;
+				if (!preview && t.cycle.sound) {
+					var audio = signalFor(String(t.cycle.sound));
+
+					audio.volume = Math.max(0, Math.min(1, t.cycle.volume / 100));
+					audio.currentTime = 0;
+					audio.play().catch(function () {});
+				}
+			}
+			if (tickerStrip && tickerStrip.isConnected) {
+				if (store.seen !== target && (!tickerSpin || tickerSpin.to !== target)) {
+					startSpin(tickerSpin ? tickerNum.textContent : store.seen, target, t);
+				} else if (store.seen === target && !tickerSpin && tickerNum.textContent !== target) {
+					showCycle(target);
+				}
+			}
+		}
+		if (changed) {
+			saveVars();
+		}
+	}
+
+	function tickerFont(font) {
+		return !font ? '' : /[\/\\]/.test(font) ? timerFont(font) : '"' + font + '", monospace';
+	}
+
+	function buildTicker(t) {
+		var strip = document.createElement('div');
+
+		strip.id = 'sg-ticker';
+		strip.style.fontSize = t.line.size + 'px';
+		strip.style.fontFamily = tickerFont(t.line.font);
+		tickerLine = document.createElement('div');
+		tickerLine.className = 'sg-tk-box sg-tk-line';
+		tickerLine.style.height = t.line.height + 'px';
+		strip.appendChild(tickerLine);
+		if (t.cycle) {
+			var cycle = document.createElement('div');
+
+			cycle.className = 'sg-tk-box sg-tk-cycle';
+			cycle.style.height = t.line.height + 'px';
+			cycle.textContent = 'Цикл';
+			tickerNum = document.createElement('span');
+			tickerNum.className = 'sg-tk-num';
+			cycle.appendChild(tickerNum);
+			strip.appendChild(cycle);
+		}
+		tickerStrip = strip;
+	}
+
+	function tickerClear() {
+		tk.phase = 'idle';
+		tk.cur = null;
+		tk.old = null;
+		tickerSpin = null;
+		if (tickerLine) {
+			tickerLine.textContent = '';
+		}
+	}
+
+	function placeTicker() {
+		var t = ticker();
+
+		if (!t) {
+			return;
+		}
+
+		var root = document.documentElement;
+		var passages = document.getElementById('passages');
+
+		if (State.passage !== t.line.screen) {
+			if (tickerStrip && tickerStrip.parentNode) {
+				tickerStrip.parentNode.removeChild(tickerStrip);
+			}
+			tickerClear();
+			root.style.removeProperty('--sg-place-shift');
+			return;
+		}
+		if (!tickerStrip) {
+			buildTicker(t);
+		}
+
+		var fresh = !tickerStrip.isConnected && tk.phase === 'idle';
+
+		passages.insertBefore(tickerStrip, passages.firstChild);
+		root.style.setProperty('--sg-place-shift', t.line.height + 12 + 'px');
+
+		if (fresh && t.cycle) {
+			var store = varObject('sgTicker');
+
+			showCycle(store.seen !== undefined ? store.seen : cycleTarget(t));
+		}
+	}
+
+	function msgPlace(item, x, opacity) {
+		item.el.style.transform = 'translate(' + x + 'px, -50%)';
+		item.el.style.opacity = opacity;
+	}
+
+	function buildMsg(n) {
+		var el = document.createElement('span');
+		var inner = document.createElement('span');
+
+		el.className = 'sg-tk-msg';
+		if (n.color) {
+			inner.style.color = String(n.color);
+		}
+		if (n.bold) {
+			inner.style.fontWeight = 'bold';
+		}
+		if (n.italic) {
+			inner.style.fontStyle = 'italic';
+		}
+		$(inner).wiki(n.text);
+		if (n.effect === 'blink') {
+			inner.className = 'sg-blink';
+		} else if (n.effect === 'glitch') {
+			inner.className = 'glitchy';
+			inner.setAttribute('data-text', inner.textContent);
+		}
+		el.appendChild(inner);
+		tickerLine.appendChild(el);
+		return {news: n, el: el, width: el.getBoundingClientRect().width, x: 0};
+	}
+
+	function tickerPick(t) {
+		if (!tk.active.length) {
+			return null;
+		}
+
+		var marks = varObject('sgTicker').msgs || {};
+		var rank = function (n) {
+			var name = !(marks[n.name] && marks[n.name].shown) ? 'new' : n.general ? 'general' : 'seen';
+
+			return t.line.order.indexOf(name);
+		};
+		var list = tk.active.slice().sort(function (x, y) {
+			return rank(x) - rank(y) || y.priority - x.priority || x.index - y.index;
+		});
+
+		for (var i = 0; i < list.length; i++) {
+			if (!tk.round[list[i].name]) {
+				return list[i];
+			}
+		}
+		tk.round = {};
+		return list[0];
+	}
+
+	function countShow(t, n) {
+		var marks = varObject('sgTicker').msgs || {};
+
+		tk.round[n.name] = 1;
+		if (marks[n.name]) {
+			marks[n.name].shown = (marks[n.name].shown || 0) + 1;
+			tickerRefresh(t, marks, Date.now());
+			saveVars();
+		}
+	}
+
+	function tickerEnter(t, n, now) {
+		tk.cur = buildMsg(n);
+		countShow(t, n);
+		tk.phase = 'in';
+		tk.at = now;
+		msgPlace(tk.cur, t.line.mode === 'scroll' ? tickerLine.clientWidth : 0, t.line.mode === 'scroll' ? 1 : 0);
+	}
+
+	function tickerDrop(item) {
+		if (item && item.el.parentNode) {
+			item.el.parentNode.removeChild(item.el);
+		}
+	}
+
+	// Текущее сообщение отстояло или его пора убрать: следующее — через смену.
+	function tickerNext(t, now) {
+		var n = tickerPick(t);
+
+		if (n && tk.cur && n === tk.cur.news && tk.cur.x === 0) {
+			countShow(t, n);
+			tickerDrop(tk.cur);
+			tk.cur = buildMsg(n);
+			msgPlace(tk.cur, 0, 1);
+			tk.phase = 'hold';
+			tk.at = now;
+			return;
+		}
+		if (t.line.mode === 'scroll' && n) {
+			tk.old = tk.cur;
+			tickerEnter(t, n, now);
+			return;
+		}
+		tk.phase = 'out';
+		tk.at = now;
+	}
+
+	function tickerFrame(now) {
+		requestAnimationFrame(tickerFrame);
+
+		var t = tickerTable;
+
+		if (!t || !tickerStrip || !tickerStrip.isConnected) {
+			return;
+		}
+		spinFrame(now);
+
+		var line = t.line;
+		var width = tickerLine.clientWidth - 20;
+		var half = (line.change * 1000) / 2 || 1;
+		var full = line.change * 1000 || 1;
+		var cur = tk.cur;
+
+		if (tk.phase === 'idle') {
+			var n = tickerPick(t);
+
+			if (n) {
+				tickerEnter(t, n, now);
+			}
+			return;
+		}
+		if (cur && (tk.phase === 'hold' || tk.phase === 'run')) {
+			var gone = !tk.live[cur.news.name] || (cur.news.general && tk.general && tk.general !== cur.news);
+
+			if (gone) {
+				tickerNext(t, now);
+				return;
+			}
+		}
+		if (tk.phase === 'in') {
+			var enter = (now - tk.at) / (line.mode === 'scroll' ? full : half);
+
+			if (enter >= 1) {
+				tickerDrop(tk.old);
+				tk.old = null;
+				msgPlace(cur, 0, 1);
+				tk.phase = 'hold';
+				tk.at = now;
+			} else if (line.mode === 'scroll') {
+				msgPlace(cur, (1 - enter) * tickerLine.clientWidth, 1);
+				if (tk.old) {
+					msgPlace(tk.old, tk.old.x - enter * tickerLine.clientWidth, 1);
+				}
+			} else {
+				msgPlace(cur, 0, enter);
+			}
+		} else if (tk.phase === 'hold') {
+			var over = cur.width > width;
+
+			if (now - tk.at >= (over ? line.pause : line.hold) * 1000) {
+				if (over) {
+					tk.phase = 'run';
+					tk.at = now;
+				} else {
+					tickerNext(t, now);
+				}
+			}
+		} else if (tk.phase === 'run') {
+			cur.x = -((now - tk.at) / 1000) * line.speed;
+			if (cur.x <= -(cur.width + 10)) {
+				tickerDrop(cur);
+				tk.cur = null;
+				tk.phase = 'idle';
+			} else {
+				msgPlace(cur, cur.x, 1);
+			}
+		} else if (tk.phase === 'out') {
+			var leave = (now - tk.at) / half;
+
+			if (leave >= 1 || !cur) {
+				tickerDrop(cur);
+				tk.cur = null;
+				tk.phase = 'idle';
+			} else {
+				msgPlace(cur, cur.x, 1 - leave);
+			}
+		}
+	}
+
+	setup.signaly.tickerCheck = tickerCheck;
+	// Предпросмотр окна «Строка событий»: показать смену цикла.
+	setup.signaly.cycleDemo = function () {
+		var t = ticker();
+
+		if (!t || !t.cycle || !tickerNum) {
+			return;
+		}
+
+		var to = cycleTarget(t);
+		var list = t.rows.map(function (row) {
+			return pad(row.value, 5);
+		});
+		var at = list.indexOf(to);
+		var other = list[at - 1] || list[at + 1];
+
+		startSpin(other && other !== to ? other : pad((Number(to) + 25) % 100000, 5), to, t);
+	};
+	$(document).on(':passagedisplay', placeTicker);
+	$(document).on(':passageend', function () {
+		setTimeout(tickerCheck, 0);
+	});
+	setInterval(tickerCheck, 250);
+	requestAnimationFrame(tickerFrame);
+
 	if (preview) {
 		// Всегда с выбранного экрана, а не с того, что был в прошлый раз.
 		State.reset();
@@ -3654,6 +4253,15 @@ setup.signalySounds = {
 			return;
 		}
 
+		// Ответ 2А (сессия 14): открытое окно-сообщение успевают прочитать —
+		// событие ждёт, пока окно закроют; тревога и поле ввода его не держат.
+		if (Dialog.isOpen()) {
+			if (changed) {
+				saveVars();
+			}
+			return;
+		}
+
 		var mark = marks[next.name];
 
 		delete mark.ready;
@@ -3661,9 +4269,6 @@ setup.signalySounds = {
 			mark.done = 1;
 		}
 		State.variables.sgEventFrom = current;
-		if (Dialog.isOpen()) {
-			Dialog.close();
-		}
 		eventBusy = true;
 		try {
 			Engine.play(next.name);

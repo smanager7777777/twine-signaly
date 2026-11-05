@@ -64,6 +64,8 @@ export interface SignalyAppearancePreviewProps {
 	refresh: number;
 	/** Меняется — во фрейме открывается образец окна-сообщения. */
 	sampleDialog?: number;
+	/** Меняется — во фрейме проигрывается смена цикла (окно «Строка событий»). */
+	cycleDemo?: number;
 	/** История с готовыми блоками (JavaScript и таблица стилей). */
 	story: Story;
 	/** Перетаскивание мышью (шаг 1.4): что делать, когда элемент отпустили. */
@@ -75,7 +77,7 @@ export interface SignalyAppearancePreviewProps {
 export const SignalyAppearancePreview: React.FC<
 	SignalyAppearancePreviewProps
 > = props => {
-	const {baseUrl, drag, mode, passageId, refresh, sampleDialog, sounds, story} = props;
+	const {baseUrl, cycleDemo, drag, mode, passageId, refresh, sampleDialog, sounds, story} = props;
 	const {dispatch, formats} = useStoryFormatsContext();
 	const {prefs} = usePrefsContext();
 	const muteRef = React.useRef(prefs.signalyPreviewMute);
@@ -186,6 +188,15 @@ export const SignalyAppearancePreview: React.FC<
 			.wiki(t('signaly.appearance.sampleDialogText'))
 			.open();
 	}, [sampleDialog]); // eslint-disable-line
+
+	// Смена цикла — показать анимацию цифр.
+	React.useEffect(() => {
+		const sugar = (frameRef.current?.contentWindow as any)?.SugarCube;
+
+		if (cycleDemo && sugar?.setup?.signaly?.cycleDemo) {
+			sugar.setup.signaly.cycleDemo();
+		}
+	}, [cycleDemo]);
 
 	// Масштаб под размер окна.
 	React.useEffect(() => {

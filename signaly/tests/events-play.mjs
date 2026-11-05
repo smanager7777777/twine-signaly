@@ -4,7 +4,7 @@
 // кода); один раз; повтор (было ложным → стало верным); задержка (идёт в фоне,
 // переживает сбой, отменяется, если условие снова ложно); важность и очередь
 // (с экрана события не уводит); «Вернуться на экран, где были»; открытое окно
-// закрывается; счётчик заходов на экраны (условие и «Значение»); «сотрудник
+// событие ждёт, пока его закроют (ответ 2А); счётчик заходов на экраны (условие и «Значение»); «сотрудник
 // ввёл код» (личный код спрашивается, в событии, «Условии» и «Если»);
 // «Новая игра» стирает всё.
 // Перед запуском: npx tsc -p signaly/tools/tsconfig.json
@@ -160,8 +160,11 @@ async function newChecks(url, prefix) {
 		SugarCube.Dialog.open();
 	});
 	await page.evaluate(() => (SugarCube.State.variables.evRepaired = true));
+	await page.waitForTimeout(700);
+	say('ответ 2А: окно открыто — событие ждёт, окно на месте', (await passage(page)) === 'EvHome' && (await page.evaluate(() => SugarCube.Dialog.isOpen())));
+	await page.evaluate(() => SugarCube.Dialog.close());
 	await page.waitForTimeout(500);
-	say('условие стало верным — переход на событие, окно закрыто', (await passage(page)) === 'EvChapter2' && !(await page.evaluate(() => SugarCube.Dialog.isOpen())));
+	say('окно закрыли — переход на событие', (await passage(page)) === 'EvChapter2' && !(await page.evaluate(() => SugarCube.Dialog.isOpen())));
 	say('откуда пришли — $sgEventFrom', (await v(page, 'sgEventFrom')) === 'EvHome');
 	say('строка <<sg-event>> на экране ничего не выводит', (await page.innerText('.passage')).trim() === 'Событие: глава 2 Назад');
 	await link(page, 'Назад');
