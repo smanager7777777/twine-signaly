@@ -2174,7 +2174,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		return t;
 	}
 
-	function pad(value, length) {
+	function padCycle(value, length) {
 		return String(value).padStart(length, '0');
 	}
 
@@ -2192,7 +2192,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 				value = row.value;
 			}
 		});
-		return pad(value, 5);
+		return padCycle(value, 5);
 	}
 
 	function showCycle(value) {
@@ -2211,8 +2211,8 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	// Меняются только разряды, начиная с первого изменившегося слева.
 	function startSpin(from, to, t) {
 		var length = Math.max(from.length, to.length);
-		var a = pad(from, length);
-		var b = pad(to, length);
+		var a = padCycle(from, length);
+		var b = padCycle(to, length);
 		var first = 0;
 
 		while (first < length && a.charAt(first) === b.charAt(first)) {
@@ -2631,12 +2631,12 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 
 		var to = cycleTarget(t);
 		var list = t.rows.map(function (row) {
-			return pad(row.value, 5);
+			return padCycle(row.value, 5);
 		});
 		var at = list.indexOf(to);
 		var other = list[at - 1] || list[at + 1];
 
-		startSpin(other && other !== to ? other : pad((Number(to) + 25) % 100000, 5), to, t);
+		startSpin(other && other !== to ? other : padCycle((Number(to) + 25) % 100000, 5), to, t);
 	};
 	$(document).on(':passagedisplay', placeTicker);
 	$(document).on(':passageend', function () {

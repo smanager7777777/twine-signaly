@@ -1,3 +1,4 @@
+import {signalyEngineBlock} from '../signaly-engine';
 import {
 	copyNews,
 	defaultCycle,
@@ -105,5 +106,19 @@ describe('строка событий', () => {
 		expect(p).toEqual({emptyName: true, duplicateNames: ['А'], badCycle: true, duplicateProgress: [1]});
 		expect(validCycle('00487')).toBe(true);
 		expect(validCycle('004870')).toBe(false);
+	});
+});
+
+describe('движок: код строки событий', () => {
+	it('не перекрывает имена функций и переменных остального движка', () => {
+		const block = signalyEngineBlock();
+		const from = block.indexOf('/* ----- Строка событий и цикл');
+		const to = block.indexOf('// Всегда с выбранного экрана');
+		const section = block.slice(from, to);
+		const names = [...section.matchAll(/^\t(?:function|var) (\w+)/gm)].map(m => m[1]);
+		const rest = block.slice(0, from) + block.slice(to);
+
+		expect(names.length).toBeGreaterThan(20);
+		expect(names.filter(n => new RegExp(`(?:function|var) ${n}\\b`).test(rest))).toEqual([]);
 	});
 });
