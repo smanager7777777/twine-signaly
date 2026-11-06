@@ -151,8 +151,8 @@ check('картинка по центру', imgs[2].parentAlign === 'center');
 /* Видео */
 const video = await page.$eval('.passage video', v => ({w: v.getAttribute('width'), h: v.getAttribute('height'), loop: v.loop, muted: v.muted, controls: v.controls, src: v.querySelector('source').getAttribute('src'), next: [...v.parentElement.children].slice([...v.parentElement.children].indexOf(v) + 1, [...v.parentElement.children].indexOf(v) + 4).map(e => e.tagName + ':' + e.textContent).join(',')}));
 check('видео: размер и галочки', video.w === '300' && video.h === '200' && video.loop && video.muted && video.controls && video.src === 'media/video/fullvideo.mp4', JSON.stringify(video));
-check('видео: кнопки «Воспроизвести/Остановить»', /^BR:,(BUTTON|SPAN):Воспроизвести,W?BR:/.test(video.next) && (await page.getByRole('button', {name: 'Воспроизвести'}).count()) === 1, video.next);
-await page.getByRole('button', {name: 'Остановить'}).click();
+check('видео: кнопки «Воспроизвести/Остановить»', /^BR:,(BUTTON|SPAN):Воспроизвести,W?BR:/.test(video.next) && (await page.getByRole('button', {name: 'Воспроизвести', exact: true}).count()) === 1, video.next);
+await page.getByRole('button', {name: 'Остановить', exact: true}).click();
 check('видео: «Остановить» ставит на паузу', await page.$eval('.passage video', v => v.paused));
 
 /* Окно-сообщение «только кнопкой» */
@@ -163,7 +163,7 @@ check('окно: крестик скрыт', !(await page.isVisible('#ui-dialog-
 await page.mouse.click(30, 30);
 await page.waitForTimeout(300);
 check('окно: щелчок мимо не закрывает', await dialogOpen());
-await page.getByRole('button', {name: 'Принято'}).click();
+await page.getByRole('button', {name: 'Принято', exact: true}).click();
 await page.waitForTimeout(300);
 check('окно: «Принято» закрывает', !(await dialogOpen()));
 check('окно: крестик снова виден у других окон', (await page.evaluate(() => document.documentElement.getAttribute('data-sg-dialog'))) === null);
@@ -184,7 +184,7 @@ await page.waitForTimeout(300);
 check('поле кода: Enter, код из таблицы → окно', (await page.textContent('#ui-dialog-title')) === 'Два' && (await page.textContent('#ui-dialog-body')).trim() === 'Код 2');
 await page.evaluate(() => SugarCube.Dialog.close());
 await field.fill('x');
-await page.getByRole('button', {name: 'Ок'}).click();
+await page.getByRole('button', {name: 'Ок', exact: true}).click();
 await page.waitForTimeout(300);
 check('поле кода: кнопка, неверный код → сообщение', (await page.textContent('#ui-dialog-body')).trim() === 'Неверно: x');
 check('поле кода: значение в переменной', (await page.evaluate(() => SugarCube.State.variables.inputCode)) === 'x');
