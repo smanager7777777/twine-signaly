@@ -40,6 +40,23 @@ describe('updatePassage action creator', () => {
 			]);
 		});
 
+		it('СИГНАЛЫ: чинит имя экрана в командах и при dontUpdateOthers', () => {
+			story = fakeStory(3);
+			story.passages[0].name = 'a';
+			story.passages[1].text = '<<sg-timer "Т" seconds 5 goto "a">>';
+			story.passages[2].text = '<<sg-timer "Т" seconds 5 goto "b">>';
+			updatePassage(story, story.passages[0], {name: 'c'}, {dontUpdateOthers: true})(dispatch, getState);
+			expect(dispatchMock.mock.calls).toContainEqual([
+				{
+					passageId: story.passages[1].id,
+					props: {text: '<<sg-timer "Т" seconds 5 goto "c">>'},
+					storyId: story.id,
+					type: 'updatePassage'
+				}
+			]);
+			expect(dispatchMock).toHaveBeenCalledTimes(2);
+		});
+
 		it('dispatches update actions to update links to the passage if its name changes', () => {
 			story = fakeStory(3);
 			story.passages[0].name = 'a';

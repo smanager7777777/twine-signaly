@@ -116,6 +116,10 @@ export interface SignalyAppearance extends GlitchSettings, InputLook {
 	 * по умолчанию — из правила input, textarea шаблона.
 	 */
 	inputOn: boolean;
+	/** Ссылка «Назад» внизу статьи (шаг 4.4, ответ 5А): надпись, вид, кнопкой. */
+	articleBack: string;
+	articleBackKind: string;
+	articleBackButton: boolean;
 	/** Виды экранов и стили текста (шаг 4.2, ответы 1А, 2А, 5А). */
 	screens: ScreenView[];
 	textStyles: TextStyle[];
@@ -184,6 +188,9 @@ export const defaultAppearance: SignalyAppearance = {
 	inputFont: '',
 	inputSize: 25,
 	inputWidth: 0,
+	articleBack: 'Назад',
+	articleBackKind: '',
+	articleBackButton: false,
 	screens: [],
 	textStyles: [],
 	...defaultGlitch
@@ -265,6 +272,9 @@ export function appearanceCss(a: SignalyAppearance): string {
 		`\t--sg-line-scroll: ${a.lineScroll ? 1 : 0};`,
 		`\t--sg-type-click: ${a.typeClick ? 1 : 0};`,
 		`\t--sg-type-seen: ${a.typeSeen ? 1 : 0};`,
+		`\t--sg-article-back: ${cssString(a.articleBack)};`,
+		`\t--sg-article-kind: ${cssString(a.articleBackKind)};`,
+		`\t--sg-article-button: ${a.articleBackButton ? 1 : 0};`,
 		'}'
 	);
 

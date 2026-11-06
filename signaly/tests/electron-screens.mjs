@@ -219,7 +219,7 @@ await dlg.getByRole('button', {name: 'Сохранить'}).click();
 await win.waitForTimeout(1500);
 file = storyFile();
 check('скорости записаны', passageIn(file, 'Строка событий').text.includes('gap 1.5 from "20,20,20,20,30" to "7,2,2,2,2"'), passageIn(file, 'Строка событий').text);
-check('движок 13', file.includes('Версия движка: 13'));
+check('движок 14', file.includes('Версия движка: 14'));
 await closeWindow(dlg);
 
 /* Перезапуск окна читает всё обратно; удаление вида снимает тег */

@@ -19,6 +19,7 @@ import {Passage} from '../../store/stories';
 import {plain} from './signaly-link-form';
 import {Cond, parseExpr} from './signaly-logic';
 import {findLinks} from './signaly-actions';
+import {articleLists, articleTag, listItems, readArticles} from './signaly-articles';
 import {codesTag, readCodes} from './signaly-codes';
 import {keysTag, normalCombo, readKeys} from './signaly-keys';
 import {findBlocks, findClose, quote, scanArgs} from './signaly-screen-blocks';
@@ -268,6 +269,11 @@ export function accessSources(passages: Passage[], target: string) {
 		}
 	};
 
+	// Шаг 4.4: статья в блоке «Список статей» — такая же ссылка.
+	const article = passages.some(p => p.name === target && p.tags.includes(articleTag))
+		? readArticles(passages).find(a => a.name === target)
+		: undefined;
+
 	passages.forEach(p => {
 		if (p.tags.includes('script') || p.tags.includes('stylesheet')) {
 			return;
@@ -299,6 +305,19 @@ export function accessSources(passages: Passage[], target: string) {
 					note: l.form === 'button' ? 'button' : undefined
 				})
 			);
+		if (article) {
+			articleLists(p.text)
+				.filter(list => listItems([article], list.values.sections).length > 0)
+				.forEach(list =>
+					add({
+						kind: 'link',
+						id: article.title.replace(/\s+/g, ' ').trim(),
+						from: p.name,
+						label: article.title.trim(),
+						note: list.values.form === 'button' ? 'button' : undefined
+					})
+				);
+		}
 		findBlocks(p.text).forEach(b => {
 			if (b.type === 'code') {
 				(b.cases ?? [])

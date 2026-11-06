@@ -49,7 +49,17 @@ import {LinkActionsForm} from './signaly-link-actions-form';
 import {CondListsContext, useCondLists} from './signaly-logic-form';
 import {AccessForm} from './signaly-access-form';
 import {EventForm} from './signaly-event-form';
+import {ArticleForm} from './signaly-article-form';
 import {accessTag, findAccess, setAccess} from '../../util/signaly/signaly-access';
+import {
+	articleSections,
+	articleTag,
+	findArticle,
+	listItems,
+	listSections,
+	readArticles,
+	setArticle
+} from '../../util/signaly/signaly-articles';
 import {eventTag, findEvent, setEventHead} from '../../util/signaly/signaly-events';
 
 export type PanelTarget =
@@ -61,6 +71,7 @@ export type PanelTarget =
 	| {kind: 'link'; index: number}
 	| {kind: 'event'}
 	| {kind: 'access'}
+	| {kind: 'article'}
 	| {kind: 'kr2'};
 
 export interface SignalyBlockPanelProps {
@@ -77,6 +88,8 @@ export interface SignalyBlockPanelProps {
 	onEventTag: (on: boolean) => void;
 	/** Включить или снять тег sg-access (шаг 4.3). */
 	onAccessTag: (on: boolean) => void;
+	/** Включить или снять тег sg-article (шаг 4.4). */
+	onArticleTag: (on: boolean) => void;
 	/** Сделать пассаж общим пассажем блокировки (шаг 4.3). */
 	onSharedLock: (name: string) => void;
 	onClose: () => void;
@@ -146,7 +159,7 @@ export function useLists(story: Story) {
 /* ----- Панель ----- */
 
 export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
-	const {onAccessTag, onClose, onEventTag, onKr2Tag, onSharedLock, onText, passage, story, target, text} = props;
+	const {onAccessTag, onArticleTag, onClose, onEventTag, onKr2Tag, onSharedLock, onText, passage, story, target, text} = props;
 	const {t} = useTranslation();
 	const {media, passages} = useLists(story);
 	const condLists = useCondLists(story);
@@ -225,6 +238,30 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 				tagged={passage.tags.includes(accessTag)}
 				text={text}
 				variables={knownVariables(story.passages)}
+			/>
+		);
+	} else if (target.kind === 'article') {
+		// Шаг 4.4: экран-статья.
+		const head = findArticle(text);
+
+		if (!head) {
+			return null;
+		}
+		title = t('signaly.articles.title');
+		body = (
+			<ArticleForm
+				head={head}
+				onRemove={() => {
+					onText(setArticle(text, undefined));
+					onArticleTag(false);
+					onClose();
+				}}
+				onTag={() => onArticleTag(true)}
+				onText={onText}
+				passage={passage}
+				story={story}
+				tagged={passage.tags.includes(articleTag)}
+				text={text}
 			/>
 		);
 	} else if (target.kind === 'event') {
@@ -576,6 +613,62 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 					</>
 				);
 				break;
+
+			case 'articles': {
+				// Шаг 4.4 (ответы 2А, 6А).
+				const items = readArticles(story.passages);
+				const known = articleSections(items);
+				const picked = listSections(v.sections);
+				const every = picked.length === 0;
+				const pick = (name: string, on: boolean) => {
+					const next = on ? [...picked, name] : picked.filter(s => s !== name);
+
+					set('sections', next.length ? next.join(', ') : undefined);
+				};
+
+				title = l('articles.title');
+				body = (
+					<>
+						<CheckField
+							hint={l('articles.allHint')}
+							label={l('articles.all')}
+							onChange={on => set('sections', on ? undefined : known[0])}
+							value={every}
+						/>
+						{!every &&
+							[...known, ...picked.filter(s => !known.includes(s))].map(name => (
+								<CheckField
+									key={name}
+									label={name}
+									onChange={on => pick(name, on)}
+									value={picked.includes(name)}
+								/>
+							))}
+						<ChoiceField
+							label={l('articles.form')}
+							onChange={value => set('form', value === 'button' ? value : undefined)}
+							options={[
+								{label: l('articles.asLink'), value: ''},
+								{label: l('articles.asButton'), value: 'button'}
+							]}
+							value={str('form')}
+						/>
+						<ChoiceField
+							label={l('articles.kind')}
+							onChange={value => set('kind', value === '' ? undefined : value)}
+							options={kinds.map(k => ({label: k.name, value: k.cls}))}
+							value={str('kind')}
+						/>
+						{range('columns', l('articles.columns'), 1, 6, 1, '')}
+						{check('headings', l('articles.headings'))}
+						<div className="signaly-field-hint">
+							{t('signaly.blocks.articles.count', {count: listItems(items, v.sections).length})}
+						</div>
+						<div className="signaly-field-hint">{l('articles.hint')}</div>
+					</>
+				);
+				break;
+			}
 
 			case 'timer': {
 				// Шаг 2.3 (ответы 1А–4А).

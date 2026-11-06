@@ -16,6 +16,7 @@
 //   <<sg-step "media/video/a.mp4" loop muted next click>>
 //   <<sg-step "media/video/b.mp4" next end>>
 //   <</sg-chain>>
+//   <<sg-articles columns 2 headings>>                    (шаг 4.4: список статей)
 // Окно KR2 — команды <<kr2image>>, <<kr2layout>>, <<kr2vars>>, <<kr2main>>.
 // Команды понимает движок (signaly-engine.ts) — и в обычном Twine тоже.
 //
@@ -30,7 +31,8 @@ export type BlockType =
 	| 'code'
 	| 'place'
 	| 'timer'
-	| 'chain';
+	| 'chain'
+	| 'articles';
 export type CaseKind = 'case' | 'wrong';
 type PartKind = CaseKind | 'step';
 export type Value = string | number | boolean;
@@ -44,7 +46,8 @@ export const blockMacros: Record<BlockType, string> = {
 	code: 'sg-code',
 	place: 'sg-place',
 	timer: 'sg-timer',
-	chain: 'sg-chain'
+	chain: 'sg-chain',
+	articles: 'sg-articles'
 };
 
 const partMacros: Record<PartKind, string> = {case: 'sg-case', wrong: 'sg-wrong', step: 'sg-step'};
@@ -164,6 +167,13 @@ const specs: Record<BlockType | PartKind, ArgSpec> = {
 		keys: {width: 'number', height: 'number', ...placeKeys, goto: 'string'},
 		flags: [],
 		container: true
+	},
+	// Шаг 4.4: список статей; sections — через запятую, нет — все статьи.
+	articles: {
+		pos: [],
+		keys: {sections: 'string', form: 'string', kind: 'string', columns: 'number'},
+		flags: ['headings'],
+		container: false
 	},
 	case: {pos: ['code'], keys: actionKeys, flags: [], container: false},
 	wrong: {pos: [], keys: actionKeys, flags: [], container: false},
@@ -319,7 +329,7 @@ function writeValue(value: Value) {
 	return typeof value === 'number' ? round(value) : quote(String(value));
 }
 
-const bareKeys = ['place', 'corner', 'close', 'kind', 'hover', 'click', 'start', 'format', 'next', 'font'];
+const bareKeys = ['place', 'corner', 'close', 'kind', 'form', 'hover', 'click', 'start', 'format', 'next', 'font'];
 
 function writeArgs(values: Values, extra: string[], spec: ArgSpec) {
 	const parts: string[] = [];
@@ -355,7 +365,7 @@ function writeArgs(values: Values, extra: string[], spec: ArgSpec) {
 
 /* ----- Поиск блоков в тексте ----- */
 
-const openRe = /<<sg-(image|video|alarm|dialog|code|place|timer|chain)(?=[\s>])/g;
+const openRe = /<<sg-(image|video|alarm|dialog|code|place|timer|chain|articles)(?=[\s>])/g;
 
 function macroType(name: string): BlockType | undefined {
 	return blockTypes.find(type => blockMacros[type] === 'sg-' + name);
@@ -585,6 +595,8 @@ export function newBlock(type: BlockType): Omit<ScreenBlock, 'from' | 'to'> {
 					{values: {src: '', next: 'end'}, extra: []}
 				]
 			};
+		case 'articles':
+			return {type, values: {columns: 1, headings: true}, extra: []};
 		case 'code':
 			return {
 				type,

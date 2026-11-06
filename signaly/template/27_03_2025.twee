@@ -990,7 +990,7 @@ setup.signalySounds = {
 
 
 /* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */
-/* Версия движка: 13. Обновляется программой «Twine СИГНАЛЫ».
+/* Версия движка: 14. Обновляется программой «Twine СИГНАЛЫ».
    Настройки — в окне «Оформление терминала» (они лежат в таблице стилей).
    Свой код пишите ниже конца этого блока. */
 (function () {
@@ -1035,7 +1035,7 @@ setup.signalySounds = {
 	// Предпросмотр в программе: без стартового экрана, автокопии и защиты.
 	var preview = window.SIGNALY_PREVIEW;
 
-	setup.signaly = {engine: 13, preview: !!preview};
+	setup.signaly = {engine: 14, preview: !!preview};
 
 	function showStartScreen(onClick) {
 		var screen = document.createElement('div');
@@ -1155,6 +1155,11 @@ setup.signalySounds = {
 		// Шаг 4.3: ссылка на закрытый экран — скрыта или не нажимается.
 		'.sg-acc-hide { display: none !important; }\n' +
 		'.sg-acc-off { pointer-events: none !important; }\n' +
+		// Шаг 4.4: список статей и ссылка «Назад».
+		'.sg-art-section { margin-bottom: 1em; }\n' +
+		'.sg-art-heading { font-weight: bold; margin-bottom: 0.4em; }\n' +
+		'.sg-art-grid { display: grid; gap: 0.3em 2em; justify-items: start; }\n' +
+		'.sg-art-back { margin-top: 1.5em; }\n' +
 		'.sg-blink.sg-off { animation: none; }\n' +
 		'html .glitchy.sg-off { color: inherit; }\n' +
 		'html .glitchy.sg-off::before, html .glitchy.sg-off::after { content: none; }\n' +
@@ -3006,22 +3011,216 @@ setup.signalySounds = {
 
 	// «Вернуться на экран, где были»: туда, откуда терминал перешёл на
 	// событие; если события не было — на предыдущий экран.
+	function goBack(target) {
+		setTimeout(function () {
+			// Назад ведёт туда, где уже были, — доступ не проверяется.
+			accessSkip = true;
+			articleReturn = true;
+			try {
+				Engine.play(target);
+			} finally {
+				accessSkip = false;
+			}
+		}, Engine.DOM_DELAY || 40);
+	}
+
 	Macro.add('sg-back', {
 		handler: function () {
 			var target = State.variables.sgEventFrom || prevPassage;
 
 			if (target && Story.has(target)) {
-				setTimeout(function () {
-					// Назад ведёт туда, где уже были, — доступ не проверяется.
-					accessSkip = true;
-					try {
-						Engine.play(target);
-					} finally {
-						accessSkip = false;
-					}
-				}, Engine.DOM_DELAY || 40);
+				goBack(target);
 			}
 		}
+	});
+
+	/* ----- Статьи (шаг 4.4) ----- */
+
+	// Экран с тегом sg-article: первой строкой <<sg-article title … section …
+	// order … back …>>. На самом экране команда ничего не выводит.
+	// <<sg-articles>> собирает список при показе экрана, поэтому новая статья
+	// попадает в него сама; закрытые статьи скрывает accessScan, как любую
+	// ссылку. Внизу статьи — ссылка «Назад» на экран, откуда статью открыли:
+	// $sgArticles = {"Статья": "Откуда"}. Возврат не переписывает запись, поэтому
+	// цепочка «список → статья → другая статья» разматывается назад до списка.
+	var articleCollect = null;
+	var articleTable = null;
+	var articleReturn = false;
+
+	Macro.add('sg-article', {
+		handler: function () {
+			if (articleCollect) {
+				var a = blockArgs(this, [], ['title', 'section', 'order', 'back'], []);
+
+				articleCollect.title = String(a.title || articleCollect.name);
+				articleCollect.section = String(a.section || '');
+				articleCollect.order = Number(a.order) || 0;
+				articleCollect.back = String(a.back || '');
+			}
+		}
+	});
+
+	function articles() {
+		if (articleTable) {
+			return articleTable;
+		}
+		articleTable = {};
+		Story.filter(function (p) {
+			return p.tags.indexOf('sg-article') !== -1;
+		}).forEach(function (p) {
+			var rec = {name: p.title, title: p.title, section: '', order: 0, back: ''};
+			var m = /<<sg-article(?=[\s>])/.exec(p.text);
+			var end = m ? macroEnd(p.text, m.index + 2) : -1;
+
+			articleTable[p.title] = rec;
+			if (end === -1) {
+				return;
+			}
+			articleCollect = rec;
+			try {
+				new Wikifier(document.createDocumentFragment(), p.text.slice(m.index, end + 2));
+			} catch (e) {
+				console.error('СИГНАЛЫ: статья «' + p.title + '»', e);
+			}
+			articleCollect = null;
+		});
+		return articleTable;
+	}
+
+	// Разделы: по наименьшему порядку статьи в них, потом по названию; статьи
+	// без раздела — в конце. Внутри раздела — по порядку, потом по названию.
+	function articleGroups(picked) {
+		var table = articles();
+		var groups = [];
+		var bySection = {};
+
+		Object.keys(table)
+			.map(function (name) {
+				return table[name];
+			})
+			.filter(function (rec) {
+				return !picked.length || picked.indexOf(rec.section) !== -1;
+			})
+			.sort(function (x, y) {
+				return x.order - y.order || x.title.localeCompare(y.title, 'ru');
+			})
+			.forEach(function (rec) {
+				var key = 's:' + rec.section;
+
+				if (!bySection[key]) {
+					bySection[key] = {name: rec.section, order: rec.order, items: []};
+					groups.push(bySection[key]);
+				}
+				bySection[key].items.push(rec);
+			});
+		return groups.sort(function (x, y) {
+			if (!x.name !== !y.name) {
+				return x.name ? -1 : 1;
+			}
+			return x.order - y.order || x.name.localeCompare(y.name, 'ru');
+		});
+	}
+
+	Macro.add('sg-articles', {
+		handler: function () {
+			var a = blockArgs(this, [], ['sections', 'form', 'kind', 'columns'], ['headings']);
+			var picked = String(a.sections || '')
+				.split(',')
+				.map(function (name) {
+					return name.trim();
+				})
+				.filter(Boolean);
+			var tag = a.form === 'button' ? 'button' : 'link';
+			var columns = Math.max(1, Math.round(Number(a.columns)) || 1);
+			var box = document.createElement('div');
+
+			box.className = 'sg-art-list';
+			articleGroups(picked).forEach(function (group) {
+				var section = document.createElement('div');
+				var grid = document.createElement('div');
+
+				section.className = 'sg-art-section';
+				if (a.headings && group.name) {
+					var heading = document.createElement('div');
+
+					heading.className = 'sg-art-heading';
+					heading.textContent = group.name;
+					section.appendChild(heading);
+				}
+				grid.className = 'sg-art-grid';
+				grid.style.gridTemplateColumns = 'repeat(' + columns + ', minmax(0, 1fr))';
+				group.items.forEach(function (rec) {
+					var item = document.createElement('div');
+					var inner = item;
+
+					item.className = 'sg-art-item';
+					if (a.kind) {
+						inner = document.createElement('span');
+						inner.className = String(a.kind);
+						item.appendChild(inner);
+					}
+					$(inner).wiki(
+						'<<' + tag + ' ' + JSON.stringify(rec.title) + ' ' + JSON.stringify(rec.name) + '>><</' + tag + '>>'
+					);
+					grid.appendChild(item);
+				});
+				section.appendChild(grid);
+				box.appendChild(section);
+			});
+			this.output.appendChild(box);
+		}
+	});
+
+	function articleFrom(title) {
+		var map = State.variables.sgArticles;
+		var from = map && map[title];
+
+		return from && Story.has(from) ? from : '';
+	}
+
+	Macro.add('sg-article-back', {
+		handler: function () {
+			var from = articleFrom(State.passage);
+
+			if (from) {
+				goBack(from);
+			}
+		}
+	});
+
+	// Откуда открыли статью. Обработчик стоит раньше saveEntry, поэтому запись
+	// попадает в автокопию; после сбоя «Назад» ведёт туда же.
+	$(document).on(':passagestart', function (ev) {
+		var returning = articleReturn;
+		var title = ev.passage.title;
+
+		articleReturn = false;
+		if (!restoring && !returning && prevPassage && prevPassage !== title && articles()[title]) {
+			varObject('sgArticles')[title] = prevPassage;
+		}
+	});
+
+	$(document).on(':passagedisplay', function (ev) {
+		var rec = articles()[State.passage];
+
+		if (!rec || (!preview && !articleFrom(State.passage))) {
+			return;
+		}
+
+		var box = document.createElement('div');
+		var inner = box;
+		var kind = String(opt('article-kind', ''));
+		var tag = opt('article-button', 0) ? 'button' : 'link';
+		var label = rec.back || String(opt('article-back', 'Назад'));
+
+		box.className = 'sg-art-back';
+		if (kind) {
+			inner = document.createElement('span');
+			inner.className = kind;
+			box.appendChild(inner);
+		}
+		$(inner).wiki('<<' + tag + ' ' + JSON.stringify(label) + '>><<sg-article-back>><</' + tag + '>>');
+		ev.content.appendChild(box);
 	});
 
 	/* ----- Закрытые экраны (шаг 4.3) ----- */
@@ -3264,7 +3463,7 @@ setup.signalySounds = {
 	// Ответ 4А: ссылка исчезает вместе с обёрткой вида и переводом строки, если
 	// в строке больше ничего нет; кнопка на экране исчезает целиком.
 	function accessHide(el) {
-		var top = el.closest('.sg-place');
+		var top = el.closest('.sg-place, .sg-art-item');
 
 		if (top) {
 			top.classList.add('sg-acc-hide');
@@ -3326,6 +3525,15 @@ setup.signalySounds = {
 				link.classList.add('sg-acc-off');
 				link.setAttribute('aria-disabled', 'true');
 				link.setAttribute('tabindex', '-1');
+			}
+		}
+
+		// Шаг 4.4: раздел, в котором все статьи скрыты, исчезает с заголовком.
+		var sections = document.querySelectorAll('.sg-art-section');
+
+		for (var k = 0; k < sections.length; k++) {
+			if (!sections[k].querySelector('.sg-art-item:not(.sg-acc-hide)')) {
+				sections[k].classList.add('sg-acc-hide');
 			}
 		}
 	}
@@ -4950,7 +5158,7 @@ setup.initXiaomi = function () {
 /* ===== СИГНАЛЫ: оформление терминала — не редактировать вручную ===== */
 /* Меняется в окне «Оформление терминала» программы «Twine СИГНАЛЫ».
    В своих стилях можно брать эти значения: var(--sg-text), var(--sg-font-size) и т. д. */
-/* СИГНАЛЫ-настройки: {"v":1,"pageBg":"#000000","textColor":"#00cc00","font":"Courier New","fontFile":"","fontSize":25,"winWidth":1050,"winHeight":1050,"winPadding":20,"winOffsetX":0,"winOffsetY":0,"winBg":"#000000","borderWidth":2,"borderColor":"#00cc00","glowColor":"#00cc00","glowSize":10,"flicker":true,"flickerPeriod":0.1,"flickerDepth":5,"vignette":0,"noise":0,"noSelect":false,"noContextMenu":false,"noZoom":false,"hideCursor":0,"lineScroll":false,"startText":"Нажмите, чтобы запустить систему","startSound":"","startVolume":100,"savedColors":["#00cc00","#ffbf00","#cc0000","#cccc00","#cc00cc","#000000"],"dialogOn":true,"dialogBg":"#000000","dialogColor":"#00cc00","dialogSize":25,"dialogBorderColor":"#00cc00","dialogBorderWidth":2,"dialogGlow":10,"dialogTitleBg":"#000000","dialogTitleColor":"#00cc00","dialogTitleSize":25,"dialogTitleLine":1,"typeClick":true,"typeSeen":true,"inputOn":true,"inputBg":"#000000","inputColor":"#00cc00","inputBorderColor":"#00cc00","inputHoverBg":"#333333","inputHoverBorderColor":"#eeeeee","inputBorderWidth":1,"inputGlow":5,"inputFont":"","inputSize":25,"inputWidth":0,"screens":[],"textStyles":[],"glitchColor":"#00cc00","glitchBg":"#111111","glitchShadow1":"#0000ff","glitchShadow2":"#ff0000","glitchShift":5,"glitchSpeed":2} */
+/* СИГНАЛЫ-настройки: {"v":1,"pageBg":"#000000","textColor":"#00cc00","font":"Courier New","fontFile":"","fontSize":25,"winWidth":1050,"winHeight":1050,"winPadding":20,"winOffsetX":0,"winOffsetY":0,"winBg":"#000000","borderWidth":2,"borderColor":"#00cc00","glowColor":"#00cc00","glowSize":10,"flicker":true,"flickerPeriod":0.1,"flickerDepth":5,"vignette":0,"noise":0,"noSelect":false,"noContextMenu":false,"noZoom":false,"hideCursor":0,"lineScroll":false,"startText":"Нажмите, чтобы запустить систему","startSound":"","startVolume":100,"savedColors":["#00cc00","#ffbf00","#cc0000","#cccc00","#cc00cc","#000000"],"dialogOn":true,"dialogBg":"#000000","dialogColor":"#00cc00","dialogSize":25,"dialogBorderColor":"#00cc00","dialogBorderWidth":2,"dialogGlow":10,"dialogTitleBg":"#000000","dialogTitleColor":"#00cc00","dialogTitleSize":25,"dialogTitleLine":1,"typeClick":true,"typeSeen":true,"inputOn":true,"inputBg":"#000000","inputColor":"#00cc00","inputBorderColor":"#00cc00","inputHoverBg":"#333333","inputHoverBorderColor":"#eeeeee","inputBorderWidth":1,"inputGlow":5,"inputFont":"","inputSize":25,"inputWidth":0,"articleBack":"Назад","articleBackKind":"","articleBackButton":false,"screens":[],"textStyles":[],"glitchColor":"#00cc00","glitchBg":"#111111","glitchShadow1":"#0000ff","glitchShadow2":"#ff0000","glitchShift":5,"glitchSpeed":2} */
 :root {
 	--sg-page-bg: #000000;
 	--sg-text: #00cc00;
@@ -4975,6 +5183,9 @@ setup.initXiaomi = function () {
 	--sg-line-scroll: 0;
 	--sg-type-click: 1;
 	--sg-type-seen: 1;
+	--sg-article-back: "Назад";
+	--sg-article-kind: "";
+	--sg-article-button: 0;
 }
 body {
 	background-color: var(--sg-page-bg);

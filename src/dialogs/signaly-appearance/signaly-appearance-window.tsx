@@ -18,7 +18,7 @@ import {
 	dialogFromAuthor,
 	inputFromAuthor
 } from '../../util/signaly/signaly-appearance';
-import {classUseCount} from '../../util/signaly/signaly-kinds';
+import {classUseCount, readKinds} from '../../util/signaly/signaly-kinds';
 import {
 	screenTag,
 	screenTagPrefix,
@@ -530,6 +530,26 @@ export const SignalyAppearanceWindow: React.FC<
 								{range('inputWidth', 0, 1500, px)}
 							</>
 						)}
+					</section>
+
+					<section>
+						<h3>{t('signaly.appearance.sections.articles')}</h3>
+						<TextField
+							hint={hint('articleBack')}
+							label={label('articleBack')}
+							onChange={value => change('articleBack', value)}
+							value={appearance.articleBack}
+						/>
+						<ChoiceField
+							label={label('articleBackKind')}
+							onChange={value => change('articleBackKind', value)}
+							options={(readKinds(story.stylesheet)?.kinds ?? [{cls: '', name: t('signaly.blocks.onscreen.plain')}]).map(k => ({
+								label: k.name,
+								value: k.cls
+							}))}
+							value={appearance.articleBackKind}
+						/>
+						{check('articleBackButton')}
 					</section>
 
 					<section>

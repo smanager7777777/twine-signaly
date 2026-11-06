@@ -48,7 +48,7 @@ import {timerDefaults} from './signaly-screen-blocks';
 const glitchBase = [...glitchRules(defaultGlitch, ':where(.glitchy)'), glitchKeyframes].join('\n');
 
 /** Версия движка. Увеличивать при каждом изменении кода ниже. */
-export const signalyEngineVersion = 13;
+export const signalyEngineVersion = 14;
 
 export const signalyEngineStart =
 	'/* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */';
@@ -220,6 +220,11 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		// Шаг 4.3: ссылка на закрытый экран — скрыта или не нажимается.
 		'.sg-acc-hide { display: none !important; }\n' +
 		'.sg-acc-off { pointer-events: none !important; }\n' +
+		// Шаг 4.4: список статей и ссылка «Назад».
+		'.sg-art-section { margin-bottom: 1em; }\n' +
+		'.sg-art-heading { font-weight: bold; margin-bottom: 0.4em; }\n' +
+		'.sg-art-grid { display: grid; gap: 0.3em 2em; justify-items: start; }\n' +
+		'.sg-art-back { margin-top: 1.5em; }\n' +
 		'.sg-blink.sg-off { animation: none; }\n' +
 		'html .glitchy.sg-off { color: inherit; }\n' +
 		'html .glitchy.sg-off::before, html .glitchy.sg-off::after { content: none; }\n' +
@@ -2071,22 +2076,216 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 
 	// «Вернуться на экран, где были»: туда, откуда терминал перешёл на
 	// событие; если события не было — на предыдущий экран.
+	function goBack(target) {
+		setTimeout(function () {
+			// Назад ведёт туда, где уже были, — доступ не проверяется.
+			accessSkip = true;
+			articleReturn = true;
+			try {
+				Engine.play(target);
+			} finally {
+				accessSkip = false;
+			}
+		}, Engine.DOM_DELAY || 40);
+	}
+
 	Macro.add('sg-back', {
 		handler: function () {
 			var target = State.variables.sgEventFrom || prevPassage;
 
 			if (target && Story.has(target)) {
-				setTimeout(function () {
-					// Назад ведёт туда, где уже были, — доступ не проверяется.
-					accessSkip = true;
-					try {
-						Engine.play(target);
-					} finally {
-						accessSkip = false;
-					}
-				}, Engine.DOM_DELAY || 40);
+				goBack(target);
 			}
 		}
+	});
+
+	/* ----- Статьи (шаг 4.4) ----- */
+
+	// Экран с тегом sg-article: первой строкой <<sg-article title … section …
+	// order … back …>>. На самом экране команда ничего не выводит.
+	// <<sg-articles>> собирает список при показе экрана, поэтому новая статья
+	// попадает в него сама; закрытые статьи скрывает accessScan, как любую
+	// ссылку. Внизу статьи — ссылка «Назад» на экран, откуда статью открыли:
+	// $sgArticles = {"Статья": "Откуда"}. Возврат не переписывает запись, поэтому
+	// цепочка «список → статья → другая статья» разматывается назад до списка.
+	var articleCollect = null;
+	var articleTable = null;
+	var articleReturn = false;
+
+	Macro.add('sg-article', {
+		handler: function () {
+			if (articleCollect) {
+				var a = blockArgs(this, [], ['title', 'section', 'order', 'back'], []);
+
+				articleCollect.title = String(a.title || articleCollect.name);
+				articleCollect.section = String(a.section || '');
+				articleCollect.order = Number(a.order) || 0;
+				articleCollect.back = String(a.back || '');
+			}
+		}
+	});
+
+	function articles() {
+		if (articleTable) {
+			return articleTable;
+		}
+		articleTable = {};
+		Story.filter(function (p) {
+			return p.tags.indexOf('sg-article') !== -1;
+		}).forEach(function (p) {
+			var rec = {name: p.title, title: p.title, section: '', order: 0, back: ''};
+			var m = /<<sg-article(?=[\s>])/.exec(p.text);
+			var end = m ? macroEnd(p.text, m.index + 2) : -1;
+
+			articleTable[p.title] = rec;
+			if (end === -1) {
+				return;
+			}
+			articleCollect = rec;
+			try {
+				new Wikifier(document.createDocumentFragment(), p.text.slice(m.index, end + 2));
+			} catch (e) {
+				console.error('СИГНАЛЫ: статья «' + p.title + '»', e);
+			}
+			articleCollect = null;
+		});
+		return articleTable;
+	}
+
+	// Разделы: по наименьшему порядку статьи в них, потом по названию; статьи
+	// без раздела — в конце. Внутри раздела — по порядку, потом по названию.
+	function articleGroups(picked) {
+		var table = articles();
+		var groups = [];
+		var bySection = {};
+
+		Object.keys(table)
+			.map(function (name) {
+				return table[name];
+			})
+			.filter(function (rec) {
+				return !picked.length || picked.indexOf(rec.section) !== -1;
+			})
+			.sort(function (x, y) {
+				return x.order - y.order || x.title.localeCompare(y.title, 'ru');
+			})
+			.forEach(function (rec) {
+				var key = 's:' + rec.section;
+
+				if (!bySection[key]) {
+					bySection[key] = {name: rec.section, order: rec.order, items: []};
+					groups.push(bySection[key]);
+				}
+				bySection[key].items.push(rec);
+			});
+		return groups.sort(function (x, y) {
+			if (!x.name !== !y.name) {
+				return x.name ? -1 : 1;
+			}
+			return x.order - y.order || x.name.localeCompare(y.name, 'ru');
+		});
+	}
+
+	Macro.add('sg-articles', {
+		handler: function () {
+			var a = blockArgs(this, [], ['sections', 'form', 'kind', 'columns'], ['headings']);
+			var picked = String(a.sections || '')
+				.split(',')
+				.map(function (name) {
+					return name.trim();
+				})
+				.filter(Boolean);
+			var tag = a.form === 'button' ? 'button' : 'link';
+			var columns = Math.max(1, Math.round(Number(a.columns)) || 1);
+			var box = document.createElement('div');
+
+			box.className = 'sg-art-list';
+			articleGroups(picked).forEach(function (group) {
+				var section = document.createElement('div');
+				var grid = document.createElement('div');
+
+				section.className = 'sg-art-section';
+				if (a.headings && group.name) {
+					var heading = document.createElement('div');
+
+					heading.className = 'sg-art-heading';
+					heading.textContent = group.name;
+					section.appendChild(heading);
+				}
+				grid.className = 'sg-art-grid';
+				grid.style.gridTemplateColumns = 'repeat(' + columns + ', minmax(0, 1fr))';
+				group.items.forEach(function (rec) {
+					var item = document.createElement('div');
+					var inner = item;
+
+					item.className = 'sg-art-item';
+					if (a.kind) {
+						inner = document.createElement('span');
+						inner.className = String(a.kind);
+						item.appendChild(inner);
+					}
+					$(inner).wiki(
+						'<<' + tag + ' ' + JSON.stringify(rec.title) + ' ' + JSON.stringify(rec.name) + '>><</' + tag + '>>'
+					);
+					grid.appendChild(item);
+				});
+				section.appendChild(grid);
+				box.appendChild(section);
+			});
+			this.output.appendChild(box);
+		}
+	});
+
+	function articleFrom(title) {
+		var map = State.variables.sgArticles;
+		var from = map && map[title];
+
+		return from && Story.has(from) ? from : '';
+	}
+
+	Macro.add('sg-article-back', {
+		handler: function () {
+			var from = articleFrom(State.passage);
+
+			if (from) {
+				goBack(from);
+			}
+		}
+	});
+
+	// Откуда открыли статью. Обработчик стоит раньше saveEntry, поэтому запись
+	// попадает в автокопию; после сбоя «Назад» ведёт туда же.
+	$(document).on(':passagestart', function (ev) {
+		var returning = articleReturn;
+		var title = ev.passage.title;
+
+		articleReturn = false;
+		if (!restoring && !returning && prevPassage && prevPassage !== title && articles()[title]) {
+			varObject('sgArticles')[title] = prevPassage;
+		}
+	});
+
+	$(document).on(':passagedisplay', function (ev) {
+		var rec = articles()[State.passage];
+
+		if (!rec || (!preview && !articleFrom(State.passage))) {
+			return;
+		}
+
+		var box = document.createElement('div');
+		var inner = box;
+		var kind = String(opt('article-kind', ''));
+		var tag = opt('article-button', 0) ? 'button' : 'link';
+		var label = rec.back || String(opt('article-back', 'Назад'));
+
+		box.className = 'sg-art-back';
+		if (kind) {
+			inner = document.createElement('span');
+			inner.className = kind;
+			box.appendChild(inner);
+		}
+		$(inner).wiki('<<' + tag + ' ' + JSON.stringify(label) + '>><<sg-article-back>><</' + tag + '>>');
+		ev.content.appendChild(box);
 	});
 
 	/* ----- Закрытые экраны (шаг 4.3) ----- */
@@ -2329,7 +2528,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	// Ответ 4А: ссылка исчезает вместе с обёрткой вида и переводом строки, если
 	// в строке больше ничего нет; кнопка на экране исчезает целиком.
 	function accessHide(el) {
-		var top = el.closest('.sg-place');
+		var top = el.closest('.sg-place, .sg-art-item');
 
 		if (top) {
 			top.classList.add('sg-acc-hide');
@@ -2391,6 +2590,15 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 				link.classList.add('sg-acc-off');
 				link.setAttribute('aria-disabled', 'true');
 				link.setAttribute('tabindex', '-1');
+			}
+		}
+
+		// Шаг 4.4: раздел, в котором все статьи скрыты, исчезает с заголовком.
+		var sections = document.querySelectorAll('.sg-art-section');
+
+		for (var k = 0; k < sections.length; k++) {
+			if (!sections[k].querySelector('.sg-art-item:not(.sg-acc-hide)')) {
+				sections[k].classList.add('sg-acc-hide');
 			}
 		}
 	}

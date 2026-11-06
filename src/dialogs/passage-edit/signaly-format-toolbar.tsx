@@ -7,6 +7,7 @@
 import {
 	IconAlignCenter,
 	IconArrowFork,
+	IconArticle,
 	IconBolt,
 	IconLock,
 	IconAlignRight,
@@ -109,6 +110,7 @@ import {
 	newAccess,
 	setAccess
 } from '../../util/signaly/signaly-access';
+import {articleTag, findArticle, newArticle, setArticle} from '../../util/signaly/signaly-articles';
 import {eventTag, findEvent, setEventHead} from '../../util/signaly/signaly-events';
 import './signaly-format-toolbar.css';
 
@@ -143,7 +145,8 @@ const addable: Array<BlockType | 'kr2' | 'states' | 'value'> = [
 	'place',
 	'kr2',
 	'states',
-	'value'
+	'value',
+	'articles'
 ];
 
 /** Пункты «Эффект» (шаг 2.1, ответ 5А); lines — появление строк по очереди. */
@@ -206,6 +209,12 @@ function clickTargets(value: string) {
 
 	if (access) {
 		targets.push({from: access.from, to: access.to, target: {kind: 'access'}});
+	}
+	// Шаг 4.4: команда статьи.
+	const article = findArticle(value);
+
+	if (article) {
+		targets.push({from: article.from, to: article.to, target: {kind: 'article'}});
 	}
 	return targets;
 }
@@ -465,6 +474,30 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 		if (name && !story.tagColors[lockTag]) {
 			dispatch(setTagColor(story, lockTag, lockTagColor));
 		}
+	}
+
+	function setArticleTag(on: boolean) {
+		const tags = passage.tags.filter(tag => tag !== articleTag);
+
+		dispatch(updatePassage(story, passage, {tags: on ? [...tags, articleTag] : tags}));
+	}
+
+	// «Статья» (шаг 4.4, ответ 1А): первой строкой <<sg-article>>, тег sg-article;
+	// если экран уже статья — открыть форму.
+	function addArticle() {
+		if (!editor) {
+			return;
+		}
+
+		const value = editor.getDoc().getValue();
+
+		if (!findArticle(value)) {
+			writeText(setArticle(value, newArticle()));
+		}
+		if (!passage.tags.includes(articleTag)) {
+			setArticleTag(true);
+		}
+		setPanel({kind: 'article'});
 	}
 
 	// «Доступ» (шаг 4.3, ответ 1А): первой строкой <<sg-access условие>>, тег
@@ -886,6 +919,7 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 				<IconButton disabled={off} icon={<IconArrowFork />} label={label('condition')} onClick={addCondition} />
 				<IconButton disabled={off} icon={<IconBolt />} label={t('signaly.events.button')} onClick={addEvent} />
 				<IconButton disabled={off} icon={<IconLock />} label={accessLabel} onClick={addAccess} />
+				<IconButton disabled={off} icon={<IconArticle />} label={t('signaly.articles.button')} onClick={addArticle} />
 				<MenuButton
 					disabled={off}
 					icon={<IconSquarePlus />}
@@ -929,6 +963,7 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 			{panel && editor && (
 				<SignalyBlockPanel
 					onAccessTag={setAccessTag}
+					onArticleTag={setArticleTag}
 					onClose={() => setPanel(undefined)}
 					onEventTag={setEventTag}
 					onKr2Tag={setKr2Tag}

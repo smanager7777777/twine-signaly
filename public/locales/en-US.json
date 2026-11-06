@@ -494,7 +494,8 @@
 				"start": "Start Screen",
 				"dialogs": "Message windows",
 				"text": "Text effects",
-				"inputs": "Input fields"
+				"inputs": "Input fields",
+				"articles": "Articles"
 			},
 			"fields": {
 				"pageBg": "Screen background",
@@ -553,7 +554,10 @@
 				"inputSize": "Text size",
 				"inputWidth": "Field width",
 				"inputHoverBg": "Background color on hover",
-				"inputHoverBorderColor": "Border color on hover"
+				"inputHoverBorderColor": "Border color on hover",
+				"articleBack": "“Back” link caption",
+				"articleBackKind": "“Back” link kind",
+				"articleBackButton": "“Back” as a button"
 			},
 			"hints": {
 				"savedColors": "Colors of this story. In any color field: ★ adds the color here; a swatch applies it.",
@@ -563,7 +567,8 @@
 				"typeClick": "A click outside links and buttons; space works too.",
 				"typeSeen": "Players came back to a screen — the text isn't typed again.",
 				"inputOn": "Code fields and other inputs. Off: the look comes from the stylesheet. Turning it on takes the values from there.",
-				"inputWidth": "0 means as is."
+				"inputWidth": "0 means as is.",
+				"articleBack": "At the bottom of each article. An article can have its own caption in the Article form."
 			},
 			"preview": {
 				"title": "Terminal preview",
@@ -717,7 +722,8 @@
 				"kr2": "KR2 window (this screen)",
 				"place": "On-screen button (selected link or button)",
 				"timer": "Timer",
-				"chain": "Video chain (porthole)"
+				"chain": "Video chain (porthole)",
+				"articles": "Article list"
 			},
 			"image": {
 				"title": "Image"
@@ -901,6 +907,20 @@
 				"add": "Add step",
 				"goto": "After the last step",
 				"hint": "All videos of the chain load at once — the next one starts instantly, in the same place."
+			},
+			"articles": {
+				"title": "Article list",
+				"all": "All sections",
+				"allHint": "Clear the box to choose sections.",
+				"form": "Show articles as",
+				"asLink": "links",
+				"asButton": "buttons",
+				"kind": "Kind",
+				"columns": "Columns",
+				"headings": "Show section names",
+				"hint": "The order is a number in each article. New articles join the list by themselves. Closed articles behave as set in their “Access”.",
+				"count": "{{count}} article in the list now.",
+				"count_plural": "{{count}} articles in the list now."
 			}
 		},
 		"drag": {
@@ -1749,6 +1769,26 @@
 			"confirmRemove": "The screen becomes open to everyone (the <<sg-access …>> command and the tag are removed, the rest of the text stays). Remove?",
 			"noTag": "The passage has no sg-access tag: the terminal lets everyone through.",
 			"addTag": "Add the tag"
+		},
+		"articles": {
+			"button": "Article",
+			"title": "Article",
+			"name": "Title in the list",
+			"titleHint": "Empty: the passage name («{{name}}»).",
+			"section": "Section",
+			"noSection": "No section",
+			"newSection": "New section…",
+			"sectionName": "Section name",
+			"sectionHint": "No commas. The section joins the choice list once the text is saved.",
+			"order": "Order",
+			"orderHint": "Lower number goes higher; ties go by title. Sections follow their topmost article.",
+			"back": "Own “Back” link caption",
+			"backHint": "Empty: the shared caption from Terminal appearance → Articles.",
+			"hint": "The article appears in “Article list” blocks by itself. The terminal adds a “Back” link at the bottom, leading to the screen the article was opened from. To close an article use “Access”, like any screen.",
+			"noTag": "This passage has no sg-article tag, so lists will not show it.",
+			"addTag": "Add the tag",
+			"remove": "Remove article",
+			"confirmRemove": "The passage stops being an article and leaves the lists. The text stays. Remove?"
 		}
 	}
 }

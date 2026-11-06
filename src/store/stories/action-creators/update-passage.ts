@@ -1,5 +1,6 @@
 import escapeRegExp from 'lodash/escapeRegExp';
 import {Thunk} from 'react-hook-thunk-reducer';
+import {renameScreen} from '../../../util/signaly/signaly-rename';
 import {storyWithId} from '../getters';
 import {Passage, StoriesAction, StoriesState, Story} from '../stories.types';
 import {createNewlyLinkedPassages} from './create-newly-linked-passages';
@@ -110,6 +111,24 @@ export function updatePassage(
 					)(dispatch, getState);
 				}
 			});
+
+			// СИГНАЛЫ (ответ 7А к шагу 4.4): имя экрана в командах, которые Twine
+			// не знает: goto, passage, lock, правила «Доступа» и т. п.
+
+			if (props.name !== oldName) {
+				storyWithId(getState(), story.id).passages.forEach(other => {
+					const text = renameScreen(other.text, oldName, props.name!);
+
+					if (text !== other.text) {
+						dispatch({
+							props: {text},
+							type: 'updatePassage',
+							passageId: other.id,
+							storyId: story.id
+						});
+					}
+				});
+			}
 		}
 	};
 }
