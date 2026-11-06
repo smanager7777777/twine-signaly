@@ -990,7 +990,7 @@ setup.signalySounds = {
 
 
 /* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */
-/* Версия движка: 15. Обновляется программой «Twine СИГНАЛЫ».
+/* Версия движка: 16. Обновляется программой «Twine СИГНАЛЫ».
    Настройки — в окне «Оформление терминала» (они лежат в таблице стилей).
    Свой код пишите ниже конца этого блока. */
 (function () {
@@ -1035,7 +1035,7 @@ setup.signalySounds = {
 	// Предпросмотр в программе: без стартового экрана, автокопии и защиты.
 	var preview = window.SIGNALY_PREVIEW;
 
-	setup.signaly = {engine: 15, preview: !!preview};
+	setup.signaly = {engine: 16, preview: !!preview};
 
 	function showStartScreen(onClick) {
 		var screen = document.createElement('div');
@@ -1160,6 +1160,19 @@ setup.signalySounds = {
 		'.sg-art-heading { font-weight: bold; margin-bottom: 0.4em; }\n' +
 		'.sg-art-grid { display: grid; gap: 0.3em 2em; justify-items: start; }\n' +
 		'.sg-art-back { margin-top: 1.5em; }\n' +
+		// Шаг 5.1: список состояний и плитка.
+		'.sg-list-grid { display: grid; gap: 0.4em 1.5em; justify-items: start; }\n' +
+		'.sg-list-tiles { gap: 0.8em; justify-items: stretch; }\n' +
+		'.sg-list-tiles .sg-list-item > span { display: block; }\n' +
+		'.sg-tile { border: 2px solid currentColor; box-sizing: border-box; display: block; padding: 0.4em 0.7em; text-decoration: none; }\n' +
+		'a.sg-tile:not(.sg-list-color):hover { filter: brightness(1.3); }\n' +
+		// Свой цвет состояния: те же правила, что у видов, — при наведении цвета
+		// меняются местами. Правило сильнее вида, инлайн-стиль убил бы наведение.
+		'.sg-list-item .sg-list-color { border-color: var(--sg-state); color: var(--sg-state); }\n' +
+		'.sg-list-item button.sg-list-color { box-shadow: 0 0 5px var(--sg-state); }\n' +
+		'.sg-list-item a.sg-list-color:hover, .sg-list-item button.sg-list-color:hover { background-color: var(--sg-state); color: #000000; }\n' +
+		'.sg-tile-name { display: block; font-weight: bold; }\n' +
+		'.sg-tile-status { display: block; }\n' +
 		'.sg-blink.sg-off { animation: none; }\n' +
 		'html .glitchy.sg-off { color: inherit; }\n' +
 		'html .glitchy.sg-off::before, html .glitchy.sg-off::after { content: none; }\n' +
@@ -3294,6 +3307,163 @@ setup.signalySounds = {
 		ev.content.appendChild(box);
 	});
 
+	/* ----- Список состояний (шаг 5.1) ----- */
+
+	// Процедуры и системы ИНЖИНАРИУМА: <<sg-list>> с <<sg-state>> (надпись, вид,
+	// цвет и действие состояния — одни на весь список) и <<sg-row>> (номер,
+	// название, переменная, экран). Состояние строки — значение её переменной:
+	// пустая считается 0, значения нет в списке — первое состояние. Значение
+	// меняется кодом или клавишей, поэтому строка перерисовывается сама.
+	// В предпросмотре строки показаны в разных состояниях: видны все сразу.
+	var listTimer = 0;
+
+	function listFill(text, row) {
+		return String(text === undefined ? '' : text)
+			.split('{номер}')
+			.join(String(row.num === undefined ? '' : row.num))
+			.split('{название}')
+			.join(String(row.name === undefined ? '' : row.name));
+	}
+
+	function listIndex(info) {
+		var states = info.list.states;
+
+		if (preview) {
+			return info.index % states.length;
+		}
+
+		var value = info.row['var'] ? State.getVar(String(info.row['var'])) : undefined;
+		var text = value === undefined || value === null || value === false ? '0' : value === true ? '1' : String(value);
+
+		for (var i = 0; i < states.length; i++) {
+			if (String(states[i].value) === text) {
+				return i;
+			}
+		}
+		return 0;
+	}
+
+	function listSpan(cls, text) {
+		var span = document.createElement('span');
+
+		span.className = cls;
+		span.textContent = text;
+		return span;
+	}
+
+	function listDraw(item) {
+		var info = item.sgList;
+		var list = info.list;
+		var row = info.row;
+		var index = listIndex(info);
+		var st = list.states[index];
+		var key = row.key && st.keykind;
+		var kind = key ? st.keykind : st.kind;
+		var color = key ? '' : st.color;
+		var label = listFill(st.label, row);
+		var name = String(row.name || row.num || '');
+		var way = st['do'];
+		var go = way === 'row' ? row.passage : way ? '' : st.goto;
+		var body = listFill(st.text, row);
+		var tile = list.form === 'tile';
+		var inner = item;
+		var el;
+
+		info.state = index;
+		item.textContent = '';
+		go = go && Story.has(String(go)) ? String(go) : '';
+		if (way === 'window' && row.passage && Story.has(String(row.passage))) {
+			body +=
+				'<<sg-open ' +
+				JSON.stringify(listFill(st.title || '{название}', row)) +
+				' passage ' +
+				JSON.stringify(String(row.passage)) +
+				'>><</sg-open>>';
+		}
+		if (kind) {
+			inner = document.createElement('span');
+			inner.className = String(kind);
+			item.appendChild(inner);
+		}
+		if (tile && !go && !body) {
+			el = document.createElement('div');
+			el.className = 'sg-tile';
+			inner.appendChild(el);
+		} else {
+			var tag = list.form === 'button' ? 'button' : 'link';
+
+			$(inner).wiki(
+				'<<' + tag + ' ' + JSON.stringify(label || name || '—') + (go ? ' ' + JSON.stringify(go) : '') + '>>' + body + '<</' + tag + '>>'
+			);
+			el = inner.querySelector('a, button');
+			if (el && tile) {
+				el.classList.add('sg-tile');
+				el.textContent = '';
+			}
+		}
+		if (!el) {
+			return;
+		}
+		if (tile) {
+			el.appendChild(listSpan('sg-tile-name', listFill('{название}', row) || name));
+			el.appendChild(listSpan('sg-tile-status', label));
+		}
+		// Правило «Доступа»: у строки — её название, у состояния со своим
+		// экраном — надпись состояния (она одна на весь список).
+		el.setAttribute('data-sg-label', way || !st.goto ? name : String(st.label || ''));
+		if (color) {
+			el.classList.add('sg-list-color');
+			el.style.setProperty('--sg-state', String(color));
+		}
+	}
+
+	function listTick() {
+		var items = document.querySelectorAll('.sg-list-item');
+
+		for (var i = 0; i < items.length; i++) {
+			if (items[i].sgList && listIndex(items[i].sgList) !== items[i].sgList.state) {
+				listDraw(items[i]);
+			}
+		}
+	}
+
+	Macro.add('sg-list', {
+		tags: ['sg-state', 'sg-row'],
+		handler: function () {
+			var a = blockArgs(this, [], ['form', 'columns'], []);
+			var list = {form: a.form === 'button' || a.form === 'tile' ? a.form : 'link', states: [], rows: []};
+			var columns = Math.max(1, Math.round(Number(a.columns)) || 1);
+			var grid = document.createElement('div');
+
+			this.payload.slice(1).forEach(function (part) {
+				if (part.name === 'sg-state') {
+					var st = blockArgs({args: part.args}, ['value'], ['label', 'kind', 'color', 'keykind', 'do', 'goto', 'title'], []);
+
+					st.text = trimContent(part.contents);
+					list.states.push(st);
+				} else {
+					list.rows.push(blockArgs({args: part.args}, ['num', 'name'], ['var', 'passage'], ['key']));
+				}
+			});
+			grid.className = 'sg-list-grid' + (list.form === 'tile' ? ' sg-list-tiles' : '');
+			grid.style.gridTemplateColumns = 'repeat(' + columns + ', minmax(0, 1fr))';
+			if (list.states.length) {
+				list.rows.forEach(function (row, index) {
+					var item = document.createElement('div');
+
+					item.className = 'sg-list-item';
+					item.sgList = {list: list, row: row, index: index, state: -1};
+					grid.appendChild(item);
+					listDraw(item);
+				});
+			}
+			this.output.appendChild(grid);
+			if (!listTimer && !preview) {
+				listTimer = setInterval(listTick, 250);
+			}
+		}
+	});
+
 	/* ----- Закрытые экраны (шаг 4.3) ----- */
 
 	// Экран с тегом sg-access: <<sg-access слова>>условие<<sg-rule …>><</sg-access>>.
@@ -3474,7 +3644,9 @@ setup.signalySounds = {
 	}
 
 	function accessLinkId(el) {
-		return State.passage + '\n' + el.textContent.replace(/\s+/g, ' ').trim();
+		var label = el.getAttribute('data-sg-label');
+
+		return State.passage + '\n' + (label === null ? el.textContent : label).replace(/\s+/g, ' ').trim();
 	}
 
 	// Поведение ссылки: своё правило или общее. Пока надпись печатается, она
@@ -3534,7 +3706,7 @@ setup.signalySounds = {
 	// Ответ 4А: ссылка исчезает вместе с обёрткой вида и переводом строки, если
 	// в строке больше ничего нет; кнопка на экране исчезает целиком.
 	function accessHide(el) {
-		var top = el.closest('.sg-place, .sg-art-item');
+		var top = el.closest('.sg-place, .sg-art-item, .sg-list-item');
 
 		if (top) {
 			top.classList.add('sg-acc-hide');
@@ -4375,7 +4547,7 @@ setup.signalySounds = {
 				if (node.getClientRects().length) {
 					items.push(fvItem(node, fvKind(node)));
 				}
-			} else if (node.querySelector(fvKeep) || node.matches('.sg-art-list, .sg-art-section, .sg-art-grid')) {
+			} else if (node.querySelector(fvKeep) || node.matches('.sg-art-list, .sg-art-section, .sg-art-grid, .sg-list-grid')) {
 				flush();
 				fvScan(node, items);
 			} else if (display !== 'inline' || node.matches('a, button') || node.querySelector('a, button')) {

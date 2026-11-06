@@ -22,7 +22,7 @@ import {findLinks} from './signaly-actions';
 import {articleLists, articleTag, listItems, readArticles} from './signaly-articles';
 import {codesTag, readCodes} from './signaly-codes';
 import {keysTag, normalCombo, readKeys} from './signaly-keys';
-import {findBlocks, findClose, quote, scanArgs} from './signaly-screen-blocks';
+import {findBlocks, listRowId, findClose, quote, scanArgs} from './signaly-screen-blocks';
 
 export const accessTag = 'sg-access';
 /** Общий пассаж блокировки (ответ 5А) — обычный пассаж с этим тегом. */
@@ -319,7 +319,25 @@ export function accessSources(passages: Passage[], target: string) {
 				);
 		}
 		findBlocks(p.text).forEach(b => {
-			if (b.type === 'code') {
+			if (b.type === 'list') {
+				// Шаг 5.1: строка ведёт на свой экран; состояние со своим экраном —
+				// одно на весь список, его источник называется надписью состояния.
+				const note = b.values.form === 'button' ? 'button' : undefined;
+				const states = b.states ?? [];
+
+				if (states.some(st => st.values.do === 'row')) {
+					(b.rows ?? [])
+						.filter(row => row.values.passage === target)
+						.forEach(row => add({kind: 'link', id: listRowId(row), from: p.name, label: listRowId(row), note}));
+				}
+				states
+					.filter(st => st.values.do === undefined && st.values.goto === target)
+					.forEach(st => {
+						const label = String(st.values.label ?? '').trim();
+
+						add({kind: 'link', id: label.replace(/\s+/g, ' '), from: p.name, label, note});
+					});
+			} else if (b.type === 'code') {
 				(b.cases ?? [])
 					.filter(c => c.kind === 'case' && c.values.goto === target)
 					.forEach(c => add({kind: 'code', id: String(c.values.code), label: String(c.values.code)}));

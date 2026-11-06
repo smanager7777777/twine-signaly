@@ -50,6 +50,7 @@ import {CondListsContext, useCondLists} from './signaly-logic-form';
 import {AccessForm} from './signaly-access-form';
 import {EventForm} from './signaly-event-form';
 import {ArticleForm} from './signaly-article-form';
+import {ListForm} from './signaly-list-form';
 import {accessTag, findAccess, setAccess} from '../../util/signaly/signaly-access';
 import {
 	articleSections,
@@ -669,6 +670,25 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 				);
 				break;
 			}
+
+			case 'list':
+				// Шаг 5.1 (ответы 2А–4А).
+				title = l('list.title');
+				body = (
+					<ListForm
+						audio={findAudioInit(story.passages.find(p => p.name === 'StoryInit')?.text ?? '').init}
+						audioFiles={media.audio}
+						block={block}
+						current={passage.name}
+						fileChoice={fileChoice}
+						kinds={kinds}
+						passages={passages}
+						savedColors={savedColors}
+						variables={knownVariables(story.passages)}
+						write={write}
+					/>
+				);
+				break;
 
 			case 'timer': {
 				// Шаг 2.3 (ответы 1А–4А).

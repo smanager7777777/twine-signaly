@@ -81,6 +81,7 @@ import {findLinks} from '../../util/signaly/signaly-actions';
 import {
 	BlockType,
 	findBlocks,
+	newStateList,
 	innermostAt,
 	kr2Tag,
 	newBlock,
@@ -136,7 +137,7 @@ interface CursorInfo {
 const sizes = ['50%', '75%', '125%', '150%', '200%', '300%'];
 
 /** Порядок пунктов «Добавить блок» (решение 52). */
-const addable: Array<BlockType | 'kr2' | 'states' | 'value'> = [
+const addable: Array<BlockType | 'kr2' | 'states' | 'value' | 'tiles'> = [
 	'alarm',
 	'dialog',
 	'code',
@@ -148,7 +149,9 @@ const addable: Array<BlockType | 'kr2' | 'states' | 'value'> = [
 	'kr2',
 	'states',
 	'value',
-	'articles'
+	'articles',
+	'list',
+	'tiles'
 ];
 
 /** Пункты «Эффект» (шаг 2.1, ответ 5А); lines — появление строк по очереди. */
@@ -551,7 +554,7 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 		dispatch(updatePassage(story, passage, {tags: on ? [...tags, kr2Tag] : tags}));
 	}
 
-	function addBlock(type: BlockType | 'kr2' | 'states' | 'value') {
+	function addBlock(type: BlockType | 'kr2' | 'states' | 'value' | 'tiles') {
 		if (!editor) {
 			return;
 		}
@@ -569,7 +572,7 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 		}
 
 		const {text: value, from, to} = selection();
-		const block = newBlock(type);
+		const block = type === 'tiles' ? newStateList(true) : newBlock(type);
 		const selected = value.slice(from, to);
 
 		// Выделенный текст становится текстом тревоги или окна, а выделенная

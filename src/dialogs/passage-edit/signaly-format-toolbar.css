@@ -132,3 +132,27 @@ h5.signaly-block-subtitle {
 	margin: 6px 0;
 	padding-left: 8px;
 }
+
+/* СИГНАЛЫ, шаг 5.1: таблица строк списка состояний. */
+.signaly-list-table {
+	align-items: center;
+	display: grid;
+	font-size: 90%;
+	gap: 2px 4px;
+	grid-template-columns: 4em minmax(6em, 1fr) minmax(5em, 8em) minmax(5em, 8em) auto auto;
+	margin: var(--grid-size) 0;
+}
+
+.signaly-list-table input:not([type='checkbox']) {
+	box-sizing: border-box;
+	min-width: 0;
+	width: 100%;
+}
+
+.signaly-list-table input.signaly-list-missing {
+	border-color: var(--red);
+}
+
+.signaly-list-row-buttons {
+	display: flex;
+}

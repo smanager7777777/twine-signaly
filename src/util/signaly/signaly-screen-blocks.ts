@@ -17,6 +17,11 @@
 //   <<sg-step "media/video/b.mp4" next end>>
 //   <</sg-chain>>
 //   <<sg-articles columns 2 headings>>                    (шаг 4.4: список статей)
+//   <<sg-list form button columns 3>>                     (шаг 5.1: список состояний)
+//   <<sg-state 0 label "{номер}. Данные повреждены" color "#cc0000">>
+//   <<sg-state 3 label "{номер}. {название}" do window>>
+//   <<sg-row "001" "Гибернация" var "$prcd1" passage "PRCD001" key>>
+//   <</sg-list>>
 // Окно KR2 — команды <<kr2image>>, <<kr2layout>>, <<kr2vars>>, <<kr2main>>.
 // Команды понимает движок (signaly-engine.ts) — и в обычном Twine тоже.
 //
@@ -32,9 +37,10 @@ export type BlockType =
 	| 'place'
 	| 'timer'
 	| 'chain'
-	| 'articles';
+	| 'articles'
+	| 'list';
 export type CaseKind = 'case' | 'wrong';
-type PartKind = CaseKind | 'step';
+type PartKind = CaseKind | 'step' | 'state' | 'row';
 export type Value = string | number | boolean;
 export type Values = Record<string, Value | undefined>;
 
@@ -47,10 +53,17 @@ export const blockMacros: Record<BlockType, string> = {
 	place: 'sg-place',
 	timer: 'sg-timer',
 	chain: 'sg-chain',
-	articles: 'sg-articles'
+	articles: 'sg-articles',
+	list: 'sg-list'
 };
 
-const partMacros: Record<PartKind, string> = {case: 'sg-case', wrong: 'sg-wrong', step: 'sg-step'};
+const partMacros: Record<PartKind, string> = {
+	case: 'sg-case',
+	wrong: 'sg-wrong',
+	step: 'sg-step',
+	state: 'sg-state',
+	row: 'sg-row'
+};
 
 export const blockTypes = Object.keys(blockMacros) as BlockType[];
 
@@ -176,6 +189,25 @@ const specs: Record<BlockType | PartKind, ArgSpec> = {
 		flags: ['headings'],
 		container: false
 	},
+	// Шаг 5.1: список состояний. form: link / button / tile (плитка).
+	list: {pos: [], keys: {form: 'string', columns: 'number'}, flags: [], container: true},
+	// value — значение переменной; do: row (экран строки) / window (он же в окне);
+	// goto — свой экран; keykind — вид ключевой строки в этом состоянии.
+	state: {
+		pos: ['value'],
+		keys: {
+			label: 'string',
+			kind: 'string',
+			color: 'string',
+			keykind: 'string',
+			do: 'string',
+			goto: 'string',
+			title: 'string'
+		},
+		flags: [],
+		container: false
+	},
+	row: {pos: ['num', 'name'], keys: {var: 'string', passage: 'string'}, flags: ['key'], container: false},
 	case: {pos: ['code'], keys: actionKeys, flags: [], container: false},
 	wrong: {pos: [], keys: actionKeys, flags: [], container: false},
 	// next: click (щелчок по видео) / end (видео закончилось) / time (через seconds).
@@ -206,6 +238,21 @@ export interface ScreenBlock {
 	cases?: CodeCase[];
 	/** Шаги цепочки видео. */
 	steps?: ChainStep[];
+	/** Состояния и строки списка состояний (шаг 5.1). */
+	states?: ListState[];
+	rows?: ListRow[];
+}
+
+export interface ListState {
+	values: Values;
+	extra: string[];
+	/** Действия при нажатии — обычные команды, как внутри ссылки. */
+	content: string;
+}
+
+export interface ListRow {
+	values: Values;
+	extra: string[];
 }
 
 export interface ChainStep {
@@ -330,7 +377,7 @@ function writeValue(value: Value) {
 	return typeof value === 'number' ? round(value) : quote(String(value));
 }
 
-const bareKeys = ['place', 'corner', 'close', 'kind', 'form', 'hover', 'click', 'start', 'format', 'next', 'font'];
+const bareKeys = ['place', 'corner', 'close', 'kind', 'form', 'hover', 'click', 'start', 'format', 'next', 'font', 'do'];
 
 function writeArgs(values: Values, extra: string[], spec: ArgSpec) {
 	const parts: string[] = [];
@@ -366,7 +413,7 @@ function writeArgs(values: Values, extra: string[], spec: ArgSpec) {
 
 /* ----- Поиск блоков в тексте ----- */
 
-const openRe = /<<sg-(image|video|alarm|dialog|code|place|timer|chain|articles)(?=[\s>])/g;
+const openRe = /<<sg-(image|video|alarm|dialog|code|place|timer|chain|articles|list)(?=[\s>])/g;
 
 function macroType(name: string): BlockType | undefined {
 	return blockTypes.find(type => blockMacros[type] === 'sg-' + name);
@@ -468,6 +515,15 @@ export function findBlocks(text: string): ScreenBlock[] {
 					values: step.values,
 					extra: step.extra
 				}));
+			} else if (type === 'list') {
+				const parts = (parseCases(content, /<<sg-(state|row)(?=[\s>])/g) as unknown) as Array<
+					Omit<CodeCase, 'kind'> & {kind: string}
+				>;
+
+				block.states = parts
+					.filter(part => part.kind === 'state')
+					.map(({values, extra, content}) => ({values, extra, content}));
+				block.rows = parts.filter(part => part.kind === 'row').map(({values, extra}) => ({values, extra}));
 			} else {
 				block.content = content;
 			}
@@ -476,7 +532,7 @@ export function findBlocks(text: string): ScreenBlock[] {
 		// Внутри тревоги, окна и кнопки на экране могут стоять другие блоки и
 		// эффекты — их тоже ищем (у поля кода внутри — таблица кодов, у цепочки —
 		// шаги).
-		openRe.lastIndex = type === 'code' || type === 'chain' ? block.to : scan.end;
+		openRe.lastIndex = type === 'code' || type === 'chain' || type === 'list' ? block.to : scan.end;
 	}
 	return blocks;
 }
@@ -522,6 +578,16 @@ export function writeBlock(block: Omit<ScreenBlock, 'from' | 'to'>) {
 		const lines = (block.steps ?? []).map(
 			s => `<<${partMacros.step}${writeArgs(s.values, s.extra, specs.step)}>>`
 		);
+
+		return `${head}\n${lines.map(line => line + '\n').join('')}<</${name}>>`;
+	}
+	if (block.type === 'list') {
+		const lines = [
+			...(block.states ?? []).map(
+				st => `<<${partMacros.state}${writeArgs(st.values, st.extra, specs.state)}>>${st.content}`
+			),
+			...(block.rows ?? []).map(row => `<<${partMacros.row}${writeArgs(row.values, row.extra, specs.row)}>>`)
+		];
 
 		return `${head}\n${lines.map(line => line + '\n').join('')}<</${name}>>`;
 	}
@@ -598,6 +664,8 @@ export function newBlock(type: BlockType): Omit<ScreenBlock, 'from' | 'to'> {
 			};
 		case 'articles':
 			return {type, values: {columns: 1, headings: true}, extra: []};
+		case 'list':
+			return newStateList(false);
 		case 'code':
 			return {
 				type,
@@ -609,6 +677,81 @@ export function newBlock(type: BlockType): Omit<ScreenBlock, 'from' | 'to'> {
 				]
 			};
 	}
+}
+
+/**
+ * Заготовка списка состояний (шаг 5.1): кнопки — как процедуры (ответ 2А),
+ * плитка — как системы ИНЖИНАРИУМА (ответ 4А). Тексты — образец, автор их меняет.
+ */
+export function newStateList(tile: boolean): Omit<ScreenBlock, 'from' | 'to'> {
+	const state = (value: number, label: string, color: string, more: Values = {}): ListState => ({
+		values: {value, label, color, keykind: 'purple', ...more},
+		extra: [],
+		content: ''
+	});
+
+	return {
+		type: 'list',
+		values: {form: tile ? 'tile' : 'button', columns: tile ? 4 : 2},
+		extra: [],
+		states: tile
+			? [
+					state(0, 'Отказ', '#cc0000'),
+					state(1, 'Авария', '#ff8800'),
+					state(2, 'Ремонт', '#ffcc00'),
+					state(3, 'Норма', '#00cc00', {do: 'row'})
+			  ]
+			: [
+					state(0, '{номер}. Данные повреждены', '#cc0000'),
+					state(1, '{номер}. Нужен пароль', '#ff8800'),
+					state(2, '{номер}. Нужна дешифровка', '#ffcc00'),
+					state(3, '{номер}. {название}', '#00cc00', {do: 'window'})
+			  ],
+		rows: tile
+			? [
+					{values: {num: '1', name: 'Система 1', var: '$system1'}, extra: []},
+					{values: {num: '2', name: 'Система 2', var: '$system2'}, extra: []}
+			  ]
+			: [
+					{values: {num: '001', name: 'Процедура 1', var: '$prcd1'}, extra: []},
+					{values: {num: '002', name: 'Процедура 2', var: '$prcd2'}, extra: []}
+			  ]
+	};
+}
+
+/** Что в команде и в доступе называется строкой: название, иначе номер. */
+export function listRowId(row: ListRow) {
+	return String(row.values.name || row.values.num || '')
+		.replace(/\s+/g, ' ')
+		.trim();
+}
+
+/** Новые строки: номера подряд, имена переменной и экрана по образцу (шаг 5.1). */
+export function listRowsFill(fill: {
+	count: number;
+	first: number;
+	digits: number;
+	name: string;
+	variable: string;
+	screen: string;
+}) {
+	const rows: ListRow[] = [];
+
+	for (let i = 0; i < fill.count; i++) {
+		const n = fill.first + i;
+		const num = String(n).padStart(fill.digits, '0');
+		const values: Values = {
+			num,
+			name: fill.name.split('{номер}').join(num),
+			var: fill.variable ? '$' + fill.variable.replace(/^\$/, '') + n : undefined
+		};
+
+		if (fill.screen) {
+			values.passage = fill.screen + num;
+		}
+		rows.push({values, extra: []});
+	}
+	return rows;
 }
 
 /* ----- Окно KR2 ----- */
