@@ -131,7 +131,7 @@ check('пароль: нет лишней строки «:: PasswordEntry»', !(a
 
 // 6. Хактест: строки ровные.
 await go('Хактест', 1500);
-const rows = await page.evaluate(() => [...document.querySelectorAll('#terminalDisplay > div')].map(d => d.textContent.length));
+const rows = await page.evaluate(() => [...document.querySelectorAll('.sg-hack-line')].map(d => d.textContent.length));
 check('хактест: 10 строк по 60 знаков', rows.length === 10 && rows.every(n => n === 60), rows.join(','));
 await page.screenshot({path: path.join(shotsDir, 'hacktest.png')});
 

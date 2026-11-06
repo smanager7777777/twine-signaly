@@ -81,6 +81,7 @@ import {findLinks} from '../../util/signaly/signaly-actions';
 import {
 	BlockType,
 	findBlocks,
+	gridSpots,
 	newStateList,
 	innermostAt,
 	kr2Tag,
@@ -113,6 +114,7 @@ import {
 	newAccess,
 	setAccess
 } from '../../util/signaly/signaly-access';
+import {freeSpot} from '../../util/signaly/signaly-keys';
 import {articleTag, findArticle, newArticle, setArticle} from '../../util/signaly/signaly-articles';
 import {eventTag, findEvent, setEventHead} from '../../util/signaly/signaly-events';
 import './signaly-format-toolbar.css';
@@ -151,7 +153,8 @@ const addable: Array<BlockType | 'kr2' | 'states' | 'value' | 'tiles'> = [
 	'value',
 	'articles',
 	'list',
-	'tiles'
+	'tiles',
+	'hack'
 ];
 
 /** Пункты «Эффект» (шаг 2.1, ответ 5А); lines — появление строк по очереди. */
@@ -463,6 +466,19 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 	}
 
 	// Тег sg-access с цветом на карте (шаг 4.3, ответ 6А).
+	// Шаг 5.2 (ответ 2А): пустые экраны строк списка — сеткой правее карты.
+	function createPassages(names: string[]) {
+		const spots = gridSpots(freeSpot(story.passages), names.length);
+
+		names.forEach((name, i) => {
+			dispatch({
+				type: 'createPassage',
+				storyId: story.id,
+				props: {name, story: story.id, tags: [], text: '', ...spots[i]}
+			});
+		});
+	}
+
 	function setAccessTag(on: boolean) {
 		const tags = passage.tags.filter(tag => tag !== accessTag);
 
@@ -1002,6 +1018,7 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 					onAccessTag={setAccessTag}
 					onArticleTag={setArticleTag}
 					onClose={() => setPanel(undefined)}
+					onCreatePassages={createPassages}
 					onEventTag={setEventTag}
 					onKr2Tag={setKr2Tag}
 					onSharedLock={setSharedLock}

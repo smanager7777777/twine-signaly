@@ -726,7 +726,8 @@
 				"chain": "Video chain (porthole)",
 				"articles": "Article list",
 				"list": "State list: buttons (procedures)",
-				"tiles": "State list: tiles (systems)"
+				"tiles": "State list: tiles (systems)",
+				"hack": "Hacking terminal"
 			},
 			"image": {
 				"title": "Image"
@@ -987,7 +988,93 @@
 				"fillDo": "Add {{count}} row",
 				"fillDo_plural": "Add {{count}} rows",
 				"hint": "The preview shows rows in different states so you can see them all. In the game, codes, master keys and links change the state with the Change variable action.",
-				"windowTitle": "Window title (empty: row name)"
+				"windowTitle": "Window title (empty: row name)",
+				"createMissing": "Create missing screen ({{count}})",
+				"createMissing_plural": "Create missing screens ({{count}})"
+			},
+			"hack": {
+				"title": "Hacking terminal",
+				"wordsTitle": "Words",
+				"words": "Word set",
+				"wordsHint": "Separated by commas, spaces or new lines. Lengths may vary: all words of one attempt have the same length.",
+				"stats": "In the set: {{list}}.",
+				"statsItem": "{{size}} letters — {{found}}",
+				"rare": "Length {{list}}: fewer words than options ({{count}}), this length will not come up.",
+				"key": "Key word",
+				"keyHint": "Empty — random from the set, different on the next attempt. A set word does not change.",
+				"count": "Options per attempt",
+				"attempts": "Attempts",
+				"fieldTitle": "Hacking field",
+				"columns": "Columns",
+				"rows": "Lines per column",
+				"cols": "Characters per line",
+				"gap": "Gap between columns, characters",
+				"size": "Text size",
+				"chars": "Filler characters",
+				"ownLight": "Own highlight color",
+				"light": "Highlight color",
+				"frame": "Frame around the field",
+				"usedglitch": "Mark chosen words with glitch",
+				"hintTitle": "Hint and attempts",
+				"hintPlace": "Hint position",
+				"hinttext": "Hint text",
+				"hinttextHint": "{совпало} — letters in place, {всего} — letters in the word, {слово} — chosen word.",
+				"triesPlace": "Attempts position",
+				"triesshow": "Show attempts as",
+				"shows": {
+					"text": "Text",
+					"boxes": "Squares",
+					"both": "Text and squares"
+				},
+				"triestext": "Attempts text",
+				"triestextHint": "{попытки} — how many are left.",
+				"places": {
+					"top": "Above the field",
+					"bottom": "Below the field",
+					"left": "Left of the field",
+					"right": "Right of the field"
+				},
+				"missTitle": "Wrong word",
+				"missHint": "Sound, effect and label — while attempts remain.",
+				"none": "None",
+				"misssound": "Sound",
+				"missvolume": "Sound volume",
+				"missfx": "Screen effect",
+				"fx": {
+					"none": "None",
+					"flicker": "Flicker",
+					"flash": "Flash",
+					"ripple": "Ripple"
+				},
+				"missplace": "Large label",
+				"labels": {
+					"none": "None",
+					"top": "Above the field",
+					"bottom": "Below the field",
+					"left": "Left of the field",
+					"right": "Right of the field",
+					"over": "Over all text"
+				},
+				"misslabel": "Label text",
+				"misssize": "Label size",
+				"misscolor": "Label color",
+				"misstime": "Duration",
+				"seconds": " s",
+				"missActions": "Actions for every wrong word, including the last one: for example, an error counter (add 1 to a variable).",
+				"winTitle": "Success",
+				"wintext": "Text instead of the field",
+				"wintextHint": "New line — with « / ». {слово} — the key word.",
+				"winnote": "Label below the field",
+				"win": "After success go to screen",
+				"failTitle": "Failure",
+				"failtext": "Text instead of the field",
+				"failtextHint": "New line — with « / ». Actions below — for example, a failure counter.",
+				"fail": "After failure go to screen",
+				"stay": "Stay on this screen",
+				"delay": "How long to show the result before leaving",
+				"hint": "Attempts reset on entry. After success the screen is no longer shown: going to it leads straight to the success screen. Check with Test; preview runs no actions or transitions.",
+				"fxcolor": "Flash or flicker color",
+				"tooWide": "The field is wider than the terminal window: about {{width}} with a {{win}} window. Reduce columns, characters or text size."
 			}
 		},
 		"drag": {
@@ -1842,7 +1929,8 @@
 				"button": "Button “{{label}}” on screen {{from}}",
 				"timer": "Timer “{{label}}”",
 				"alarm": "Alarm on screen {{label}}",
-				"chain": "Video chain on screen {{label}}"
+				"chain": "Video chain on screen {{label}}",
+				"hack": "Hacking terminal on screen {{label}}"
 			},
 			"stale": "(no longer in the game)",
 			"hint": "The condition is checked all the time: a link appears as soon as the screen opens. A code is checked before its actions, so an early code is not used up. The preview shows all links; check with Play. In the text: the first line <<sg-access …>> and the sg-access tag.",

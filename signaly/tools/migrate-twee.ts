@@ -30,6 +30,7 @@ import {movePlacesInTexts, withoutPlaces} from '../../src/util/signaly/signaly-p
 import {findAudioInit, readSounds, templateSounds, withAudioInit} from '../../src/util/signaly/signaly-sounds';
 import {moveTemplateTimers} from '../../src/util/signaly/signaly-timers';
 import {moveScriptDialogs} from '../../src/util/signaly/signaly-actions';
+import {moveTemplateHack} from '../../src/util/signaly/signaly-hack';
 import {freeSpot, keysPassageName, keysTag, moveTemplateKeys} from '../../src/util/signaly/signaly-keys';
 
 function section(source: string, header: RegExp) {
@@ -176,6 +177,14 @@ if (init && findAudioInit(init.text).ranges.length) {
 		if (moved !== text) {
 			result.moved.push(`окна-сообщения в ссылках → действия (${p.name})`);
 			put(p.index, moved);
+		}
+
+		// Шаг 5.2: экран «Хактест» → блок «Терминал взлома».
+		const hack = moveTemplateHack(moved);
+
+		if (hack !== moved) {
+			result.moved.push(`терминал взлома → блок (${p.name})`);
+			put(p.index, hack);
 		}
 	});
 	if (timers.script !== bodies[scriptIndex]) {

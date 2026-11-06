@@ -50,6 +50,7 @@ import {CondListsContext, useCondLists} from './signaly-logic-form';
 import {AccessForm} from './signaly-access-form';
 import {EventForm} from './signaly-event-form';
 import {ArticleForm} from './signaly-article-form';
+import {HackForm} from './signaly-hack-form';
 import {ListForm} from './signaly-list-form';
 import {accessTag, findAccess, setAccess} from '../../util/signaly/signaly-access';
 import {
@@ -93,6 +94,8 @@ export interface SignalyBlockPanelProps {
 	onArticleTag: (on: boolean) => void;
 	/** Сделать пассаж общим пассажем блокировки (шаг 4.3). */
 	onSharedLock: (name: string) => void;
+	/** Создать пустые экраны (шаг 5.2, ответ 2А). */
+	onCreatePassages: (names: string[]) => void;
 	onClose: () => void;
 }
 
@@ -160,7 +163,7 @@ export function useLists(story: Story) {
 /* ----- Панель ----- */
 
 export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
-	const {onAccessTag, onArticleTag, onClose, onEventTag, onKr2Tag, onSharedLock, onText, passage, story, target, text} = props;
+	const {onAccessTag, onArticleTag, onClose, onCreatePassages, onEventTag, onKr2Tag, onSharedLock, onText, passage, story, target, text} = props;
 	const {t} = useTranslation();
 	const {media, passages} = useLists(story);
 	const condLists = useCondLists(story);
@@ -682,9 +685,30 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 						current={passage.name}
 						fileChoice={fileChoice}
 						kinds={kinds}
+						onCreatePassages={onCreatePassages}
 						passages={passages}
 						savedColors={savedColors}
 						variables={knownVariables(story.passages)}
+						write={write}
+					/>
+				);
+				break;
+
+			case 'hack':
+				// Шаг 5.2.
+				title = l('hack.title');
+				body = (
+					<HackForm
+						audio={findAudioInit(story.passages.find(p => p.name === 'StoryInit')?.text ?? '').init}
+						audioFiles={media.audio}
+						block={block}
+						current={passage.name}
+						fileChoice={fileChoice}
+						fontSize={(readAppearance(story.stylesheet) ?? defaultAppearance).fontSize}
+						passages={passages}
+						savedColors={savedColors}
+						variables={knownVariables(story.passages)}
+						winWidth={(readAppearance(story.stylesheet) ?? defaultAppearance).winWidth}
 						write={write}
 					/>
 				);

@@ -7,6 +7,7 @@ import * as React from 'react';
 import {useTranslation} from 'react-i18next';
 import {IconButton} from '../../components/control/icon-button';
 import {
+	listMissing,
 	listRowsFill,
 	ListRow,
 	ListState,
@@ -27,6 +28,7 @@ export interface ListFormProps extends ActionContext {
 	block: ScreenBlock;
 	kinds: Array<{cls: string; name: string}>;
 	savedColors: string[];
+	onCreatePassages: (names: string[]) => void;
 	write: (next: Omit<ScreenBlock, 'from' | 'to'>) => void;
 }
 
@@ -46,7 +48,7 @@ function move<T>(list: T[], index: number, by: number) {
 }
 
 export const ListForm: React.FC<ListFormProps> = props => {
-	const {block, kinds, passages, savedColors, write} = props;
+	const {block, kinds, onCreatePassages, passages, savedColors, write} = props;
 	const {t} = useTranslation();
 	const l = (key: string, options?: Record<string, unknown>) => t(`signaly.blocks.list.${key}`, options);
 	const states = block.states ?? [];
@@ -67,6 +69,7 @@ export const ListForm: React.FC<ListFormProps> = props => {
 		setRows(rows.map((row, i) => (i === index ? {...row, values: {...row.values, [key]: value}} : row)));
 	const kindOptions = kinds.map(k => ({label: k.name, value: k.cls}));
 	const known = new Set(passages);
+	const missing = listMissing(rows, passages);
 	const form = String(block.values.form ?? 'link');
 	const actionsOf = (st: ListState) => splitBody(st.content).map(parseAction);
 	const passageOptions = passages.map(p => ({label: p, value: p}));
@@ -377,6 +380,13 @@ export const ListForm: React.FC<ListFormProps> = props => {
 					{l('addRow')}
 				</button>
 			</div>
+			{missing.length > 0 && (
+				<div className="signaly-block-buttons">
+					<button className="signaly-button" onClick={() => onCreatePassages(missing)} type="button">
+						{l('createMissing', {count: missing.length})}
+					</button>
+				</div>
+			)}
 			<div className="signaly-field-hint">{l('hint')}</div>
 		</>
 	);

@@ -156,7 +156,7 @@ const keysTag = /<tw-passagedata[^>]*name="Горячие клавиши"[^>]*>/
 const keysText = keysAt === -1 ? '' : file.slice(file.indexOf('>', keysAt) + 1, file.indexOf('</tw-passagedata>', keysAt));
 
 check('пассаж «Горячие клавиши» с тегом sg-keys', /tags="sg-keys"/.test(keysTag), keysTag);
-check('код горячих клавиш ушёл из JavaScript истории, движок 16', !file.includes('/* ===== Горячие клавиши мастера ===== */') && file.includes('перенесены в пассаж «Горячие клавиши»') && file.includes('Версия движка: 16'));
+check('код горячих клавиш ушёл из JavaScript истории, движок 17', !file.includes('/* ===== Горячие клавиши мастера ===== */') && file.includes('перенесены в пассаж «Горячие клавиши»') && file.includes('Версия движка: 17'));
 check(
 	'в пассаже: A, B, C как в шаблоне',
 	keysText.includes('<<sg-key "Shift+Z+A" "Мастерское сообщение">>\n<<sg-open "Мастерское сообщение" passage "showPSGinfo">><</sg-open>>\n<<sg-sound "media/audio/msgsoundA.wav" volume 100>>\n<</sg-key>>') &&

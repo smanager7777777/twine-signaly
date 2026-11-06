@@ -256,8 +256,8 @@ export interface AccessSource {
 	from?: string;
 	/** Подпись в списке: код с подписью, комбинация с подписью и т. п. */
 	label: string;
-	/** Подвид для подписи: button — кнопка, timer, alarm, chain. */
-	note?: 'button' | 'timer' | 'alarm' | 'chain';
+	/** Подвид для подписи: button — кнопка, timer, alarm, chain, hack. */
+	note?: 'button' | 'timer' | 'alarm' | 'chain' | 'hack';
 }
 
 /** Всё, что ведёт на экран target: ссылки, коды, клавиши, таймеры (ответ 2Б). */
@@ -341,6 +341,11 @@ export function accessSources(passages: Passage[], target: string) {
 				(b.cases ?? [])
 					.filter(c => c.kind === 'case' && c.values.goto === target)
 					.forEach(c => add({kind: 'code', id: String(c.values.code), label: String(c.values.code)}));
+			} else if (b.type === 'hack') {
+				// Шаг 5.2: терминал взлома ведёт на экран при успехе или провале.
+				if (b.values.win === target || b.values.fail === target) {
+					add({kind: 'auto', id: `hack:${p.name}`, label: p.name, note: 'hack'});
+				}
 			} else if (b.values.goto === target && (b.type === 'timer' || b.type === 'alarm' || b.type === 'chain')) {
 				const name = b.type === 'timer' ? String(b.values.name) : p.name;
 

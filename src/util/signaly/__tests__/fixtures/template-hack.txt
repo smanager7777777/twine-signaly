@@ -1,0 +1,88 @@
+\<<set $attemptsLeft = 3>> /* Количество попыток */
+\<<set $wordList = ["ЧЕХИЯ", "ХУЙНЯ", "ПАРИЯ", "СОННЯ", "КУХНЯ"]>> /* Список слов */
+\<<set $correctPassword = "ПАРИЯ">> /* Правильный пароль */
+\<<set $usedAttempts = []>> /* Использованные попытки */
+\<<set $likenessDisplay = "">> /* Отображение совпадений */
+\<<set $rows = 10>> /* Количество строк */
+\<<set $charsPerRow = 60>> /* Символов в строке */
+\
+\<<script>>
+// Генерация случайного фона как массива символов
+function generateBackground(rows, cols, chars) {
+    return Array(rows).fill().map(() => Array(cols).fill().map(() => chars[Math.floor(Math.random() * chars.length)]));
+}
+
+// Подсчёт совпадений
+function getLikeness(guess, correct) {
+    return `${[...guess].filter((c, i) => c === correct[i]).length}/${guess.length} ВЕРНО`;
+}
+
+// Инициализация терминала
+$(document).one(':passagedisplay', function() {
+    const $display = $("#terminalDisplay");
+    const $attempts = $("#attemptsLeft");
+    const $likeness = $("#likenessDisplay");
+    const chars = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ0123456789";
+
+    // Генерация фона
+    const background = generateBackground(State.variables.rows, State.variables.charsPerRow, chars);
+    const wordPositions = [];
+
+    // Расстановка слов с проверкой пересечений
+    State.variables.wordList.forEach(word => {
+        let attempts = 0;
+        while (attempts < 10) {
+            const row = Math.floor(Math.random() * State.variables.rows);
+            const col = Math.floor(Math.random() * (State.variables.charsPerRow - word.length + 1));
+            if (!wordPositions.some(p => p.row === row && p.col <= col + word.length && p.col + p.word.length >= col)) {
+                wordPositions.push({ row, col, word });
+                // СИГНАЛЫ: слово занимает столько же клеток, сколько в нём букв, — строки остаются ровными
+                background[row].splice(col, word.length, `<span class="word" data-word="${word}" style="cursor: pointer;">${word}</span>`, ...Array(word.length - 1).fill(""));
+                break;
+            }
+            attempts++;
+        }
+    });
+
+    // Формирование отображаемого текста
+    $display.html(background.map(row => `<div>${row.join("")}</div>`).join(""));
+    $attempts.text(`Осталось попыток: ${State.variables.attemptsLeft}`);
+    $likeness.text(State.variables.likenessDisplay || "");
+
+    // Обработка клика с точным выбором слова
+    $display.on("click", ".word", function(e) {
+        if (State.variables.attemptsLeft <= 0) return;
+
+        const $wordSpan = $(e.target).closest(".word");
+        const guess = $wordSpan.data("word");
+        State.variables.usedAttempts.push(guess);
+        State.variables.attemptsLeft--;
+
+        if (guess === State.variables.correctPassword) {
+            $display.text("Доступ разрешён!\nПароль: " + State.variables.correctPassword);
+            $attempts.text("Взлом завершён успешно!");
+            $likeness.text("");
+            setTimeout(() => Engine.play("Start"), 1000);
+        } else {
+            State.variables.likenessDisplay = getLikeness(guess, State.variables.correctPassword);
+            $attempts.text(`Осталось попыток: ${State.variables.attemptsLeft}`);
+            $likeness.text(State.variables.likenessDisplay);
+
+            if (State.variables.attemptsLeft <= 0) {
+                $display.text("Доступ запрещён!\nТерминал заблокирован.");
+                $likeness.text("");
+                setTimeout(() => Engine.play("Blocktest"), 1000);
+            }
+        }
+    });
+});
+<</script>>
+\
+\<div id="terminalWindow">
+    \<div id="terminalDisplay"></div>
+    \<div id="likenessDisplay"></div>
+    \<div id="attemptsLeft"></div>
+\</div>
+\Текст под таймером
+
+

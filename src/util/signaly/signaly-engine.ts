@@ -39,19 +39,20 @@
 //   событий и цикл на главном экране (пассаж с тегом sg-ticker);
 // - шаг 4.5: поле кода со словом digits (только цифры); первое посещение —
 //   элементы экрана с тегом sg-first-<id> возникают постепенно, из шума,
-//   сквозь помехи или через глитч.
+//   сквозь помехи или через глитч;
+// - шаг 5.2: терминал взлома <<sg-hack>> ($sgHack).
 //
 // Код написан без обратных кавычек и без «${», потому что хранится в шаблонной
 // строке.
 
 import {defaultGlitch, glitchKeyframes, glitchRules} from './signaly-glitch';
-import {timerDefaults} from './signaly-screen-blocks';
+import {hackDefaults, hackKeys, timerDefaults} from './signaly-screen-blocks';
 
 /** Глитч по умолчанию — правила с нулевой силой (их перекрывает всё остальное). */
 const glitchBase = [...glitchRules(defaultGlitch, ':where(.glitchy)'), glitchKeyframes].join('\n');
 
 /** Версия движка. Увеличивать при каждом изменении кода ниже. */
-export const signalyEngineVersion = 16;
+export const signalyEngineVersion = 17;
 
 export const signalyEngineStart =
 	'/* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */';
@@ -241,6 +242,31 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		'.sg-list-item a.sg-list-color:hover, .sg-list-item button.sg-list-color:hover { background-color: var(--sg-state); color: #000000; }\n' +
 		'.sg-tile-name { display: block; font-weight: bold; }\n' +
 		'.sg-tile-status { display: block; }\n' +
+		// Шаг 5.2: терминал взлома.
+		'.sg-hack { --sg-hack-light: var(--sg-text, #00cc00); display: grid; grid-template: "top top top" auto "left field right" auto "bottom bottom bottom" auto / auto minmax(0, 1fr) auto; text-align: center; }\n' +
+		'.sg-hack-field { display: grid; font-variant-ligatures: none; grid-area: field; justify-content: safe center; line-height: 1.5; overflow: auto; user-select: none; white-space: pre; }\n' +
+		'.sg-hack-framed .sg-hack-field { border: var(--sg-border-width, 1px) solid var(--sg-border-color, currentColor); box-shadow: inset 0 0 14px var(--sg-glow-color, transparent); padding: 0.7em 1em; }\n' +
+		'.sg-hack-final { align-items: center; justify-items: center; text-align: center; white-space: pre-line; }\n' +
+		'.sg-hack-slot { display: flex; flex-direction: column; gap: 10px; justify-content: center; min-width: 0; }\n' +
+		'.sg-hack-slot:empty { display: none; }\n' +
+		'.sg-hack-top { grid-area: top; margin-bottom: 10px; }\n' +
+		'.sg-hack-bottom { grid-area: bottom; margin-top: 10px; }\n' +
+		'.sg-hack-left { grid-area: left; margin-right: 1.5em; }\n' +
+		'.sg-hack-right { grid-area: right; margin-left: 1.5em; }\n' +
+		'.sg-hack-hint { min-height: 1.5em; }\n' +
+		'.sg-hack-c:hover, .sg-hack-word:hover { background-color: var(--sg-hack-light); color: #000000; }\n' +
+		'.sg-hack-word { cursor: pointer; }\n' +
+		'.sg-hack-word:hover { box-shadow: 0 0 8px var(--sg-hack-light); }\n' +
+		'.sg-hack-used { cursor: default; pointer-events: none; }\n' +
+		'.sg-hack-boxes { display: flex; gap: 0.4em; justify-content: center; }\n' +
+		'.sg-hack-box { border: 2px solid var(--sg-hack-light); box-sizing: border-box; height: 0.9em; width: 0.9em; }\n' +
+		'.sg-hack-box.sg-on { background-color: var(--sg-hack-light); box-shadow: 0 0 6px var(--sg-hack-light); }\n' +
+		'.sg-hack-label { font-weight: bold; line-height: 1.1; visibility: hidden; }\n' +
+		'.sg-hack-label.sg-on { visibility: visible; }\n' +
+		'.sg-hack-layer { pointer-events: none; position: fixed; z-index: 1002; }\n' +
+		'.sg-hack-over { align-items: center; display: flex; font-weight: bold; justify-content: center; line-height: 1; pointer-events: none; position: fixed; text-align: center; z-index: 1003; }\n' +
+		'@keyframes sg-hack-flash { 0% { opacity: 0.85; } 100% { opacity: 0; } }\n' +
+		'@keyframes sg-hack-flicker { 0%, 40%, 80% { opacity: 0.8; } 20%, 60%, 100% { opacity: 0; } }\n' +
 		'.sg-blink.sg-off { animation: none; }\n' +
 		'html .glitchy.sg-off { color: inherit; }\n' +
 		'html .glitchy.sg-off::before, html .glitchy.sg-off::after { content: none; }\n' +
@@ -2532,6 +2558,501 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		}
 	});
 
+	/* ----- Терминал взлома (шаг 5.2) ----- */
+
+	// <<sg-hack слова>> с частями <<sg-hack-win>>, <<sg-hack-fail>>, <<sg-hack-miss>>
+	// (действия как у ссылки). В каждой попытке слова одной длины; ключевое слово
+	// случайное и не повторяет прошлое, если не задано явно. Попытки сбрасываются
+	// при входе. $sgHack = {"Экран": {last, done, win}}: после успеха экран больше
+	// не показывается, переход на него ведёт сразу на экран успеха.
+	var hackDefaults = ${JSON.stringify(hackDefaults)};
+	var hackKeys = ${JSON.stringify(hackKeys)};
+	var hackLayers = [];
+	var hackFrame = 0;
+
+	function hackChars(text) {
+		return Array.from(String(text));
+	}
+
+	function hackList(value) {
+		var seen = {};
+
+		return String(value === undefined ? '' : value)
+			.split(/[\s,;]+/)
+			.filter(function (word) {
+				if (!word || seen[word]) {
+					return false;
+				}
+				seen[word] = true;
+				return true;
+			});
+	}
+
+	function hackShuffle(list) {
+		var next = list.slice();
+
+		for (var i = next.length - 1; i > 0; i--) {
+			var j = Math.floor(Math.random() * (i + 1));
+			var keep = next[i];
+
+			next[i] = next[j];
+			next[j] = keep;
+		}
+		return next;
+	}
+
+	function hackNumber(value, fallback, min) {
+		var n = Number(value);
+
+		return value === undefined || value === '' || isNaN(n) ? fallback : Math.max(min, n);
+	}
+
+	// Слова этой попытки: ключевое и варианты той же длины.
+	function hackPick(all, fixed, count, last) {
+		var groups = {};
+		var most = 0;
+
+		all.forEach(function (word) {
+			var size = hackChars(word).length;
+
+			groups[size] = (groups[size] || []).concat([word]);
+			most = Math.max(most, groups[size].length);
+		});
+
+		var key = fixed;
+
+		if (!key) {
+			// Длина выпадает только та, где слов хватает на все варианты.
+			var enough = Math.min(count, most);
+			var full = all.filter(function (word) {
+				return groups[hackChars(word).length].length >= enough;
+			});
+			var fresh = full.filter(function (word) {
+				return word !== last;
+			});
+			var from = fresh.length ? fresh : full;
+
+			key = from[Math.floor(Math.random() * from.length)];
+		}
+
+		var others = (groups[hackChars(key).length] || []).filter(function (word) {
+			return word !== key;
+		});
+
+		return {key: key, words: [key].concat(hackShuffle(others).slice(0, Math.max(0, count - 1)))};
+	}
+
+	// Куда поставить слова: по столбцам по очереди, не вплотную друг к другу.
+	function hackPlace(words, rows, width, columns) {
+		var lines = {};
+		var shift = Math.floor(Math.random() * columns);
+
+		function free(column, row, start, size) {
+			return (lines[column + ':' + row] || []).every(function (spot) {
+				return start > spot.to || start + size < spot.from;
+			});
+		}
+
+		function put(word, column, row, start, size) {
+			var id = column + ':' + row;
+
+			lines[id] = (lines[id] || []).concat([{from: start, to: start + size, word: word}]);
+		}
+
+		words.forEach(function (word, index) {
+			var size = hackChars(word).length;
+			var column = (index + shift) % columns;
+			var i;
+
+			for (i = 0; i < 60; i++) {
+				var row = Math.floor(Math.random() * rows);
+				var start = Math.floor(Math.random() * (width - size + 1));
+
+				if (free(column, row, start, size) && (i >= 30 || !lines[column + ':' + row])) {
+					put(word, column, row, start, size);
+					return;
+				}
+			}
+			for (var c = 0; c < columns; c++) {
+				for (var r = 0; r < rows; r++) {
+					for (var s = 0; s <= width - size; s++) {
+						if (free((column + c) % columns, r, s, size)) {
+							put(word, (column + c) % columns, r, s, size);
+							return;
+						}
+					}
+				}
+			}
+		});
+		return lines;
+	}
+
+	function hackDraw(run) {
+		var a = run.a;
+		var rows = hackNumber(a.rows, hackDefaults.rows, 1);
+		var columns = hackNumber(a.columns, hackDefaults.columns, 1);
+		var longest = run.words.reduce(function (max, word) {
+			return Math.max(max, hackChars(word).length);
+		}, 0);
+		var width = Math.max(hackNumber(a.cols, hackDefaults.cols, 1), longest + 2);
+		var chars = hackChars(a.chars === undefined || a.chars === '' ? hackDefaults.chars : a.chars);
+		var lines = hackPlace(run.words, rows, width, columns);
+		var field = run.field;
+
+		field.textContent = '';
+		field.style.gridTemplateColumns = 'repeat(' + columns + ', max-content)';
+		field.style.columnGap = hackNumber(a.gap, hackDefaults.gap, 0) + 'ch';
+		for (var c = 0; c < columns; c++) {
+			var column = document.createElement('div');
+
+			for (var r = 0; r < rows; r++) {
+				var line = document.createElement('div');
+				var spots = lines[c + ':' + r] || [];
+
+				line.className = 'sg-hack-line';
+				for (var x = 0; x < width; x++) {
+					var spot = spots.filter(function (s) {
+						return s.from === x;
+					})[0];
+					var span = document.createElement('span');
+
+					if (spot) {
+						span.className = 'sg-hack-word';
+						span.textContent = spot.word;
+						span.setAttribute('data-word', spot.word);
+						x = spot.to - 1;
+					} else {
+						span.className = 'sg-hack-c';
+						span.textContent = chars[Math.floor(Math.random() * chars.length)];
+					}
+					line.appendChild(span);
+				}
+				column.appendChild(line);
+			}
+			field.appendChild(column);
+		}
+	}
+
+	function hackText(text, values) {
+		return Object.keys(values).reduce(function (result, name) {
+			return result.split('{' + name + '}').join(String(values[name]));
+		}, String(text));
+	}
+
+	function hackOption(a, name) {
+		return a[name] === undefined ? hackDefaults[name] : a[name];
+	}
+
+	function hackShowTries(run) {
+		var a = run.a;
+		var show = String(a.triesshow || 'text');
+		var el = run.tries;
+
+		el.textContent = '';
+		if (show !== 'boxes') {
+			var text = document.createElement('div');
+
+			text.textContent = hackText(hackOption(a, 'triestext'), {'попытки': run.left});
+			el.appendChild(text);
+		}
+		if (show !== 'text') {
+			var boxes = document.createElement('div');
+
+			boxes.className = 'sg-hack-boxes';
+			for (var i = 0; i < run.attempts; i++) {
+				var box = document.createElement('span');
+
+				box.className = 'sg-hack-box' + (i < run.left ? ' sg-on' : '');
+				boxes.appendChild(box);
+			}
+			el.appendChild(boxes);
+		}
+	}
+
+	function hackRunCode(code) {
+		if (code && !preview) {
+			Wikifier.wikifyEval(code);
+		}
+	}
+
+	function hackClear() {
+		cancelAnimationFrame(hackFrame);
+		hackLayers.forEach(function (el) {
+			el.remove();
+		});
+		hackLayers = [];
+	}
+
+	function hackLayer(className, time, keep) {
+		var win = document.getElementById('passages');
+		var rect = win ? win.getBoundingClientRect() : {left: 0, top: 0, width: window.innerWidth, height: window.innerHeight};
+		var el = document.createElement('div');
+
+		el.className = className;
+		el.style.left = rect.left + 'px';
+		el.style.top = rect.top + 'px';
+		el.style.width = rect.width + 'px';
+		el.style.height = rect.height + 'px';
+		document.body.appendChild(el);
+		hackLayers.push(el);
+		setTimeout(function () {
+			el.remove();
+			hackLayers = hackLayers.filter(function (other) {
+				return other !== el;
+			});
+			if (keep) {
+				keep();
+			}
+		}, time);
+		return el;
+	}
+
+	// Рябь: тот же приём, что у помех первого посещения, но по всему окну
+	// терминала и слоем сверху: фильтр на #passages сдвинул бы кнопки на экране.
+	function hackRipple(time) {
+		var ns = 'http://www.w3.org/2000/svg';
+		var svg = document.createElementNS(ns, 'svg');
+		var filter = document.createElementNS(ns, 'filter');
+		var noise = document.createElementNS(ns, 'feTurbulence');
+		var map = document.createElementNS(ns, 'feDisplacementMap');
+		var layer = hackLayer('sg-hack-layer', time, function () {
+			svg.remove();
+		});
+		var begin = performance.now();
+
+		svg.setAttribute('width', '0');
+		svg.setAttribute('height', '0');
+		svg.style.position = 'absolute';
+		filter.setAttribute('id', 'sg-hack-ripple');
+		filter.setAttribute('color-interpolation-filters', 'sRGB');
+		noise.setAttribute('type', 'fractalNoise');
+		noise.setAttribute('baseFrequency', '0.004 0.2');
+		noise.setAttribute('numOctaves', '2');
+		noise.setAttribute('result', 'n');
+		map.setAttribute('in', 'SourceGraphic');
+		map.setAttribute('in2', 'n');
+		map.setAttribute('xChannelSelector', 'R');
+		map.setAttribute('yChannelSelector', 'G');
+		filter.appendChild(noise);
+		filter.appendChild(map);
+		svg.appendChild(filter);
+		document.body.appendChild(svg);
+		hackLayers.push(svg);
+		layer.style.backdropFilter = 'url(#sg-hack-ripple)';
+		(function step(now) {
+			var part = Math.min(1, (now - begin) / time);
+
+			noise.setAttribute('seed', String(Math.floor(now / 50) % 100));
+			map.setAttribute('scale', String(70 * (1 - part)));
+			if (part < 1 && layer.isConnected) {
+				hackFrame = requestAnimationFrame(step);
+			}
+		})(begin);
+	}
+
+	function hackReact(run) {
+		var a = run.a;
+		var time = hackNumber(a.misstime, hackDefaults.misstime, 0.1) * 1000;
+		var color = String(hackOption(a, 'misscolor'));
+		var fx = String(a.missfx || '');
+		var flash = String(hackOption(a, 'fxcolor'));
+
+		if (a.misssound) {
+			Wikifier.wikifyEval('<<sg-sound ' + JSON.stringify(String(a.misssound)) + ' volume ' + hackNumber(a.missvolume, hackDefaults.missvolume, 0) + '>>');
+		}
+		if (fx === 'flash' || fx === 'flicker') {
+			var layer = hackLayer('sg-hack-layer', time);
+
+			layer.style.backgroundColor = flash;
+			layer.style.opacity = '0';
+			layer.style.animation = 'sg-hack-' + fx + ' ' + time + 'ms linear';
+		} else if (fx === 'ripple') {
+			hackRipple(time);
+		}
+		if (a.missplace === 'over') {
+			var over = hackLayer('sg-hack-over', time);
+
+			over.style.color = color;
+			over.style.fontSize = hackNumber(a.misssize, hackDefaults.missover, 1) + 'px';
+			over.textContent = String(hackOption(a, 'misslabel'));
+		} else if (run.label) {
+			run.label.classList.add('sg-on');
+			clearTimeout(run.labelTimer);
+			run.labelTimer = setTimeout(function () {
+				run.label.classList.remove('sg-on');
+			}, time);
+		}
+	}
+
+	function hackFinal(run, text) {
+		var field = run.field;
+
+		run.over = true;
+		if (field.isConnected) {
+			field.style.minHeight = field.offsetHeight + 'px';
+			field.style.minWidth = field.offsetWidth + 'px';
+			field.style.boxSizing = 'border-box';
+		}
+		field.style.gridTemplateColumns = '';
+		field.classList.add('sg-hack-final');
+		field.textContent = text;
+	}
+
+	function hackLeave(run, to) {
+		var box = run.box;
+
+		if (!to || preview) {
+			return;
+		}
+		setTimeout(function () {
+			if (box.isConnected && Story.has(String(to))) {
+				accessGo(String(to), 'auto', 'hack:' + run.screen);
+			}
+		}, hackNumber(run.a.delay, hackDefaults.delay, 0) * 1000);
+	}
+
+	function hackChoose(run, word) {
+		var a = run.a;
+		var guess = word.getAttribute('data-word');
+
+		run.left--;
+		word.classList.add('sg-hack-used');
+		if (a.usedglitch) {
+			word.classList.add('glitchy');
+			word.setAttribute('data-text', guess);
+		}
+		if (guess === run.key) {
+			if (!preview) {
+				var memo = varObject('sgHack')[run.screen];
+
+				memo.done = 1;
+				if (a.win && Story.has(String(a.win))) {
+					memo.win = String(a.win);
+				}
+			}
+			hackRunCode(run.code.win);
+			run.hint.textContent = '';
+			run.tries.textContent = String(hackOption(a, 'winnote'));
+			hackFinal(run, hackText(hackOption(a, 'wintext'), {'слово': run.key}));
+			saveVars();
+			hackLeave(run, a.win);
+			return;
+		}
+
+		var key = hackChars(run.key);
+		var same = hackChars(guess).filter(function (ch, i) {
+			return ch === key[i];
+		}).length;
+
+		// Ошибка считается всегда, в том числе последняя.
+		hackRunCode(run.code.miss);
+		run.hint.textContent = hackText(hackOption(a, 'hinttext'), {'совпало': same, 'всего': key.length, 'слово': guess});
+		hackShowTries(run);
+		if (run.left > 0) {
+			hackReact(run);
+			return;
+		}
+		hackRunCode(run.code.fail);
+		run.hint.textContent = '';
+		hackFinal(run, String(hackOption(a, 'failtext')));
+		saveVars();
+		hackLeave(run, a.fail);
+	}
+
+	Macro.add('sg-hack', {
+		tags: ['sg-hack-win', 'sg-hack-fail', 'sg-hack-miss'],
+		handler: function () {
+			var a = blockArgs(this, [], hackKeys, ['frame', 'usedglitch']);
+			var screen = State.passage;
+			var store = varObject('sgHack');
+			var memo = store[screen] || (store[screen] = {});
+			var run = {a: a, code: {}, screen: screen, over: false};
+			var box = document.createElement('div');
+			var slots = {};
+
+			this.payload.slice(1).forEach(function (part) {
+				run.code[part.name.slice('sg-hack-'.length)] = trimContent(part.contents);
+			});
+			['top', 'left', 'right', 'bottom'].forEach(function (place) {
+				slots[place] = document.createElement('div');
+				slots[place].className = 'sg-hack-slot sg-hack-' + place;
+				box.appendChild(slots[place]);
+			});
+			box.className = 'sg-hack' + (a.frame ? ' sg-hack-framed' : '');
+			if (a.size) {
+				box.style.fontSize = Number(a.size) + 'px';
+			}
+			if (a.light) {
+				box.style.setProperty('--sg-hack-light', String(a.light));
+			}
+			run.box = box;
+			run.field = document.createElement('div');
+			run.field.className = 'sg-hack-field';
+			run.hint = document.createElement('div');
+			run.hint.className = 'sg-hack-hint';
+			run.tries = document.createElement('div');
+			run.tries.className = 'sg-hack-tries';
+			box.appendChild(run.field);
+			(slots[String(a.hint)] || slots.bottom).appendChild(run.hint);
+			(slots[String(a.tries)] || slots.bottom).appendChild(run.tries);
+			if (a.missplace && slots[String(a.missplace)]) {
+				run.label = document.createElement('div');
+				run.label.className = 'sg-hack-label';
+				run.label.style.color = String(hackOption(a, 'misscolor'));
+				run.label.style.fontSize = hackNumber(a.misssize, hackDefaults.misssize, 1) + 'px';
+				run.label.textContent = String(hackOption(a, 'misslabel'));
+				slots[String(a.missplace)].appendChild(run.label);
+			}
+			this.output.appendChild(box);
+
+			// Экран взломан, а показан всё равно (например, после сбоя): ведём дальше.
+			if (memo.done && !preview) {
+				run.key = memo.last;
+				hackFinal(run, hackText(hackOption(a, 'wintext'), {'слово': memo.last || ''}));
+				run.tries.textContent = String(hackOption(a, 'winnote'));
+				if (memo.win) {
+					setTimeout(function () {
+						if (box.isConnected) {
+							accessGo(memo.win, 'auto', 'hack:' + screen);
+						}
+					}, Engine.DOM_DELAY);
+				}
+				return;
+			}
+
+			var all = hackList(a.words);
+			var fixed = a.key === undefined ? '' : String(a.key).trim();
+			var count = hackNumber(a.count, hackDefaults.count, 1);
+
+			if (fixed && all.indexOf(fixed) === -1) {
+				all.push(fixed);
+			}
+			if (!all.length) {
+				return;
+			}
+
+			var picked = hackPick(all, fixed, count, memo.last);
+
+			run.key = picked.key;
+			run.words = hackShuffle(picked.words.slice(1));
+			run.words.unshift(picked.key);
+			run.attempts = hackNumber(a.attempts, hackDefaults.attempts, 1);
+			run.left = run.attempts;
+			memo.last = picked.key;
+			hackDraw(run);
+			hackShowTries(run);
+			run.field.addEventListener('click', function (ev) {
+				var word = ev.target.closest ? ev.target.closest('.sg-hack-word') : null;
+
+				if (word && !run.over && !word.classList.contains('sg-hack-used')) {
+					hackChoose(run, word);
+				}
+			});
+		}
+	});
+
+	$(document).on(':passageinit', hackClear);
+
 	/* ----- Закрытые экраны (шаг 4.3) ----- */
 
 	// Экран с тегом sg-access: <<sg-access слова>>условие<<sg-rule …>><</sg-access>>.
@@ -4701,6 +5222,30 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		$(document).on(':passagedisplay', accessScan);
 		setInterval(accessScan, 250);
 		new MutationObserver(accessScan).observe(document.body, {childList: true, subtree: true, characterData: true});
+	}
+
+	// Шаг 5.2: экран, взломанный раньше, не показывается: переход ведёт сразу
+	// на экран успеха. Стоит после «Доступа» и получает уже его ответ.
+	if (Story.filter(function (p) { return p.text.indexOf('<<sg-hack') !== -1; }).length) {
+		var hackPrior = Config.navigation.override;
+
+		Config.navigation.override = function (title) {
+			var to = hackPrior ? hackPrior(title) : title;
+			var store = State.variables.sgHack;
+
+			for (var i = 0; store && i < 8; i++) {
+				var memo = store[to];
+
+				if (!memo || !memo.done || !memo.win) {
+					break;
+				}
+
+				var next = accessRoute(memo.win, 'auto', 'hack:' + to);
+
+				to = next === null ? State.passage : next;
+			}
+			return to;
+		};
 	}
 
 	/* ----- Стартовый экран ----- */

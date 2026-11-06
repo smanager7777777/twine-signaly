@@ -22,6 +22,11 @@
 //   <<sg-state 3 label "{номер}. {название}" do window>>
 //   <<sg-row "001" "Гибернация" var "$prcd1" passage "PRCD001" key>>
 //   <</sg-list>>
+//   <<sg-hack words "ОТСЕК, РАДАР" win "Start" fail "Блок">>  (шаг 5.2: терминал взлома)
+//   <<sg-hack-win>>действия
+//   <<sg-hack-fail>>действия
+//   <<sg-hack-miss>>действия
+//   <</sg-hack>>
 // Окно KR2 — команды <<kr2image>>, <<kr2layout>>, <<kr2vars>>, <<kr2main>>.
 // Команды понимает движок (signaly-engine.ts) — и в обычном Twine тоже.
 //
@@ -38,9 +43,10 @@ export type BlockType =
 	| 'timer'
 	| 'chain'
 	| 'articles'
-	| 'list';
+	| 'list'
+	| 'hack';
 export type CaseKind = 'case' | 'wrong';
-type PartKind = CaseKind | 'step' | 'state' | 'row';
+type PartKind = CaseKind | 'step' | 'state' | 'row' | 'win' | 'fail' | 'miss';
 export type Value = string | number | boolean;
 export type Values = Record<string, Value | undefined>;
 
@@ -54,7 +60,8 @@ export const blockMacros: Record<BlockType, string> = {
 	timer: 'sg-timer',
 	chain: 'sg-chain',
 	articles: 'sg-articles',
-	list: 'sg-list'
+	list: 'sg-list',
+	hack: 'sg-hack'
 };
 
 const partMacros: Record<PartKind, string> = {
@@ -62,7 +69,10 @@ const partMacros: Record<PartKind, string> = {
 	wrong: 'sg-wrong',
 	step: 'sg-step',
 	state: 'sg-state',
-	row: 'sg-row'
+	row: 'sg-row',
+	win: 'sg-hack-win',
+	fail: 'sg-hack-fail',
+	miss: 'sg-hack-miss'
 };
 
 export const blockTypes = Object.keys(blockMacros) as BlockType[];
@@ -105,6 +115,33 @@ export const timerDefaults = {
 	size: 125,
 	border: 2,
 	glow: 10
+};
+
+/**
+ * Значения терминала взлома по умолчанию (шаг 5.2): надписи и размеры — как в
+ * экране «Хактест» шаблона. Движок берёт те же значения.
+ */
+export const hackDefaults = {
+	count: 5,
+	attempts: 3,
+	rows: 10,
+	cols: 60,
+	columns: 1,
+	gap: 4,
+	chars: 'АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ0123456789',
+	hinttext: '{совпало}/{всего} ВЕРНО',
+	triestext: 'Осталось попыток: {попытки}',
+	wintext: 'Доступ разрешён!\nПароль: {слово}',
+	winnote: 'Взлом завершён успешно!',
+	failtext: 'Доступ запрещён!\nТерминал заблокирован.',
+	delay: 1,
+	misslabel: 'ОШИБКА',
+	misstime: 1,
+	misscolor: '#ff0000',
+	fxcolor: '#ffffff',
+	misssize: 72,
+	missover: 240,
+	missvolume: 100
 };
 
 const specs: Record<BlockType | PartKind, ArgSpec> = {
@@ -207,12 +244,59 @@ const specs: Record<BlockType | PartKind, ArgSpec> = {
 		flags: [],
 		container: false
 	},
+	// Шаг 5.2: терминал взлома. key — ключевое слово (нет — случайное из списка);
+	// hint, tries, missplace — место: top, bottom, left, right (missplace ещё over);
+	// triesshow: text, boxes, both; missfx: flicker, flash, ripple.
+	hack: {
+		pos: [],
+		keys: {
+			words: 'string',
+			key: 'string',
+			count: 'number',
+			attempts: 'number',
+			rows: 'number',
+			cols: 'number',
+			columns: 'number',
+			gap: 'number',
+			size: 'number',
+			chars: 'string',
+			light: 'string',
+			hint: 'string',
+			tries: 'string',
+			triesshow: 'string',
+			hinttext: 'string',
+			triestext: 'string',
+			wintext: 'string',
+			winnote: 'string',
+			failtext: 'string',
+			delay: 'number',
+			win: 'string',
+			fail: 'string',
+			misssound: 'string',
+			missvolume: 'number',
+			missfx: 'string',
+			misstime: 'number',
+			misslabel: 'string',
+			missplace: 'string',
+			misssize: 'number',
+			misscolor: 'string',
+			fxcolor: 'string'
+		},
+		flags: ['frame', 'usedglitch'],
+		container: true
+	},
+	win: {pos: [], keys: {}, flags: [], container: false},
+	fail: {pos: [], keys: {}, flags: [], container: false},
+	miss: {pos: [], keys: {}, flags: [], container: false},
 	row: {pos: ['num', 'name'], keys: {var: 'string', passage: 'string'}, flags: ['key'], container: false},
 	case: {pos: ['code'], keys: actionKeys, flags: [], container: false},
 	wrong: {pos: [], keys: actionKeys, flags: [], container: false},
 	// next: click (щелчок по видео) / end (видео закончилось) / time (через seconds).
 	step: {pos: ['src'], keys: {next: 'string', seconds: 'number'}, flags: ['loop', 'muted'], container: false}
 };
+
+/** Слова команды терминала взлома: движок разбирает те же. */
+export const hackKeys = Object.keys(specs.hack.keys);
 
 export interface CodeCase {
 	kind: CaseKind;
@@ -241,6 +325,14 @@ export interface ScreenBlock {
 	/** Состояния и строки списка состояний (шаг 5.1). */
 	states?: ListState[];
 	rows?: ListRow[];
+	/** Действия терминала взлома: при успехе, провале, неверном слове (шаг 5.2). */
+	hack?: HackActions;
+}
+
+export interface HackActions {
+	win: string;
+	fail: string;
+	miss: string;
 }
 
 export interface ListState {
@@ -377,7 +469,25 @@ function writeValue(value: Value) {
 	return typeof value === 'number' ? round(value) : quote(String(value));
 }
 
-const bareKeys = ['place', 'corner', 'close', 'kind', 'form', 'hover', 'click', 'start', 'format', 'next', 'font', 'do'];
+const bareKeys = [
+	'place',
+	'corner',
+	'close',
+	'kind',
+	'form',
+	'hover',
+	'click',
+	'start',
+	'format',
+	'next',
+	'font',
+	'do',
+	'hint',
+	'tries',
+	'triesshow',
+	'missfx',
+	'missplace'
+];
 
 function writeArgs(values: Values, extra: string[], spec: ArgSpec) {
 	const parts: string[] = [];
@@ -413,7 +523,7 @@ function writeArgs(values: Values, extra: string[], spec: ArgSpec) {
 
 /* ----- Поиск блоков в тексте ----- */
 
-const openRe = /<<sg-(image|video|alarm|dialog|code|place|timer|chain|articles|list)(?=[\s>])/g;
+const openRe = /<<sg-(image|video|alarm|dialog|code|place|timer|chain|articles|list|hack)(?=[\s>])/g;
 
 function macroType(name: string): BlockType | undefined {
 	return blockTypes.find(type => blockMacros[type] === 'sg-' + name);
@@ -524,6 +634,16 @@ export function findBlocks(text: string): ScreenBlock[] {
 					.filter(part => part.kind === 'state')
 					.map(({values, extra, content}) => ({values, extra, content}));
 				block.rows = parts.filter(part => part.kind === 'row').map(({values, extra}) => ({values, extra}));
+			} else if (type === 'hack') {
+				const parts = (parseCases(content, /<<sg-hack-(win|fail|miss)(?=[\s>])/g) as unknown) as Array<{
+					kind: keyof HackActions;
+					content: string;
+				}>;
+
+				block.hack = {win: '', fail: '', miss: ''};
+				parts.forEach(part => {
+					block.hack![part.kind] = part.content;
+				});
 			} else {
 				block.content = content;
 			}
@@ -532,7 +652,7 @@ export function findBlocks(text: string): ScreenBlock[] {
 		// Внутри тревоги, окна и кнопки на экране могут стоять другие блоки и
 		// эффекты — их тоже ищем (у поля кода внутри — таблица кодов, у цепочки —
 		// шаги).
-		openRe.lastIndex = type === 'code' || type === 'chain' || type === 'list' ? block.to : scan.end;
+		openRe.lastIndex = type === 'code' || type === 'chain' || type === 'list' || type === 'hack' ? block.to : scan.end;
 	}
 	return blocks;
 }
@@ -590,6 +710,14 @@ export function writeBlock(block: Omit<ScreenBlock, 'from' | 'to'>) {
 		];
 
 		return `${head}\n${lines.map(line => line + '\n').join('')}<</${name}>>`;
+	}
+	if (block.type === 'hack') {
+		const actions = block.hack;
+		const lines = (['win', 'fail', 'miss'] as const)
+			.filter(part => actions?.[part])
+			.map(part => `<<${partMacros[part]}>>${actions![part]}\n`);
+
+		return `${head}\n${lines.join('')}<</${name}>>`;
 	}
 	return `${head}${block.content ?? ''}<</${name}>>`;
 }
@@ -666,6 +794,28 @@ export function newBlock(type: BlockType): Omit<ScreenBlock, 'from' | 'to'> {
 			return {type, values: {columns: 1, headings: true}, extra: []};
 		case 'list':
 			return newStateList(false);
+		case 'hack':
+			// Заготовка (ответ 4): столбцы, квадратики, рамка, глитч выбранных слов.
+			return {
+				type,
+				values: {
+					words: 'ОТСЕК, РАДАР, ШЛЮЗЫ, ЛАМПА, ПУЛЬТ, ЭКРАН',
+					count: 5,
+					attempts: 3,
+					rows: 12,
+					cols: 26,
+					columns: 2,
+					hint: 'bottom',
+					tries: 'bottom',
+					triesshow: 'boxes',
+					missfx: 'flash',
+					missplace: 'bottom',
+					frame: true,
+					usedglitch: true
+				},
+				extra: [],
+				hack: {win: '', fail: '', miss: ''}
+			};
 		case 'code':
 			return {
 				type,
@@ -752,6 +902,31 @@ export function listRowsFill(fill: {
 		rows.push({values, extra: []});
 	}
 	return rows;
+}
+
+/** Экраны строк списка, которых ещё нет на карте (ответ 2А к шагу 5.2). */
+export function listMissing(rows: ListRow[], passages: string[]) {
+	const known = new Set(passages);
+	const missing: string[] = [];
+
+	rows.forEach(row => {
+		const name = String(row.values.passage ?? '').trim();
+
+		if (name && !known.has(name) && !missing.includes(name)) {
+			missing.push(name);
+		}
+	});
+	return missing;
+}
+
+/** Места на карте для новых экранов: сетка по 10 в ряд, начиная с точки. */
+export function gridSpots(start: {left: number; top: number}, count: number) {
+	const step = 125;
+
+	return Array.from({length: count}, (_, i) => ({
+		left: start.left + (i % 10) * step,
+		top: start.top + Math.floor(i / 10) * step
+	}));
 }
 
 /* ----- Окно KR2 ----- */

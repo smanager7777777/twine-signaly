@@ -13,7 +13,8 @@ function screenWords(macro: string) {
 		'passage',
 		...(macro === 'sg-access' || macro === 'sg-entry' ? ['lock'] : []),
 		...(macro === 'sg-rule' ? ['from', 'to'] : []),
-		...(macro === 'sg-ticker' ? ['screen'] : [])
+		...(macro === 'sg-ticker' ? ['screen'] : []),
+		...(macro === 'sg-hack' ? ['win', 'fail'] : [])
 	];
 }
 
@@ -69,7 +70,7 @@ export function renameScreen(text: string, oldName: string, newName: string) {
 			});
 			if (macro === 'sg-rule' && tokens[0] === 'auto') {
 				const id = tokenValue(tokens[1]) ?? '';
-				const kind = /^(alarm|chain):/.exec(id);
+				const kind = /^(alarm|chain|hack):/.exec(id);
 
 				if (kind && id.slice(kind[0].length) === oldName) {
 					edits.push({from: places[1], to: places[1] + tokens[1].length, insert: quote(kind[0] + newName)});

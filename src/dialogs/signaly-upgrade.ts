@@ -4,6 +4,7 @@
 // Шаг 2.3: заодно таймеры и иллюминатор шаблона становятся блоками.
 // Шаг 3.2: окна <<script>>Dialog.create…<</script>> в ссылках — действием <<sg-open>>.
 // Шаг 3.3: код горячих клавиш шаблона (Shift+Z+A/B/C) — пассажем «Горячие клавиши».
+// Шаг 5.2: экран «Хактест» шаблона — блоком «Терминал взлома».
 
 import {
 	Story,
@@ -14,6 +15,7 @@ import {
 import {upgradePlaces} from '../util/signaly/signaly-places';
 import {moveTemplateTimers} from '../util/signaly/signaly-timers';
 import {moveScriptDialogs} from '../util/signaly/signaly-actions';
+import {moveTemplateHack} from '../util/signaly/signaly-hack';
 import {freeSpot, keysPassageName, keysTag, moveTemplateKeys} from '../util/signaly/signaly-keys';
 
 /** Записывает изменения истории; возвращает, сколько кнопок на экране перенесено. */
@@ -41,7 +43,8 @@ export function saveStoryWithUpgrade(
 	// Шаг 3.2: окна-сообщения, открытые кодом <<script>> в ссылках, → <<sg-open>>.
 	story.passages.forEach(passage => {
 		if (passage.name !== exclude) {
-			texts.set(passage, moveScriptDialogs(texts.get(passage)!));
+			// Шаг 5.2: экран «Хактест» шаблона → блок «Терминал взлома».
+			texts.set(passage, moveTemplateHack(moveScriptDialogs(texts.get(passage)!)));
 		}
 	});
 	// Шаг 3.3: горячие клавиши шаблона → пассаж «Горячие клавиши».
