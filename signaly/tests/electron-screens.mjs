@@ -121,7 +121,7 @@ check('вкладки окна', (await dlg.getByRole('tab').allTextContents()).
 await dlg.getByText('Настраивать поля ввода здесь').waitFor({timeout: 3000});
 check('поля ввода в шаблоне включены, значения из стилей автора', await dlg.getByLabel('Настраивать поля ввода здесь').isChecked());
 await dlg.getByLabel('Настраивать поля ввода здесь').evaluate(el => el.scrollIntoView());
-check('размер поля 25', (await dlg.getByRole('textbox', {name: /^Размер текста/}).last().inputValue()) === '25');
+check('размер поля 25', (await dlg.locator('section', {hasText: 'Настраивать поля ввода здесь'}).getByRole('textbox', {name: /^Размер текста/}).last().inputValue()) === '25');
 
 /* Вид экрана */
 await dlg.getByRole('tab', {name: 'Виды экранов'}).click();

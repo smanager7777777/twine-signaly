@@ -586,7 +586,7 @@ if (twee) {
 	await win.waitForTimeout(1000);
 	await win.getByLabel('Своё оформление окон-сообщений').check();
 	await win.waitForTimeout(300);
-	check('окна-сообщения: поля из правил .ui-dialog', (await win.getByLabel('Свечение рамки', {exact: true}).inputValue()) === '10' && (await win.getByLabel('Размер текста, px').last().inputValue()) === '25');
+	check('окна-сообщения: поля из правил .ui-dialog', (await win.getByLabel('Свечение рамки', {exact: true}).inputValue()) === '10' && (await win.locator('section', {hasText: 'Своё оформление окон-сообщений'}).getByLabel('Размер текста, px').last().inputValue()) === '25');
 	await btn(/Показать образец окна/).click();
 	await win.waitForTimeout(800);
 	const dlg = await frameEval(() => ({open: SugarCube.Dialog.isOpen(), border: getComputedStyle(document.getElementById('ui-dialog')).borderTopColor, shadow: getComputedStyle(document.getElementById('ui-dialog')).boxShadow}));
