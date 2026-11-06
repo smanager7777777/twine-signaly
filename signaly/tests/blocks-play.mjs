@@ -169,7 +169,7 @@ check('окно: «Принято» закрывает', !(await dialogOpen()));
 check('окно: крестик снова виден у других окон', (await page.evaluate(() => document.documentElement.getAttribute('data-sg-dialog'))) === null);
 
 /* Окно из пассажа, само закрывается */
-await page.getByRole('button', {name: 'Пассаж'}).click();
+await page.getByRole('button', {name: 'Пассаж', exact: true}).click();
 await page.waitForTimeout(300);
 const fromPassage = await page.textContent('#ui-dialog-body');
 check('окно из пассажа', (await dialogOpen()) && fromPassage.trim().length > 0, fromPassage.trim().slice(0, 40));
