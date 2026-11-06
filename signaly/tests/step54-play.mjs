@@ -85,6 +85,7 @@ html {
 <<sg-image "media/img/testimgOFF.jpg" width 100>>
 
 :: S4Tip {"position":"100,7200","size":"100,100"}
+Экран с подсказками
 
 
 Строка с <<hovertip "Короткая подсказка">>наведите сюда<</hovertip>> и дальше.
