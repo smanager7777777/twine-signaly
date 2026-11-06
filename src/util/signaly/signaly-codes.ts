@@ -298,7 +298,8 @@ export function writeEntry(entry: TableCode) {
 	const multiline = entry.multiline || entry.actions.length > 1 || entry.answer.includes('\n');
 	const actions = entry.actions.length ? writeActions(entry.actions, multiline) : multiline ? '\n' : '';
 	const answer = entry.answer.trim() === '' ? '' : `<<sg-answer>>${entry.answer}${multiline ? '\n' : ''}`;
-	const when = entry.when.trim() === '' ? '' : `<<sg-when>>${entry.when.trim()}${multiline ? '\n' : ''}`;
+	const condition = (entry.when ?? '').trim();
+	const when = condition === '' ? '' : `<<sg-when>>${condition}${multiline ? '\n' : ''}`;
 
 	return `<<sg-entry ${words.join(' ')}>>${actions}${answer}${when}<</sg-entry>>`;
 }
