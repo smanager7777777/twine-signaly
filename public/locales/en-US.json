@@ -1232,7 +1232,9 @@
 				"link": "Link"
 			},
 			"revealKind": "Style",
-			"revealHint": "A click replaces the label with the text right on the screen, without moving to another one. On returning to the screen the label is back. To type or blink the text, select it inside the reveal and choose Effect."
+			"revealHint": "A click replaces the label with the text right on the screen, without moving to another one. On returning to the screen the label is back. To type or blink the text, select it inside the reveal and choose Effect.",
+			"revealKeep": "Remember what was opened",
+			"revealKeepHint": "A click replaces the label with the text right on the screen, without moving to another one. Once opened, it stays open on returning to the screen and after a crash, until a new game. To type or blink the text, select it inside the reveal and choose Effect."
 		},
 		"sounds": {
 			"button": "Sounds",
@@ -1333,7 +1335,7 @@
 				"no": "Word for “no”",
 				"of": "Show “of N” (3 of 5)",
 				"total": "Total (N)",
-				"hint": "To show the line only under a condition, select it and press “Condition”. This is the regular SugarCube <<=>> macro.",
+				"hint": "The value on the screen updates by itself, 4 times a second: if the game master changes the variable with a hotkey, there is no need to move to another screen. To show the line only under a condition, select it and press “Condition”. This is the regular SugarCube <<=>> macro.",
 				"what": "What to show",
 				"whatVar": "Variable value",
 				"whatVisits": "How many times the screen was visited",

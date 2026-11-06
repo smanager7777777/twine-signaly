@@ -276,7 +276,12 @@ export const SignalyEffectForm: React.FC<SignalyEffectFormProps> = props => {
 						options={kinds.map(k => ({label: k.name, value: k.cls}))}
 						value={effect.kind ?? ''}
 					/>
-					<div className="signaly-field-hint">{l('revealHint')}</div>
+					<CheckField
+						label={l('revealKeep')}
+						onChange={keep => write({keep})}
+						value={!!effect.keep}
+					/>
+					<div className="signaly-field-hint">{l(effect.keep ? 'revealKeepHint' : 'revealHint')}</div>
 				</>
 			);
 

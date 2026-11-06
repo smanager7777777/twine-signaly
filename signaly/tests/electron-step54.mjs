@@ -142,7 +142,7 @@ check('форма открылась', (await panel().getByText('Подсказ�
 
 let moved = storyFile();
 
-check('движок 20 поставлен', moved.includes('Версия движка: 20'));
+check('движок 21 поставлен', moved.includes('Версия движка: 21'));
 check('код подсказки ушёл из JavaScript истории', !moved.includes('/* hovertip v2.0') && moved.includes('подсказка при наведении перенесена в движок'));
 check('стили подсказки ушли из таблицы стилей', !/\n\.hoverBox \{/.test(moved) && moved.includes('вид подсказки — в «Оформлении терминала»'));
 

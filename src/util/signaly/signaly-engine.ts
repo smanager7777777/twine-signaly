@@ -45,11 +45,14 @@
 //   символы и слова поля взлома звучат наборами наведения и нажатия.
 // - этап 6: кнопка-перебор <<sg-pick>>; звук-сигнал приглушает группу на время
 //   файла (слова duck, to); все картинки из текста экранов загружаются при запуске.
+// - этап 6, порция 2: блок «Значение» обновляется сам; раскрытие <<sg-reveal>>
+//   запоминается до новой игры ($sgRevealed); русские служебные надписи SugarCube.
 //
 // Код написан без обратных кавычек и без «${», потому что хранится в шаблонной
 // строке.
 
 import {defaultGlitch, glitchKeyframes, glitchRules} from './signaly-glitch';
+import {signalyStrings} from './signaly-l10n';
 import {cameraDefaults, cameraKeys, hackDefaults, hackKeys, timerDefaults} from './signaly-screen-blocks';
 import {tipBase} from './signaly-tip';
 
@@ -57,7 +60,7 @@ import {tipBase} from './signaly-tip';
 const glitchBase = [...glitchRules(defaultGlitch, ':where(.glitchy)'), glitchKeyframes].join('\n');
 
 /** Версия движка. Увеличивать при каждом изменении кода ниже. */
-export const signalyEngineVersion = 20;
+export const signalyEngineVersion = 21;
 
 export const signalyEngineStart =
 	'/* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */';
@@ -110,6 +113,12 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	var preview = window.SIGNALY_PREVIEW;
 
 	setup.signaly = {engine: ${signalyEngineVersion}, preview: !!preview};
+
+	// Русские служебные надписи SugarCube (этап 6, ответ 4А). Код автора стоит
+	// ниже движка, поэтому его надписи главнее.
+	Object.assign(l10nStrings, ${JSON.stringify(signalyStrings)});
+	// Крестик окна SugarCube создаёт раньше, чем выполняется «JavaScript истории».
+	$('#ui-dialog-close').attr('aria-label', l10nStrings.textClose);
 
 	function showStartScreen(onClick) {
 		var screen = document.createElement('div');
@@ -3096,6 +3105,107 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			if (!pickTimer) {
 				pickTimer = setInterval(pickTick, 250);
 			}
+		}
+	});
+
+	/* ----- Живое значение (этап 6, ответ 1А) ----- */
+
+	// <span class="sg-value">Глава: <<= $chapter>></span> — обычный SugarCube, текст
+	// экрана тот же. Движок запоминает выражение команды <<=>> внутри такого блока
+	// и 4 раза в секунду сверяет значение. Выражение лежит в атрибуте, а не в
+	// памяти: <<type>> печатает копии узлов.
+	var valueTimer;
+	var valueMacro = Macro.get('=');
+	var valuePrint = valueMacro.handler;
+
+	function valueTick() {
+		var items = document.querySelectorAll('.sg-value-now');
+
+		for (var i = 0; i < items.length; i++) {
+			var shown;
+
+			try {
+				shown = stringFrom(Scripting.evalJavaScript(items[i].getAttribute('data-sg-code')));
+			} catch (ex) {
+				continue;
+			}
+			if (String(shown) !== items[i].getAttribute('data-sg-shown')) {
+				items[i].setAttribute('data-sg-shown', String(shown));
+				items[i].textContent = '';
+				if (shown !== null) {
+					new Wikifier(items[i], shown);
+				}
+			}
+		}
+	}
+
+	valueMacro.handler = function () {
+		var output = this.output;
+		var inside = output && output.closest && output.closest('.sg-value');
+		var last = inside ? output.lastChild : null;
+		var result = valuePrint.apply(this, arguments);
+		var shown;
+
+		if (!inside) {
+			return result;
+		}
+		try {
+			shown = stringFrom(Scripting.evalJavaScript(this.args.full));
+		} catch (ex) {
+			return result; // Ошибку уже показала сама команда.
+		}
+
+		var live = document.createElement('span');
+		var node = last ? last.nextSibling : output.firstChild;
+
+		live.className = 'sg-value-now';
+		live.setAttribute('data-sg-code', this.args.full);
+		live.setAttribute('data-sg-shown', String(shown));
+		while (node) {
+			var next = node.nextSibling;
+
+			live.appendChild(node);
+			node = next;
+		}
+		output.appendChild(live);
+		if (!valueTimer) {
+			valueTimer = setInterval(valueTick, 250);
+		}
+		return result;
+	};
+
+	/* ----- Раскрытие, которое запоминается (этап 6, ответ 2Б) ----- */
+
+	// <<sg-reveal "sg-reveal1" "[РАСШИФРОВАТЬ]" [link] [kind "amber"]>>текст<</sg-reveal>>
+	// Отметка — $sgRevealed = {"Экран|sg-reveal1": 1}: она в автокопии, «Новая игра»
+	// её стирает. Уже раскрытое выводится сразу, поэтому работает внутри печати.
+	Macro.add('sg-reveal', {
+		tags: null,
+		handler: function () {
+			var a = blockArgs(this, ['id', 'label'], ['kind'], ['link']);
+			var text = this.payload[0].contents;
+			var key = State.passage + '|' + a.id;
+			var box = document.createElement('span');
+			var inner = box;
+			var tag = a.link ? 'link' : 'button';
+
+			box.id = String(a.id);
+			this.output.appendChild(box);
+			if (varObject('sgRevealed')[key]) {
+				$(box).wiki(text);
+				return;
+			}
+			if (a.kind) {
+				inner = document.createElement('span');
+				inner.className = String(a.kind);
+				box.appendChild(inner);
+			}
+			$(inner).wiki('<<' + tag + ' ' + JSON.stringify(String(a.label)) + '>><</' + tag + '>>');
+			$(inner.querySelector('a, button')).on('click', function () {
+				varObject('sgRevealed')[key] = 1;
+				saveVars();
+				$(box).empty().wiki(text);
+			});
 		}
 	});
 

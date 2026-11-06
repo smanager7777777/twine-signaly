@@ -864,7 +864,7 @@ setup.signalySounds = {
 
 
 /* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */
-/* Версия движка: 20. Обновляется программой «Twine СИГНАЛЫ».
+/* Версия движка: 21. Обновляется программой «Twine СИГНАЛЫ».
    Настройки — в окне «Оформление терминала» (они лежат в таблице стилей).
    Свой код пишите ниже конца этого блока. */
 (function () {
@@ -909,7 +909,13 @@ setup.signalySounds = {
 	// Предпросмотр в программе: без стартового экрана, автокопии и защиты.
 	var preview = window.SIGNALY_PREVIEW;
 
-	setup.signaly = {engine: 20, preview: !!preview};
+	setup.signaly = {engine: 21, preview: !!preview};
+
+	// Русские служебные надписи SugarCube (этап 6, ответ 4А). Код автора стоит
+	// ниже движка, поэтому его надписи главнее.
+	Object.assign(l10nStrings, {"textAbort":"Прервать","textAborting":"Прерывание","textCancel":"Отмена","textClear":"Очистить","textClose":"Закрыть","textDelete":"Удалить","textExport":"Экспорт","textIdentity":"игра","textImport":"Импорт","textLoad":"Загрузить","textOff":"Выкл","textOk":"ОК","textOn":"Вкл","textSave":"Сохранить","textTurn":"Ход","errorNonexistentPassage":"пассажа «{passage}» не существует","warningNoStorage":"Нет доступного хранилища браузера. Возможные причины: запрещены сторонние файлы cookie (этот запрет действует и на Web Storage) или включён приватный режим.","warningNoWebStorage":"Нет Web Storage, поэтому игра работает в упрощённом режиме. Продолжить можно, но некоторые части могут работать неправильно.","warningDegraded":"Браузер поддерживает не всё, что нужно игре, поэтому она работает в упрощённом режиме. Продолжить можно, но некоторые части могут работать неправильно.","warningNoSaves":"Браузер поддерживает не всё, что нужно для сохранений, поэтому в этом сеансе они отключены.","saveErrorDisallowed":"Сейчас сохранять нельзя.","saveErrorDecodeFail":"не удалось прочитать сохранение: вероятно, оно повреждено","saveErrorDiskLoadFail":"не удалось загрузить файл сохранения с диска","saveErrorIdMismatch":"сохранение относится к другой игре","saveErrorInvalidData":"в сохранении нет нужных данных: вероятно, оно повреждено","saveErrorLoadTooEarly":"так рано сохранение загрузить нельзя","saveErrorNonexistent":"сохранение не найдено","uiBarLabelToggle":"Показать или скрыть боковую панель","uiBarLabelBackward":"Назад по истории игры","uiBarLabelForward":"Вперёд по истории игры","uiBarLabelJumpto":"Перейти к выбранному месту истории игры","alertTitle":"Внимание","restartTitle":"Начать заново","restartMesgPrompt":"Всё несохранённое будет потеряно. Начать заново?","continueTitle":"Продолжить","savesTitle":"Сохранения","savesHeaderBrowser":"В браузере","savesHeaderDisk":"На диске","savesLabelBrowserClear":"Удалить все сохранения браузера","savesLabelBrowserExport":"Выгрузить сохранения браузера в файл","savesLabelBrowserImport":"Загрузить сохранения браузера из файла","savesLabelDiskLoad":"Загрузить с диска","savesLabelDiskSave":"Сохранить на диск","savesTextBrowserAuto":"Автосохранение","savesTextBrowserSlot":"Ячейка","savesTextNoDate":"дата неизвестна","settingsTitle":"Настройки","settingsTextReset":"Вернуть значения по умолчанию","errorViewTitle":"Ошибка","errorViewLabelToggle":"Показать или скрыть подробности ошибки","debugBarLabelToggle":"Показать или скрыть панель отладки","debugBarLabelViewsToggle":"Показать или скрыть отладочные метки","debugBarLabelWatchAdd":"Добавить переменную в наблюдение","debugBarLabelWatchAll":"Наблюдать за всеми","debugBarLabelWatchClear":"Убрать все наблюдения","debugBarLabelWatchDelete":"Убрать это наблюдение","debugBarLabelWatchPlaceholder":"имя переменной","debugBarLabelPassagePlaceholder":"имя пассажа","debugBarLabelPassagePlay":"Перейти на пассаж","debugBarLabelWatchToggle":"Показать или скрыть наблюдение","debugBarMesgNoWatches":"Наблюдений нет","debugBarTextAdd":"Добавить","debugBarTextPassage":"Пассаж","debugBarTextViews":"Метки","debugBarTextWatch":"Наблюдение","macroBackText":"Назад","macroReturnText":"Вернуться","autoloadTitle":"Автозагрузка","autoloadMesgPrompt":"Есть автосохранение. Загрузить его или начать сначала?","autoloadTextCancel":"Начать сначала","autoloadTextOk":"Загрузить автосохранение","jumptoTitle":"Перейти","jumptoMesgUnavailable":"Пока некуда перейти…","shareTitle":"Поделиться"});
+	// Крестик окна SugarCube создаёт раньше, чем выполняется «JavaScript истории».
+	$('#ui-dialog-close').attr('aria-label', l10nStrings.textClose);
 
 	function showStartScreen(onClick) {
 		var screen = document.createElement('div');
@@ -3896,6 +3902,107 @@ setup.signalySounds = {
 			if (!pickTimer) {
 				pickTimer = setInterval(pickTick, 250);
 			}
+		}
+	});
+
+	/* ----- Живое значение (этап 6, ответ 1А) ----- */
+
+	// <span class="sg-value">Глава: <<= $chapter>></span> — обычный SugarCube, текст
+	// экрана тот же. Движок запоминает выражение команды <<=>> внутри такого блока
+	// и 4 раза в секунду сверяет значение. Выражение лежит в атрибуте, а не в
+	// памяти: <<type>> печатает копии узлов.
+	var valueTimer;
+	var valueMacro = Macro.get('=');
+	var valuePrint = valueMacro.handler;
+
+	function valueTick() {
+		var items = document.querySelectorAll('.sg-value-now');
+
+		for (var i = 0; i < items.length; i++) {
+			var shown;
+
+			try {
+				shown = stringFrom(Scripting.evalJavaScript(items[i].getAttribute('data-sg-code')));
+			} catch (ex) {
+				continue;
+			}
+			if (String(shown) !== items[i].getAttribute('data-sg-shown')) {
+				items[i].setAttribute('data-sg-shown', String(shown));
+				items[i].textContent = '';
+				if (shown !== null) {
+					new Wikifier(items[i], shown);
+				}
+			}
+		}
+	}
+
+	valueMacro.handler = function () {
+		var output = this.output;
+		var inside = output && output.closest && output.closest('.sg-value');
+		var last = inside ? output.lastChild : null;
+		var result = valuePrint.apply(this, arguments);
+		var shown;
+
+		if (!inside) {
+			return result;
+		}
+		try {
+			shown = stringFrom(Scripting.evalJavaScript(this.args.full));
+		} catch (ex) {
+			return result; // Ошибку уже показала сама команда.
+		}
+
+		var live = document.createElement('span');
+		var node = last ? last.nextSibling : output.firstChild;
+
+		live.className = 'sg-value-now';
+		live.setAttribute('data-sg-code', this.args.full);
+		live.setAttribute('data-sg-shown', String(shown));
+		while (node) {
+			var next = node.nextSibling;
+
+			live.appendChild(node);
+			node = next;
+		}
+		output.appendChild(live);
+		if (!valueTimer) {
+			valueTimer = setInterval(valueTick, 250);
+		}
+		return result;
+	};
+
+	/* ----- Раскрытие, которое запоминается (этап 6, ответ 2Б) ----- */
+
+	// <<sg-reveal "sg-reveal1" "[РАСШИФРОВАТЬ]" [link] [kind "amber"]>>текст<</sg-reveal>>
+	// Отметка — $sgRevealed = {"Экран|sg-reveal1": 1}: она в автокопии, «Новая игра»
+	// её стирает. Уже раскрытое выводится сразу, поэтому работает внутри печати.
+	Macro.add('sg-reveal', {
+		tags: null,
+		handler: function () {
+			var a = blockArgs(this, ['id', 'label'], ['kind'], ['link']);
+			var text = this.payload[0].contents;
+			var key = State.passage + '|' + a.id;
+			var box = document.createElement('span');
+			var inner = box;
+			var tag = a.link ? 'link' : 'button';
+
+			box.id = String(a.id);
+			this.output.appendChild(box);
+			if (varObject('sgRevealed')[key]) {
+				$(box).wiki(text);
+				return;
+			}
+			if (a.kind) {
+				inner = document.createElement('span');
+				inner.className = String(a.kind);
+				box.appendChild(inner);
+			}
+			$(inner).wiki('<<' + tag + ' ' + JSON.stringify(String(a.label)) + '>><</' + tag + '>>');
+			$(inner.querySelector('a, button')).on('click', function () {
+				varObject('sgRevealed')[key] = 1;
+				saveVars();
+				$(box).empty().wiki(text);
+			});
 		}
 	});
 

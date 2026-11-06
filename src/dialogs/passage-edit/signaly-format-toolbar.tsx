@@ -592,6 +592,10 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 			return;
 		}
 		if (type === 'states' || type === 'value') {
+			// «Значение» — обычный SugarCube, но обновляет его на экране движок (этап 6).
+			if (type === 'value') {
+				ensureEngine();
+			}
 			addLogic(type);
 			return;
 		}

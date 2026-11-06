@@ -255,6 +255,39 @@ describe('signaly-effects', () => {
 			expect(made.insert).toContain('<<type');
 		});
 
+		it('«Запомнить открытое» меняет запись на команду движка и обратно, текст остаётся', () => {
+			const plain =
+				'а <span id="sg-reveal2"><span class="amber"><<link "[ОТКРЫТЬ \\"Х\\"]">><<replace "#sg-reveal2">>Тайна<</replace>><</link>></span></span> б';
+			const [effect] = findEffects(plain);
+			const kept = replaceEffect(plain, effect, {...effect, keep: true});
+
+			expect(kept).toBe('а <<sg-reveal "sg-reveal2" "[ОТКРЫТЬ \\"Х\\"]" link kind "amber">>Тайна<</sg-reveal>> б');
+
+			const [found] = findEffects(kept);
+
+			expect(found).toMatchObject({
+				type: 'reveal',
+				keep: true,
+				target: 'sg-reveal2',
+				label: '[ОТКРЫТЬ "Х"]',
+				button: false,
+				kind: 'amber'
+			});
+			expect(kept.slice(found.contentFrom, found.contentTo)).toBe('Тайна');
+			expect(replaceEffect(kept, found, found)).toBe(kept);
+			expect(replaceEffect(kept, found, {...found, keep: false, linkFrom: undefined})).toBe(plain);
+		});
+
+		it('запомненное раскрытие: кнопка без лишних слов, эффекты внутри, свободный номер', () => {
+			const inner = '<span class="sg-blink">Тайна</span>';
+			const text = `<<sg-reveal "sg-reveal1" "x">>${inner}<</sg-reveal>>`;
+
+			expect(findEffects(text).map(e => e.type)).toEqual(['reveal', 'blink']);
+			expect(findEffects(text)[0]).toMatchObject({button: true, kind: undefined, to: text.length});
+			expect(composeEffect('reveal', text, 0, 0, samples).insert).toContain('id="sg-reveal2"');
+			expect(findEffects('<<sg-reveal "sg-reveal1" "x">>нет конца')).toEqual([]);
+		});
+
 		it('чужая разметка раскрытием не считается', () => {
 			expect(findEffects('<span id="sg-reveal1"><<link "x">><<replace "#другой">>т<</replace>><</link>></span>')).toEqual([]);
 			expect(findEffects('<span id="sg-reveal1"><<link "x">><<replace "#sg-reveal1">>т<</replace>>ещё<</link>></span>')).toEqual([]);

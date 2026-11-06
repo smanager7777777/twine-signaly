@@ -9,6 +9,7 @@
 //   мигание          <span class="sg-blink">текст</span> (style="animation-duration: 0.5s")
 //   глитч            <span class="glitchy" data-text="подменный">текст</span>
 //   раскрытие        <span id="sg-reveal1"><span class="amber"><<button "[РАСШИФРОВАТЬ]">><<replace "#sg-reveal1">>текст<</replace>><</button>></span></span>
+//   запоминается     <<sg-reveal "sg-reveal1" "[РАСШИФРОВАТЬ]" [link] [kind "amber"]>>текст<</sg-reveal>> (команда движка)
 //                    (этап 6, ответ 1А; вид — по желанию, ссылка — <<link>>)
 // Кнопка «Эффект» в панели над текстом ставит их на выделенный текст; щелчок по
 // команде открывает форму. Непонятые слова в командах сохраняются как есть.
@@ -68,6 +69,8 @@ export interface Effect {
 	button?: boolean;
 	kind?: string;
 	linkFrom?: number;
+	/** Раскрытие: запомнить открытое до новой игры (команда <<sg-reveal>>). */
+	keep?: boolean;
 }
 
 /* ----- Время ----- */
@@ -370,8 +373,43 @@ function revealTail(button: boolean, kind?: string) {
 	return `<</replace>><</${button ? 'button' : 'link'}>>${kind ? '</span>' : ''}</span>`;
 }
 
-function findReveals(text: string): Effect[] {
+/* Запомнить открытое (этап 6, ответ 2Б): то же раскрытие, но командой движка. */
+const revealKeepHead =
+	/<<sg-reveal ("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*') ("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')( link)?(?: kind "([^"]*)")?>>/g;
+
+function revealKeepOpen(id: string, label: string, button: boolean, kind?: string) {
+	return `<<sg-reveal ${quote(id)} ${quote(label)}${button ? '' : ' link'}${kind ? ` kind ${quote(kind)}` : ''}>>`;
+}
+
+function findKeptReveals(text: string): Effect[] {
 	const effects: Effect[] = [];
+
+	revealKeepHead.lastIndex = 0;
+	for (let match = revealKeepHead.exec(text); match; match = revealKeepHead.exec(text)) {
+		const headTo = match.index + match[0].length;
+		const close = findClose(text, 'sg-reveal', headTo);
+
+		if (close) {
+			effects.push({
+				type: 'reveal',
+				from: match.index,
+				to: close.end,
+				contentFrom: headTo,
+				contentTo: close.at,
+				extra: [],
+				target: unquoteToken(match[1]),
+				label: unquoteToken(match[2]),
+				button: !match[3],
+				kind: match[4],
+				keep: true
+			});
+		}
+	}
+	return effects;
+}
+
+function findReveals(text: string): Effect[] {
+	const effects: Effect[] = findKeptReveals(text);
 	let match: RegExpExecArray | null;
 
 	revealHead.lastIndex = 0;
@@ -546,6 +584,13 @@ export function writeEffect(effect: Effect, content: string) {
 		case 'glitch':
 			return `${glitchOpen(effect.shadow ?? '', effect.start, effect.after)}${content}</span>`;
 		case 'reveal':
+			if (effect.keep) {
+				return (
+					revealKeepOpen(effect.target ?? '', effect.label ?? '', !!effect.button, effect.kind) +
+					content +
+					'<</sg-reveal>>'
+				);
+			}
 			return (
 				revealOpen(effect.target ?? '', effect.label ?? '', !!effect.button, effect.kind) +
 				content +
@@ -567,7 +612,7 @@ export function replaceEffect(text: string, effect: Effect, changed: Effect) {
 export function freeRevealId(text: string) {
 	let n = 1;
 
-	while (new RegExp(`id\\s*=\\s*["']sg-reveal${n}["']`).test(text)) {
+	while (new RegExp(`(?:id\\s*=\\s*|<<sg-reveal\\s+)["']sg-reveal${n}["']`).test(text)) {
 		n++;
 	}
 	return `sg-reveal${n}`;
