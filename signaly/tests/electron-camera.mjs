@@ -125,6 +125,24 @@ await win.evaluate(() => {
 
 	cm.setCursor({line: cm.lineCount() - 1, ch: 0});
 });
+await toolbar().getByRole('button', {name: /Добавить блок/}).click();
+await win.waitForTimeout(500);
+
+const menu = await win.locator('.menu-button-menu button').evaluateAll(list => {
+	const size = {w: innerWidth, h: innerHeight};
+
+	return list.map(el => {
+		const r = el.getBoundingClientRect();
+		const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+
+		return r.top >= 0 && r.bottom <= size.h && r.left >= 0 && r.right <= size.w && !!top && el.contains(top);
+	});
+});
+
+check('меню «Добавить блок»: все пункты видны и нажимаются', menu.length >= 16 && menu.every(Boolean), JSON.stringify(menu));
+await win.screenshot({path: shot('menu')});
+await toolbar().getByRole('button', {name: /Добавить блок/}).click();
+await win.waitForTimeout(400);
 await add('Камера');
 let value = await editorText();
 
