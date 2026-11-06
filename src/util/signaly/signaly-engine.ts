@@ -49,12 +49,13 @@
 
 import {defaultGlitch, glitchKeyframes, glitchRules} from './signaly-glitch';
 import {cameraDefaults, cameraKeys, hackDefaults, hackKeys, timerDefaults} from './signaly-screen-blocks';
+import {tipBase} from './signaly-tip';
 
 /** Глитч по умолчанию — правила с нулевой силой (их перекрывает всё остальное). */
 const glitchBase = [...glitchRules(defaultGlitch, ':where(.glitchy)'), glitchKeyframes].join('\n');
 
 /** Версия движка. Увеличивать при каждом изменении кода ниже. */
-export const signalyEngineVersion = 18;
+export const signalyEngineVersion = 19;
 
 export const signalyEngineStart =
 	'/* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */';
@@ -203,6 +204,40 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	document.addEventListener('fullscreenchange', placeEffects);
 	setInterval(placeEffects, 1000);
 
+	/* ----- Звук по событию (шаг 3.3, с шага 5.4 — и до границы предпросмотра) ----- */
+
+	// Отдельный звук мимо SimpleAudio: его не задевают кнопки A–E, пауза и
+	// громкость групп. Файл загружается заранее, звучит до конца.
+	var signalAudio = {};
+
+	function signalFor(src) {
+		if (!signalAudio[src]) {
+			var audio = new Audio(src);
+
+			audio.preload = 'auto';
+			audio.sgUi = true;
+			signalAudio[src] = audio;
+		}
+		return signalAudio[src];
+	}
+
+	function signalPlay(src, volume, keep) {
+		if (!src || !uiSoundOn()) {
+			return;
+		}
+
+		var audio = signalFor(String(src));
+		var level = volume === undefined ? 100 : Number(volume);
+
+		audio.volume = Math.max(0, Math.min(1, (isNaN(level) ? 100 : level) / 100));
+		if (!keep) {
+			audio.currentTime = 0;
+		}
+		audio.play().catch(function (e) {
+			console.error('СИГНАЛЫ: звук-сигнал', e);
+		});
+	}
+
 	/* ----- Блоки экрана (шаг 1.4) ----- */
 
 	// Команды: <<sg-image>>, <<sg-video>>, <<sg-alarm>>, <<sg-dialog>>,
@@ -265,6 +300,10 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		'.sg-camera-off span { position: relative; padding: 0 0.5em; }\n' +
 		// Заглушка предпросмотра: сетка и крест по центру видео — видно, как оно сдвинуто.
 		'.sg-camera-grid { background-color: #555555; background-image: linear-gradient(transparent calc(50% - 4px), #cccccc calc(50% - 4px), #cccccc calc(50% + 4px), transparent calc(50% + 4px)), linear-gradient(90deg, transparent calc(50% - 4px), #cccccc calc(50% - 4px), #cccccc calc(50% + 4px), transparent calc(50% + 4px)), linear-gradient(#999999 3px, transparent 3px), linear-gradient(90deg, #999999 3px, transparent 3px); background-size: 100% 100%, 100% 100%, 100px 100px, 100px 100px; }\n' +
+		// Шаг 5.4: кнопка камеры прячется, когда захват подключён; подсказка.
+		'.sg-camera-link.sg-off { display: none; }\n' +
+		'.sg-toggle { cursor: pointer; }\n' +
+		${JSON.stringify(tipBase)} +
 		'.sg-hack-c:hover, .sg-hack-word:hover { background-color: var(--sg-hack-light); color: #000000; }\n' +
 		'.sg-hack-word { cursor: pointer; }\n' +
 		'.sg-hack-word:hover { box-shadow: 0 0 8px var(--sg-hack-light); }\n' +
@@ -383,9 +422,61 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		return ext === 'webm' ? 'video/webm' : ext === 'ogv' || ext === 'ogg' ? 'video/ogg' : 'video/mp4';
 	}
 
+	// Шаг 5.4 (ответ 7А): картинка-переключатель. Щелчок переключает переменную
+	// и меняет картинку: выключено — первая, включено — вторая (second). Значение
+	// меняет и всё остальное в игре (код, клавиша мастера): картинка следит сама.
+	var toggleItems = [];
+	var toggleTimer = null;
+
+	function toggleDraw(item) {
+		var on = !!State.getVar(item.name);
+
+		if (item.on !== on) {
+			item.on = on;
+			item.img.src = on ? item.second : item.first;
+		}
+	}
+
+	function toggleTick() {
+		toggleItems.forEach(toggleDraw);
+	}
+
+	$(document).on(':passageinit', function () {
+		toggleItems = [];
+	});
+
+	function imageToggle(img, a) {
+		var item = {
+			img: img,
+			name: /^[$_]/.test(a.toggle) ? a.toggle : '$' + a.toggle,
+			first: a.src || '',
+			second: a.second || a.src || ''
+		};
+
+		// Обе картинки загружены заранее: смена без мигания.
+		new Image().src = item.second;
+		if (a.sound) {
+			signalFor(String(a.sound));
+		}
+		img.classList.add('sg-toggle');
+		toggleDraw(item);
+		toggleItems.push(item);
+		$(img).on('click', function () {
+			var value = State.getVar(item.name);
+
+			// Число остаётся числом: так шаблон сравнивает $buttoner с 0 и 1.
+			State.setVar(item.name, typeof value === 'number' ? (value ? 0 : 1) : !value);
+			toggleDraw(item);
+			signalPlay(a.sound, a.volume);
+		});
+		if (!toggleTimer) {
+			toggleTimer = setInterval(toggleTick, 250);
+		}
+	}
+
 	Macro.add('sg-image', {
 		handler: function () {
-			var a = blockArgs(this, ['src'], ['width'].concat(placeKeys), []);
+			var a = blockArgs(this, ['src'], ['width', 'second', 'toggle', 'sound', 'volume'].concat(placeKeys), []);
 			var img = document.createElement('img');
 
 			img.src = a.src || '';
@@ -394,6 +485,9 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 				img.style.width = Number(a.width) + 'px';
 			}
 			placeStyle(img, a);
+			if (a.toggle) {
+				imageToggle(img, a);
+			}
 			putPlaced(this, img, a, 'image');
 		}
 	});
@@ -491,6 +585,10 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			var live = cameraLive(item.source);
 
 			item.off.style.display = live ? 'none' : '';
+			// Шаг 5.4 (ответ 2А): подключено — кнопки нет, отключилось — вернулась.
+			if (item.link) {
+				item.link.classList.toggle('sg-off', live);
+			}
 			if (live && item.video.srcObject !== cameraStreams[item.source]) {
 				item.video.srcObject = cameraStreams[item.source];
 				item.video.play().catch(function () {});
@@ -616,10 +714,13 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			root.appendChild(box);
 
 			if (source === 'window') {
-				root.appendChild(document.createElement('br'));
-				actionControl(root, a.button || cameraDefaults.button, true, function () {
+				item.link = document.createElement('span');
+				item.link.className = 'sg-camera-link';
+				item.link.appendChild(document.createElement('br'));
+				actionControl(item.link, a.button || cameraDefaults.button, true, function () {
 					cameraConnect('window');
 				});
+				root.appendChild(item.link);
 			}
 			if (preview) {
 				// Щелчок в предпросмотре показывает, как выглядит «нет сигнала».
@@ -662,6 +763,136 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			});
 		}
 	}
+
+	/* ----- Подсказка при наведении (шаг 5.4, ответ 4А) ----- */
+
+	// <<hovertip "Текст подсказки" [ширина]>>текст<</hovertip>> — hovertip v2.0
+	// шаблона: команда и места те же, вид рамки — в «Оформлении терминала». Код
+	// шаблона, не узнанный при переносе, остаётся и работает сам: второй раз
+	// SugarCube команду не примет, поэтому проверка — когда код истории выполнен.
+	var tipTimer = 0;
+
+	function tipLater() {
+		clearInterval(tipTimer);
+		tipTimer = setInterval(window.UpdateHoverTipTxt, 300);
+	}
+
+	function tipPlace(element, container) {
+		var id = element.id.substring(11);
+		var parent = container.find('#hoverTip' + id);
+		var box = $(element);
+		var top = Math.round(-box.outerHeight() - 6);
+		var left = Math.round((parent.outerWidth() - box.outerWidth()) / 2);
+		var zindex = box.css('z-index');
+		var limit, rect;
+
+		function keepInside(area) {
+			if (rect.top > area.bottom - rect.height - 10) {
+				top -= rect.top - (area.bottom - rect.height - 10);
+			}
+			if (rect.top < area.top + 4) {
+				top -= rect.top - (area.top + 4);
+			}
+			if (rect.left > area.right - rect.width - 26) {
+				left -= rect.left - (area.right - rect.width - 26);
+			}
+			if (rect.left < area.left + 4) {
+				left -= rect.left - area.left - 4;
+			}
+			box.css({top: Math.round(top), left: Math.round(left)});
+		}
+
+		zindex = zindex === 'auto' ? 0 : parseInt(zindex, 10);
+		// Подсказка внутри чего-то с большим слоем (окно-сообщение) держится в нём.
+		while (parent.parent()[0] !== document) {
+			if (parent.parent().css('z-index') !== 'auto' && parseInt(parent.parent().css('z-index'), 10) > zindex) {
+				limit = parent[0].getBoundingClientRect();
+				break;
+			}
+			parent = parent.parent();
+		}
+		box.css({top: top, left: left});
+		rect = element.getBoundingClientRect();
+		keepInside({top: 0, left: 0, right: window.innerWidth, bottom: window.innerHeight});
+		if (limit) {
+			rect = element.getBoundingClientRect();
+			keepInside(limit);
+		}
+	}
+
+	$(document).one(':passageinit', function () {
+		if (Macro.has('hovertip')) {
+			return;
+		}
+		window.UpdateHoverTipTxt = function (container) {
+			clearInterval(tipTimer);
+			if (!Engine.isIdle()) {
+				tipLater();
+				return;
+			}
+
+			var area = container === undefined ? $(document) : $(container);
+
+			area.find('span[id^="hoverTipTxt"]').each(function () {
+				tipPlace(this, area);
+			});
+		};
+		$(document).on(':passageend', function () {
+			window.UpdateHoverTipTxt();
+		});
+		$(window).on('resize scroll', tipLater);
+		$('#ui-bar-toggle').on('click', tipLater);
+		Macro.add('hovertip', {
+			tags: null,
+			handler: function () {
+				if (this.args.length === 0) {
+					$(this.output).wiki(this.payload[0].contents);
+					return;
+				}
+
+				var width = parseInt(this.args[1], 10);
+				var count = (State.temporary.HoverTipCount || 0) + 1;
+
+				while ($('#hoverTip' + count).length) {
+					count++;
+				}
+				State.temporary.HoverTipCount = count;
+				$(this.output).wiki(
+					'<span id="hoverTip' + count + '" class="hoverTipTxt hoverTip" tabindex="0" onmouseenter="UpdateHoverTipTxt();">' +
+					this.payload[0].contents +
+					'<span id="hoverTipTxt' + count + '" class="hoverBox hoverTail"' +
+					(width > 0 ? ' style="max-width: ' + width + 'px;"' : '') + '>' +
+					this.args[0] + '</span></span>'
+				);
+			}
+		});
+	});
+
+	// Предпросмотр окна оформления: показать образец подсказки на открытом экране.
+	setup.signaly.tipDemo = function () {
+		var old = document.getElementById('sg-tip-demo');
+
+		if (old) {
+			old.remove();
+			return;
+		}
+
+		var demo = document.createElement('div');
+		var box = document.createElement('span');
+		var host = document.createElement('span');
+
+		demo.id = 'sg-tip-demo';
+		demo.style.cssText = 'left: 50%; position: fixed; top: 50%; transform: translate(-50%, -50%); z-index: 1002;';
+		host.className = 'hoverTip';
+		host.textContent = 'Текст с подсказкой';
+		host.style.position = 'relative';
+		box.className = 'hoverBox hoverTail';
+		box.textContent = 'Так выглядит подсказка при наведении.';
+		box.style.cssText = 'bottom: calc(100% + 14px); left: 50%; position: absolute; transform: translateX(-50%);';
+		host.appendChild(box);
+		demo.appendChild(host);
+		document.body.appendChild(demo);
+	};
 
 	/* Кнопка на экране (сессия 6): содержимое стоит на месте от угла окна
 	   терминала и не прокручивается с текстом; kind — вид кнопок и ссылок. */
@@ -4269,7 +4500,10 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			power: Math.max(0, Number(w[4]) || 0),
 			color: w[5],
 			skip: w[6] === '1',
-			parts: {text: part(7), links: part(8), media: part(9), fields: part(10)}
+			parts: {text: part(7), links: part(8), media: part(9), fields: part(10)},
+			// Шаг 5.4: громкость и файл (имя закодировано: в нём бывают пробелы).
+			volume: w[11] === undefined ? 100 : Number(w[11]),
+			sound: w[12] ? decodeURIComponent(w[12]) : ''
 		};
 	}
 
@@ -4601,6 +4835,12 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 
 		run.box = boxEl ? boxEl.getBoundingClientRect() : null;
 		run.ctx.clearRect(0, 0, run.canvas.width, run.canvas.height);
+		// Шаг 5.4 (ответ 1А): один раз, с начала эффекта и до конца файла. Уход с
+		// экрана и щелчок показывают всё сразу, но звук не обрывают.
+		if (!run.sounded && now - run.start >= run.way.delay) {
+			run.sounded = true;
+			signalPlay(run.way.sound, run.way.volume);
+		}
 		run.items.forEach(function (item) {
 			var t = (now - run.start - item.at) / run.way.time;
 
@@ -5144,44 +5384,18 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 
 	/* ----- Звук-сигнал (шаг 3.3, ответ 3А) ----- */
 
-	// <<sg-sound "media/audio/x.wav" volume 100 [keep]>> — отдельный звук мимо
-	// SimpleAudio: его не задевают кнопки A–E, пауза и громкость групп.
+	// <<sg-sound "media/audio/x.wav" volume 100 [keep]>> — звук-сигнал,
 	// keep — не начинать заново, если ещё звучит.
-	var signalAudio = {};
-
-	function signalFor(src) {
-		if (!signalAudio[src]) {
-			var audio = new Audio(src);
-
-			audio.preload = 'auto';
-			audio.sgUi = true;
-			signalAudio[src] = audio;
-		}
-		return signalAudio[src];
-	}
-
 	Macro.add('sg-sound', {
 		handler: function () {
 			var a = blockArgs(this, ['src'], ['volume'], ['keep']);
 
-			if (!a.src || !uiSoundOn()) {
-				return;
-			}
-
-			var audio = signalFor(String(a.src));
-			var volume = a.volume === undefined ? 100 : Number(a.volume);
-
-			audio.volume = Math.max(0, Math.min(1, (isNaN(volume) ? 100 : volume) / 100));
-			if (!a.keep) {
-				audio.currentTime = 0;
-			}
-			audio.play().catch(function (e) {
-				console.error('СИГНАЛЫ: звук-сигнал', e);
-			});
+			signalPlay(a.src, a.volume, a.keep);
 		}
 	});
 
-	// Файлы звуков-сигналов загружаются заранее, как в коде шаблона.
+	// Файлы звуков-сигналов загружаются заранее, как в коде шаблона; с шага 5.4 —
+	// и звуки первого посещения.
 	$(document).one(':passagestart', function () {
 		var re = /<<sg-sound\s+(["'])((?:\\.|(?!\1).)*)\1/g;
 
@@ -5189,10 +5403,14 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			return true;
 		}).forEach(function (p) {
 			var m;
+			var way = fvWay(p.tags);
 
 			re.lastIndex = 0;
 			while ((m = re.exec(p.text))) {
 				signalFor(m[2]);
+			}
+			if (way && way.sound) {
+				signalFor(way.sound);
 			}
 		});
 	});

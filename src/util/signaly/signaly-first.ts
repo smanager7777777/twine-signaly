@@ -38,6 +38,10 @@ export interface FirstWay extends Record<FirstPart, FirstPartMode> {
 	color: string;
 	/** Щелчок показывает всё сразу. */
 	skip: boolean;
+	/** Звук эффекта (шаг 5.4, ответ 1А): файл, '' — без звука. */
+	sound: string;
+	/** Громкость звука, %. */
+	volume: number;
 }
 
 export function firstTag(way: Pick<FirstWay, 'id'>) {
@@ -67,7 +71,9 @@ export function newFirstWay(ways: FirstWay[], base: string): FirstWay {
 		delay: 0,
 		power: 80,
 		color: '#ffffff',
-		skip: true
+		skip: true,
+		sound: '',
+		volume: 100
 	};
 }
 
@@ -85,6 +91,11 @@ export function tagsWithWay(tags: string[], way: FirstWay | undefined) {
 
 const round = (value: number) => Math.round(value * 1000) / 1000;
 
+// В имени файла бывают пробелы и скобки: в значении переменной они ломают CSS.
+function encodeFile(file: string) {
+	return encodeURIComponent(file).replace(/[!'()*~]/g, c => `%${c.charCodeAt(0).toString(16)}`);
+}
+
 /** Значение переменной --sg-first-<id>: его разбирает движок (fvParse). */
 export function firstValue(w: FirstWay) {
 	return [
@@ -95,7 +106,8 @@ export function firstValue(w: FirstWay) {
 		round(w.power),
 		w.color,
 		w.skip ? 1 : 0,
-		...firstParts.map(part => w[part] || '-')
+		...firstParts.map(part => w[part] || '-'),
+		...(w.sound ? [round(w.volume), encodeFile(w.sound)] : [])
 	].join(' ');
 }
 
@@ -152,7 +164,9 @@ export function sanitizeWays(value: unknown): FirstWay[] {
 			delay: number(item.delay, 0, 0, 60),
 			power: number(item.power, 80, 0, 100),
 			color: normalizeHex(typeof item.color === 'string' ? item.color : '') ?? '#ffffff',
-			skip: item.skip !== false
+			skip: item.skip !== false,
+			sound: typeof item.sound === 'string' ? item.sound : '',
+			volume: number(item.volume, 100, 0, 100)
 		});
 	});
 	return ways;

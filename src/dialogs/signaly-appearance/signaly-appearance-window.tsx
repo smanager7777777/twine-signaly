@@ -85,6 +85,7 @@ export const SignalyAppearanceWindow: React.FC<
 	const [styleIndex, setStyleIndex] = React.useState(0);
 	const [wayIndex, setWayIndex] = React.useState(0);
 	const [firstDemo, setFirstDemo] = React.useState(0);
+	const [tipDemo, setTipDemo] = React.useState(0);
 	const folder = gameFolder(story.id);
 
 	React.useEffect(() => {
@@ -352,6 +353,7 @@ export const SignalyAppearanceWindow: React.FC<
 							onSelect={setWayIndex}
 							savedColors={appearance.savedColors}
 							selected={wayIndex}
+							sounds={sounds}
 							used={id => story.passages.filter(p => p.tags.includes(firstTag({id}))).length}
 							ways={appearance.firstWays}
 						/>
@@ -555,6 +557,37 @@ export const SignalyAppearanceWindow: React.FC<
 					</section>
 
 					<section>
+						<h3>{t('signaly.appearance.sections.tips')}</h3>
+						<p className="signaly-field-hint">{t('signaly.appearance.tipHint')}</p>
+						{color('tipBg')}
+						{color('tipColor')}
+						{color('tipBorderColor')}
+						{range('tipBorderWidth', 0, 20, px)}
+						{range('tipRadius', 0, 40, px)}
+						{range('tipWidth', 80, 1500, px)}
+						<ChoiceField
+							label={label('tipFont')}
+							onChange={value => change('tipFont', value)}
+							options={[
+								{label: t('signaly.appearance.inputFontSame'), value: ''},
+								...systemFonts.map(f => ({label: f, value: f})),
+								...fonts.map(f => ({label: f.replace(/^media\/fonts\//, ''), value: f}))
+							]}
+							value={appearance.tipFont}
+						/>
+						{range('tipSize', 0, 80, px)}
+						{color('tipLineColor')}
+						{range('tipLineWidth', 0, 10, px)}
+						<button
+							className="signaly-button"
+							onClick={() => setTipDemo(n => n + 1)}
+							type="button"
+						>
+							{t('signaly.appearance.sampleTip')}
+						</button>
+					</section>
+
+					<section>
 						<h3>{t('signaly.appearance.sections.articles')}</h3>
 						<TextField
 							hint={hint('articleBack')}
@@ -642,6 +675,7 @@ export const SignalyAppearanceWindow: React.FC<
 						mode={tab === 'general' && screen === startScreenValue ? 'start' : 'passage'}
 						passageId={tab === 'general' && screen === startScreenValue ? undefined : shownId}
 						firstDemo={firstDemo}
+						tipDemo={tipDemo}
 						firstWay={appearance.firstWays[wayIndex] && firstValue(appearance.firstWays[wayIndex])}
 						refresh={refresh}
 						sampleDialog={sampleDialog}

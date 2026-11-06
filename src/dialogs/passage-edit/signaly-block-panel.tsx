@@ -64,6 +64,8 @@ import {
 	setArticle
 } from '../../util/signaly/signaly-articles';
 import {eventTag, findEvent, setEventHead} from '../../util/signaly/signaly-events';
+import {findTips} from '../../util/signaly/signaly-tip';
+import {TipForm} from './signaly-tip-form';
 
 export type PanelTarget =
 	| {kind: 'block'; index: number}
@@ -75,6 +77,7 @@ export type PanelTarget =
 	| {kind: 'event'}
 	| {kind: 'access'}
 	| {kind: 'article'}
+	| {kind: 'tip'; index: number}
 	| {kind: 'kr2'};
 
 export interface SignalyBlockPanelProps {
@@ -98,6 +101,16 @@ export interface SignalyBlockPanelProps {
 	/** Создать пустые экраны (шаг 5.2, ответ 2А). */
 	onCreatePassages: (names: string[]) => void;
 	onClose: () => void;
+}
+
+/** Имя новой переменной картинки-переключателя: свободное, чтобы не задеть чужую. */
+function newSwitch(names: string[]) {
+	let n = 1;
+
+	while (names.includes(`switch${n}`)) {
+		n++;
+	}
+	return `$switch${n}`;
 }
 
 /* ----- Общие кусочки ----- */
@@ -269,6 +282,15 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 				text={text}
 			/>
 		);
+	} else if (target.kind === 'tip') {
+		// Шаг 5.4: подсказка при наведении.
+		const tip = findTips(text)[target.index];
+
+		if (!tip) {
+			return null;
+		}
+		title = t('signaly.tips.title');
+		body = <TipForm onClose={onClose} onText={onText} text={text} tip={tip} />;
 	} else if (target.kind === 'event') {
 		// Шаг 3.5: пассаж-событие.
 		const head = findEvent(text);
@@ -458,6 +480,43 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 					<>
 						{fileChoice(l('file'), str('src'), media.img, value => set('src', value))}
 						{range('width', l('width'), 20, 1920, 400, px, 1, l('resizeHint'))}
+						<CheckField
+							hint={l('image.toggleHint')}
+							label={l('image.toggle')}
+							onChange={on =>
+								write({
+									...block,
+									values: on
+										? {...v, toggle: newSwitch(knownVariables(story.passages).map(item => item.name))}
+										: {...v, toggle: undefined, second: undefined, sound: undefined, volume: undefined}
+								})
+							}
+							value={v.toggle !== undefined}
+						/>
+						{v.toggle !== undefined && (
+							<>
+								{fileChoice(l('image.second'), str('second'), media.img, value => set('second', value || undefined), l('image.noSecond'))}
+								<div className="signaly-field">
+									<label className="signaly-field-label">
+										{l('image.variable')}
+										<input
+											className="signaly-text"
+											list="signaly-toggle-variables"
+											onChange={e => set('toggle', e.target.value.trim().replace(/^\$?/, '$'))}
+											value={str('toggle')}
+										/>
+									</label>
+									<datalist id="signaly-toggle-variables">
+										{knownVariables(story.passages).map(item => (
+											<option key={item.name} value={`$${item.name}`} />
+										))}
+									</datalist>
+									<div className="signaly-field-hint">{l('image.variableHint')}</div>
+								</div>
+								{fileChoice(l('image.sound'), str('sound'), media.audio, value => set('sound', value || undefined), l('image.noSound'))}
+								{v.sound !== undefined && range('volume', l('image.volume'), 0, 100, 100, '%')}
+							</>
+						)}
 						{place()}
 					</>
 				);

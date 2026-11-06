@@ -29,6 +29,8 @@
 //   <</sg-hack>>
 //   <<sg-camera source window width 1000 height 490 vwidth 1000 vheight 1000 shifty -270>>
 //                                                         (шаг 5.3: камера)
+//   <<sg-image "media/img/off.jpg" second "media/img/on.jpg" toggle "$lamp" sound "media/audio/x.wav" volume 80>>
+//                                                         (шаг 5.4: картинка-переключатель)
 // Окно KR2 — команды <<kr2image>>, <<kr2layout>>, <<kr2vars>>, <<kr2main>>.
 // Команды понимает движок (signaly-engine.ts) — и в обычном Twine тоже.
 //
@@ -161,7 +163,12 @@ export const cameraDefaults = {
 };
 
 const specs: Record<BlockType | PartKind, ArgSpec> = {
-	image: {pos: ['src'], keys: {width: 'number', ...placeKeys}, flags: [], container: false},
+	image: {
+		pos: ['src'],
+		keys: {width: 'number', second: 'string', toggle: 'string', sound: 'string', volume: 'number', ...placeKeys},
+		flags: [],
+		container: false
+	},
 	video: {
 		pos: ['src'],
 		keys: {width: 'number', height: 'number', ...placeKeys},
@@ -437,7 +444,7 @@ export function scanArgs(text: string, at: number) {
 	return undefined;
 }
 
-function unquote(token: string): Value {
+export function unquote(token: string): Value {
 	const q = token[0];
 
 	if (q === '"' || q === "'") {

@@ -80,4 +80,20 @@ describe('signaly-first', () => {
 		expect(readAppearance(css)?.firstWays).toEqual(a.firstWays);
 		expect(readAppearance(withAppearance('', defaultAppearance))?.firstWays).toEqual([]);
 	});
+
+	it('звук дописывается в конец значения, имя файла закодировано (шаг 5.4)', () => {
+		const value = firstValue(way({sound: "media/audio/шум (1) it's.wav", volume: 60}));
+		const words = value.split(' ');
+
+		expect(words).toHaveLength(13);
+		expect(words[11]).toBe('60');
+		expect(decodeURIComponent(words[12])).toBe("media/audio/шум (1) it's.wav");
+		expect(words[12]).not.toMatch(/[()' ]/);
+	});
+
+	it('без звука значение прежнее (шаг 5.4)', () => {
+		expect(firstValue(way({volume: 60})).split(' ')).toHaveLength(11);
+		expect(sanitizeWays([{id: 'a'}])[0]).toMatchObject({sound: '', volume: 100});
+		expect(sanitizeWays([{id: 'a', sound: 'x.wav', volume: 500}])[0]).toMatchObject({sound: 'x.wav', volume: 100});
+	});
 });

@@ -499,6 +499,44 @@ export function inputCss(a: InputLook) {
 	return lines;
 }
 
+/** Вид подсказки при наведении (шаг 5.4, ответ 4А). */
+export interface TipLook {
+	tipBg: string;
+	tipColor: string;
+	tipBorderColor: string;
+	tipBorderWidth: number;
+	tipRadius: number;
+	tipWidth: number;
+	tipFont: string;
+	/** Размер текста, px; 0 — как у текста экрана. */
+	tipSize: number;
+	tipLineColor: string;
+	/** Точки под текстом, px; 0 — без них. */
+	tipLineWidth: number;
+}
+
+/** Переменные вида подсказки: правила — в движке, они работают и без этого блока. */
+export function tipCss(a: TipLook) {
+	const own = 'sg-tip-font';
+	const lines = a.tipFont && isFontFile(a.tipFont) ? fontFace(own, a.tipFont) : [];
+
+	lines.push(
+		'html {',
+		`\t--sg-tip-bg: ${a.tipBg};`,
+		`\t--sg-tip-color: ${a.tipColor};`,
+		`\t--sg-tip-border: ${round(a.tipBorderWidth)}px;`,
+		`\t--sg-tip-border-color: ${a.tipBorderColor};`,
+		`\t--sg-tip-radius: ${round(a.tipRadius)}px;`,
+		`\t--sg-tip-width: ${round(a.tipWidth)}px;`,
+		...(a.tipFont ? [`\t--sg-tip-font: ${family(a.tipFont, own)};`] : []),
+		...(a.tipSize > 0 ? [`\t--sg-tip-size: ${round(a.tipSize)}px;`] : []),
+		`\t--sg-tip-line: ${round(a.tipLineWidth)}px;`,
+		`\t--sg-tip-line-color: ${a.tipLineColor};`,
+		'}'
+	);
+	return lines;
+}
+
 /* ----- Какие пассажи чем пользуются ----- */
 
 /** Вид экрана пассажа: первый тег sg-scr-…, который есть в списке. */

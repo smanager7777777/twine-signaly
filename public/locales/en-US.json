@@ -495,7 +495,8 @@
 				"dialogs": "Message windows",
 				"text": "Text effects",
 				"inputs": "Input fields",
-				"articles": "Articles"
+				"articles": "Articles",
+				"tips": "Hover tooltip"
 			},
 			"fields": {
 				"pageBg": "Screen background",
@@ -557,7 +558,17 @@
 				"inputHoverBorderColor": "Border color on hover",
 				"articleBack": "“Back” link caption",
 				"articleBackKind": "“Back” link kind",
-				"articleBackButton": "“Back” as a button"
+				"articleBackButton": "“Back” as a button",
+				"tipBg": "Background color",
+				"tipColor": "Text color",
+				"tipBorderColor": "Border color",
+				"tipBorderWidth": "Border width",
+				"tipRadius": "Corner radius",
+				"tipWidth": "Largest width",
+				"tipFont": "Font",
+				"tipSize": "Text size",
+				"tipLineColor": "Dot color under the text",
+				"tipLineWidth": "Dot width under the text"
 			},
 			"hints": {
 				"savedColors": "Colors of this story. In any color field: ★ adds the color here; a swatch applies it.",
@@ -568,7 +579,9 @@
 				"typeSeen": "Players came back to a screen — the text isn't typed again.",
 				"inputOn": "Code fields and other inputs. Off: the look comes from the stylesheet. Turning it on takes the values from there.",
 				"inputWidth": "0 means as is.",
-				"articleBack": "At the bottom of each article. An article can have its own caption in the Article form."
+				"articleBack": "At the bottom of each article. An article can have its own caption in the Article form.",
+				"tipSize": "0 means as the screen text.",
+				"tipLineWidth": "0 means no dots."
 			},
 			"preview": {
 				"title": "Terminal preview",
@@ -592,7 +605,9 @@
 				"styles": "Text styles",
 				"first": "First visit"
 			},
-			"inputFontSame": "As is"
+			"inputFontSame": "As is",
+			"tipHint": "The frame that appears above the text. The Tooltip button above the screen text sets the text and width of a single tooltip.",
+			"sampleTip": "Show or hide a sample tooltip"
 		},
 		"kinds": {
 			"button": "Button and Link Styles",
@@ -731,7 +746,16 @@
 				"camera": "Camera"
 			},
 			"image": {
-				"title": "Image"
+				"title": "Image",
+				"toggle": "Switch: a click changes the picture",
+				"toggleHint": "A click flips the variable. Off shows the picture above, on shows the second one.",
+				"second": "Second picture (on)",
+				"noSecond": "Same picture",
+				"variable": "Variable",
+				"variableHint": "Set the starting value in the Variables window. No value means off.",
+				"sound": "Click sound",
+				"noSound": "No sound",
+				"volume": "Sound volume"
 			},
 			"video": {
 				"title": "Video",
@@ -2031,7 +2055,24 @@
 				"delete": "Delete",
 				"confirmDelete": "Delete way “{{name}}”?",
 				"confirmDeleteUsed": "Way “{{name}}” is used on {{count}} screen(s). They will open as usual. Delete?"
-			}
+			},
+			"soundTitle": "Sound",
+			"sound": "File",
+			"noSound": "No sound",
+			"volume": "Volume",
+			"soundHint": "Plays once per screen, from the first element to the end of the file. A click or leaving the screen does not cut it off."
+		},
+		"tips": {
+			"button": "Tooltip",
+			"title": "Hover tooltip",
+			"sampleText": "text",
+			"sampleTip": "Tooltip text",
+			"tip": "Tooltip text",
+			"content": "Text on screen",
+			"contentHint": "The cursor rests on it. It can hold a link.",
+			"width": "Tooltip width",
+			"widthHint": "0 means as in Terminal appearance. Short text takes only the room it needs.",
+			"remove": "Remove tooltip"
 		}
 	}
 }

@@ -10,6 +10,7 @@ import {
 	IconArticle,
 	IconBolt,
 	IconLock,
+	IconMessage2,
 	IconAlignRight,
 	IconBold,
 	IconClick,
@@ -117,6 +118,7 @@ import {
 import {freeSpot} from '../../util/signaly/signaly-keys';
 import {articleTag, findArticle, newArticle, setArticle} from '../../util/signaly/signaly-articles';
 import {eventTag, findEvent, setEventHead} from '../../util/signaly/signaly-events';
+import {findTips, wrapTip} from '../../util/signaly/signaly-tip';
 import './signaly-format-toolbar.css';
 
 export interface SignalyFormatToolbarProps {
@@ -225,6 +227,13 @@ function clickTargets(value: string) {
 	if (article) {
 		targets.push({from: article.from, to: article.to, target: {kind: 'article'}});
 	}
+	// Шаг 5.4: подсказка — по своим командам, текст внутри правится как обычно.
+	findTips(value).forEach((tip, index) => {
+		const target: PanelTarget = {kind: 'tip', index};
+
+		targets.push({from: tip.from, to: tip.headTo, target});
+		targets.push({from: tip.closeFrom, to: tip.to, target});
+	});
 	return targets;
 }
 
@@ -657,6 +666,32 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 		setPanel({kind: 'link', index: findLinks(value.slice(0, from) + insert + value.slice(to)).findIndex(l => l.from === from)});
 	}
 
+	// Шаг 5.4 (ответ 4А): подсказка на выделенный текст. Курсор уже в подсказке —
+	// только форма: вторая подсказка внутри первой ни к чему.
+	function addTip() {
+		if (!editor) {
+			return;
+		}
+
+		const {text: value, from, to} = selection();
+		const tips = findTips(value);
+		const inside = tips.findIndex(tip => tip.from <= from && tip.to >= to);
+
+		if (inside !== -1) {
+			setPanel({kind: 'tip', index: inside});
+			return;
+		}
+
+		const edit = wrapTip(value, from, to, t('signaly.tips.sampleText'), t('signaly.tips.sampleTip'));
+
+		ensureEngine();
+		run(() => edit);
+		setPanel({
+			kind: 'tip',
+			index: findTips(value.slice(0, edit.from) + edit.insert + value.slice(edit.to)).findIndex(tip => tip.from === from)
+		});
+	}
+
 	function addLogic(type: 'states' | 'value') {
 		const {text: value, from, to} = selection();
 		const v = firstVariable();
@@ -724,7 +759,7 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 			return;
 		}
 		// Действия «окно», «таймер», «остановить таймер» (шаг 3.2) — команды движка.
-		if (/<<sg-/.test(edit.insert)) {
+		if (/<<(?:sg-|hovertip)/.test(edit.insert)) {
 			ensureEngine();
 		}
 		editor.operation(() =>
@@ -950,6 +985,7 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 				<IconButton disabled={off} icon={<IconBolt />} label={t('signaly.events.button')} onClick={addEvent} />
 				<IconButton disabled={off} icon={<IconLock />} label={accessLabel} onClick={addAccess} />
 				<IconButton disabled={off} icon={<IconArticle />} label={t('signaly.articles.button')} onClick={addArticle} />
+				<IconButton disabled={off} icon={<IconMessage2 />} label={t('signaly.tips.button')} onClick={addTip} />
 				<MenuButton
 					disabled={off}
 					icon={<IconSquarePlus />}

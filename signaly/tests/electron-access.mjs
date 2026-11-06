@@ -143,7 +143,7 @@ check('первая строка — команда, текст экрана о�
 check('тег sg-access', /tags="[^"]*sg-access/.test(passageIn(storyFile(), 'Цель').tag), passageIn(storyFile(), 'Цель').tag);
 check('цвет тега на карте', storyFile().includes('<tw-tag name="sg-access" color="red"'), storyFile().match(/<tw-tag[^>]*>/g));
 check('форма открылась', (await panel().getByText('Экран открыт, когда').count()) === 1);
-check('движок 18 поставлен', storyFile().includes('Версия движка: 18'));
+check('движок 19 поставлен', storyFile().includes('Версия движка: 19'));
 check('кнопка показывает условие', (await win.getByRole('button', {name: /^Доступ: \$/}).count()) === 1);
 
 /* Что ведёт на экран */

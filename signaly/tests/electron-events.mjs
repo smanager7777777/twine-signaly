@@ -224,7 +224,7 @@ await win.waitForTimeout(1000);
 const file = storyFile();
 const admin = passageIn(file, 'Admin');
 
-check('движок 18', file.includes('Версия движка: 18'));
+check('движок 19', file.includes('Версия движка: 19'));
 check('в истории: пассаж Admin с тегом sg-event и командой первой строкой', /tags="sg-event"/.test(admin.tag) && admin.text.startsWith('<<sg-event setup.visits("Start") gt 0'), `${admin.tag} ${admin.text.slice(0, 80)}`);
 
 /* 4. Окно «Коды»: код из условия спрашивает личный код */

@@ -68,6 +68,8 @@ export interface SignalyAppearancePreviewProps {
 	cycleDemo?: number;
 	/** Увеличивается — показать появление при первом посещении (шаг 4.5). */
 	firstDemo?: number;
+	/** Показать или убрать образец подсказки: растёт на 1. */
+	tipDemo?: number;
 	/** Способ появления; нет — тот, что стоит на открытом экране. */
 	firstWay?: string;
 	/** История с готовыми блоками (JavaScript и таблица стилей). */
@@ -81,7 +83,7 @@ export interface SignalyAppearancePreviewProps {
 export const SignalyAppearancePreview: React.FC<
 	SignalyAppearancePreviewProps
 > = props => {
-	const {baseUrl, cycleDemo, drag, firstDemo, firstWay, mode, passageId, refresh, sampleDialog, sounds, story} = props;
+	const {baseUrl, cycleDemo, drag, firstDemo, firstWay, mode, passageId, refresh, sampleDialog, sounds, story, tipDemo} = props;
 	const {dispatch, formats} = useStoryFormatsContext();
 	const {prefs} = usePrefsContext();
 	const muteRef = React.useRef(prefs.signalyPreviewMute);
@@ -192,6 +194,15 @@ export const SignalyAppearancePreview: React.FC<
 			.wiki(t('signaly.appearance.sampleDialogText'))
 			.open();
 	}, [sampleDialog]); // eslint-disable-line
+
+	// Образец подсказки — чтобы видеть её оформление.
+	React.useEffect(() => {
+		const sugar = (frameRef.current?.contentWindow as any)?.SugarCube;
+
+		if (tipDemo && sugar?.setup?.signaly?.tipDemo) {
+			sugar.setup.signaly.tipDemo();
+		}
+	}, [tipDemo]); // eslint-disable-line
 
 	// Смена цикла — показать анимацию цифр.
 	React.useEffect(() => {

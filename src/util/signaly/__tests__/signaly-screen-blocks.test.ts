@@ -105,6 +105,17 @@ describe('findBlocks', () => {
 	});
 });
 
+describe('картинка-переключатель (шаг 5.4)', () => {
+	it('слова читаются и пишутся обратно', () => {
+		const text = '<<sg-image "a.jpg" second "b.jpg" toggle "$lamp" sound "c.wav" volume 80 width 100>>';
+		const [block] = findBlocks(text);
+
+		expect(block.values).toMatchObject({second: 'b.jpg', toggle: '$lamp', sound: 'c.wav', volume: 80});
+		expect(findBlocks(writeBlock(block))[0].values).toMatchObject(block.values);
+		expect(writeBlock(block)).toContain('toggle "$lamp"');
+	});
+});
+
 describe('replaceBlock', () => {
 	it('replaces only the block', () => {
 		const text = 'x <<sg-image "a.jpg" width 10>> y';

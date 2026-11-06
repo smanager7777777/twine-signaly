@@ -23,10 +23,13 @@ import {
 	topLevelRules
 } from './signaly-css';
 import {firstCss, FirstWay, sanitizeWays} from './signaly-first';
+import {tipDefaults} from './signaly-tip';
 import {
 	flickerKeyframes,
 	inputCss,
 	InputLook,
+	tipCss,
+	TipLook,
 	noiseKeyframes,
 	noiseRule,
 	sanitizeStyles,
@@ -44,7 +47,7 @@ import {
 	signalyEngineVersion
 } from './signaly-engine';
 
-export interface SignalyAppearance extends GlitchSettings, InputLook {
+export interface SignalyAppearance extends GlitchSettings, InputLook, TipLook {
 	/** Экран (вся страница). */
 	pageBg: string;
 	textColor: string;
@@ -181,6 +184,7 @@ export const defaultAppearance: SignalyAppearance = {
 	typeClick: true,
 	typeSeen: true,
 	inputOn: false,
+	...tipDefaults,
 	inputBg: '#000000',
 	inputColor: '#00cc00',
 	inputBorderColor: '#00cc00',
@@ -400,7 +404,8 @@ export function appearanceCss(a: SignalyAppearance): string {
 	lines.push(
 		...screensCss(a.screens, {...a, fontFamily: fontFamily(a)}),
 		...textStylesCss(a.textStyles),
-		...firstCss(a.firstWays, a.glitchShadow1, a.glitchShadow2)
+		...firstCss(a.firstWays, a.glitchShadow1, a.glitchShadow2),
+		...tipCss(a)
 	);
 
 	return lines.join('\n');

@@ -261,19 +261,21 @@ async function run(url, say) {
 	if (shots) {
 		await page.screenshot({path: path.join(shots, 'camera-on.png')});
 	}
-	await page.click('.sg-camera button');
-	await page.waitForTimeout(200);
-	n = await calls(page);
-	say('повторное нажатие ничего не спрашивает', n.window === 1, JSON.stringify(n));
+	// Шаг 5.4 (ответ 2А): подключено — кнопки не видно, смена экрана этого не меняет.
+	const seen = () => page.locator('.sg-camera button').isVisible();
+
+	say('подключено: кнопка спрятана', !(await seen()));
 	await go(page, 'CmHome');
 	await go(page, 'CmWin', 500);
 	s = await state(page);
 	n = await calls(page);
 	say('захват окна переживает смену экрана', n.window === 1 && s.playing && !s.off, JSON.stringify([n, s]));
+	say('на новом показе экрана кнопка тоже спрятана', !(await seen()));
 	await page.evaluate(() => window.fakeMedia.unplug());
 	await page.waitForTimeout(300);
 	s = await state(page);
 	say('окно закрыли — «НЕТ СИГНАЛА»', s.off && !s.stream, JSON.stringify(s));
+	say('окно закрыли — кнопка вернулась', await seen());
 	await page.evaluate(() => (window.fakeMedia.deny = true));
 	await page.click('.sg-camera button');
 	await page.waitForTimeout(300);
@@ -359,6 +361,8 @@ async function compare(old, now) {
 			await page.getByRole('button', {name: 'Подключить камеру'}).click();
 		}
 		await page.waitForTimeout(800);
+		// Шаг 5.4: в новой сборке кнопка спрятана, сравнивается картинка.
+		await page.addStyleTag({content: '.sg-camera button, #passages button { visibility: hidden; }'});
 
 		const png = await page.screenshot({animations: 'disabled', caret: 'hide'});
 

@@ -35,7 +35,7 @@ export function hackLengths(words: string[], count: number) {
 }
 
 /** Текст кода шаблона без значений, которые переносятся в блок. */
-function scriptHash(code: string) {
+export function scriptHash(code: string) {
 	let hash = 5381;
 
 	for (let i = 0; i < code.length; i++) {

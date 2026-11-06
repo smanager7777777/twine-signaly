@@ -15,13 +15,15 @@ export interface FirstWaysTabProps {
 	onSelect: (index: number) => void;
 	savedColors: string[];
 	selected: number;
+	/** Звуковые файлы папки игры. */
+	sounds: string[];
 	/** Сколько экранов пользуются способом — для предупреждения об удалении. */
 	used: (id: string) => number;
 	ways: FirstWay[];
 }
 
 export const FirstWaysTab: React.FC<FirstWaysTabProps> = props => {
-	const {onChange, onSaveColor, onSelect, savedColors, selected, used, ways} = props;
+	const {onChange, onSaveColor, onSelect, savedColors, selected, sounds, used, ways} = props;
 	const {t} = useTranslation();
 	const l = (key: string, options?: Record<string, unknown>) => t(`signaly.first.${key}`, options);
 	const way = ways[selected];
@@ -78,6 +80,23 @@ export const FirstWaysTab: React.FC<FirstWaysTabProps> = props => {
 						<ColorField label={l('color')} onChange={color => set({color})} onSaveColor={onSaveColor} savedColors={savedColors} value={way.color} />
 					)}
 					<CheckField hint={l('skipHint')} label={l('skip')} onChange={skip => set({skip})} value={way.skip} />
+					<h3>{l('soundTitle')}</h3>
+					<ChoiceField
+						hint={l('soundHint')}
+						label={l('sound')}
+						onChange={sound => set({sound})}
+						options={[
+							{label: l('noSound'), value: ''},
+							...[...new Set([...sounds, ...(way.sound ? [way.sound] : [])])].map(file => ({
+								label: file.replace(/^media\/audio\//, ''),
+								value: file
+							}))
+						]}
+						value={way.sound}
+					/>
+					{way.sound !== '' && (
+						<RangeField label={l('volume')} max={100} min={0} onChange={volume => set({volume})} unit="%" value={way.volume} />
+					)}
 					<p className="signaly-field-hint">{l('howTo')}</p>
 				</>
 			)}

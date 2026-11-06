@@ -6,6 +6,7 @@
 // Шаг 3.3: код горячих клавиш шаблона (Shift+Z+A/B/C) — пассажем «Горячие клавиши».
 // Шаг 5.2: экран «Хактест» шаблона — блоком «Терминал взлома».
 // Шаг 5.3: CAMERATEST, XIAOMICAM и код камер шаблона — блоками «Камера».
+// Шаг 5.4: код подсказки шаблона — в движок, её вид — в оформление.
 
 import {
 	Story,
@@ -18,6 +19,7 @@ import {moveTemplateTimers} from '../util/signaly/signaly-timers';
 import {moveScriptDialogs} from '../util/signaly/signaly-actions';
 import {moveTemplateCamera} from '../util/signaly/signaly-camera';
 import {moveTemplateHack} from '../util/signaly/signaly-hack';
+import {moveTemplateTips} from '../util/signaly/signaly-tip';
 import {freeSpot, keysPassageName, keysTag, moveTemplateKeys} from '../util/signaly/signaly-keys';
 
 /** Записывает изменения истории; возвращает, сколько кнопок на экране перенесено. */
@@ -59,13 +61,14 @@ export function saveStoryWithUpgrade(
 	camera.texts.forEach((text, index) => texts.set(story.passages[index], text));
 	// Шаг 3.3: горячие клавиши шаблона → пассаж «Горячие клавиши».
 	const keys = moveTemplateKeys(camera.script, story.passages);
-	const script = keys ? keys.script : camera.script;
+	const tips = moveTemplateTips(keys ? keys.script : camera.script, upgrade ? upgrade.stylesheet : stylesheet);
+	const {script} = tips;
 
 	dispatch(
 		updateStory(stories, story, {
 			...changes,
 			...(script !== (changes.script ?? story.script) ? {script} : {}),
-			stylesheet: upgrade ? upgrade.stylesheet : stylesheet
+			stylesheet: tips.stylesheet
 		})
 	);
 	if (keys) {

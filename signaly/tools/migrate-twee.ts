@@ -32,6 +32,7 @@ import {moveTemplateTimers} from '../../src/util/signaly/signaly-timers';
 import {moveScriptDialogs} from '../../src/util/signaly/signaly-actions';
 import {moveTemplateHack} from '../../src/util/signaly/signaly-hack';
 import {moveTemplateCamera} from '../../src/util/signaly/signaly-camera';
+import {moveTemplateTips} from '../../src/util/signaly/signaly-tip';
 import {freeSpot, keysPassageName, keysTag, moveTemplateKeys} from '../../src/util/signaly/signaly-keys';
 
 function section(source: string, header: RegExp) {
@@ -228,6 +229,25 @@ if (init && findAudioInit(init.text).ranges.length) {
 		twee = replaceSection(twee, script, keys.script.replace(/\s+$/, ''), script.to >= twee.length);
 		twee = twee.replace(scriptHeader, header => chunk + header);
 		result.moved.push('горячие клавиши шаблона → пассаж «Горячие клавиши»');
+	}
+}
+
+// Подсказка (шаг 5.4): код шаблона — в движок, её вид — в оформление.
+{
+	const scriptNow = section(twee, scriptHeader)!;
+	const styleNow = section(twee, styleHeader)!;
+	const tips = moveTemplateTips(scriptNow.text, styleNow.text);
+
+	if (tips.script !== scriptNow.text || tips.stylesheet !== styleNow.text) {
+		[
+			{found: scriptNow, text: tips.script},
+			{found: styleNow, text: tips.stylesheet}
+		]
+			.sort((a, b) => b.found.from - a.found.from)
+			.forEach(({found, text}) => {
+				twee = replaceSection(twee, found, text, found.to >= twee.length);
+			});
+		result.moved.push('подсказка шаблона → движок и оформление');
 	}
 }
 
