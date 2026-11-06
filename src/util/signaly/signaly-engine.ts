@@ -5051,8 +5051,8 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	/* ----- Предзагрузка картинок (этап 6, ответ 6А) ----- */
 
 	// Все картинки из текста экранов загружаются при запуске, пока горит
-	// стартовый экран. Запуск их не ждёт. Пути с переменными не загружаются:
-	// значения ещё нет. Ссылки на картинки хранятся, иначе браузер их выбросит.
+	// стартовый экран. Запуск их не ждёт. Берутся только файлы из media/ (решение 11),
+	// поэтому пути с переменными не загружаются. Ссылки на картинки хранятся, иначе браузер их выбросит.
 	var imageExt = 'jpe?g|png|gif|webp|bmp|svg|avif';
 	var imageLoaded = {};
 
@@ -5074,7 +5074,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 				while ((m = re.exec(p.text))) {
 					var src = m[2].trim();
 
-					if (!imageLoaded[src] && !/^data:/i.test(src) && src.charAt(0) !== '$') {
+					if (!imageLoaded[src] && src.indexOf('media/') === 0) {
 						imageLoaded[src] = new Image();
 						imageLoaded[src].src = src;
 					}
