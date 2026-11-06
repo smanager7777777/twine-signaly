@@ -2445,15 +2445,25 @@ setup.signalySounds = {
 	});
 
 	Macro.add('sg-entry', {
-		tags: ['sg-answer'],
+		tags: ['sg-answer', 'sg-when'],
 		handler: function () {
 			if (!codeCollect) {
 				return;
 			}
 
-			var a = blockArgs(this, ['code', 'label'], ['who', 'once', 'title', 'goto', 'denied', 'used'], []);
+			var a = blockArgs(this, ['code', 'label'], ['who', 'once', 'title', 'goto', 'denied', 'used', 'lock'], []);
 			var actions = this.payload[0].contents;
-			var answer = this.payload[1] ? trimContent(this.payload[1].contents) : '';
+			var answer = '';
+			var when = '';
+
+			this.payload.slice(1).forEach(function (part) {
+				if (part.name === 'sg-answer') {
+					answer = trimContent(part.contents);
+				} else {
+					when = part.contents.trim();
+				}
+			});
+
 			var who = a.who === undefined ? [] : String(a.who).split(',').map(function (s) {
 				return s.trim();
 			}).filter(Boolean);
@@ -2466,6 +2476,8 @@ setup.signalySounds = {
 				goto: a.goto === undefined ? '' : String(a.goto),
 				denied: a.denied === undefined ? '' : String(a.denied),
 				used: a.used === undefined ? '' : String(a.used),
+				lock: a.lock === undefined ? '' : String(a.lock),
+				when: when,
 				run: actions,
 				answer: answer,
 				pin:
@@ -2746,9 +2758,47 @@ setup.signalySounds = {
 				pin.focus();
 			}
 
+			// Шаг 4.5: у кода своё «когда можно ввести». Раньше времени — как у
+			// закрытого экрана: пассаж блокировки, код не тратится.
+			function tableEarly(entry) {
+				var open = true;
+
+				if (preview || !entry.when) {
+					return false;
+				}
+				try {
+					open = !!Scripting.evalTwineScript(entry.when);
+				} catch (e) {
+					console.error('СИГНАЛЫ: условие кода ' + entry.code, e);
+				}
+				if (open) {
+					return false;
+				}
+
+				var shared = Story.filter(function (p) {
+					return p.tags.indexOf('sg-lock') !== -1;
+				});
+				var lock = entry.lock && Story.has(entry.lock) ? entry.lock : shared.length ? shared[0].title : '';
+
+				if (!lock || lock === State.passage) {
+					codeMessage(codes().texts.wrong);
+					return true;
+				}
+				State.variables.sgEventFrom = State.passage;
+				accessSkip = true;
+				try {
+					Engine.play(lock);
+				} finally {
+					accessSkip = false;
+				}
+				return true;
+			}
+
 			function tableEntry(entry, value) {
 				if (entry.once === 'all' && usedMarks()[entry.code]) {
 					codeMessage(entry.used || codes().texts.used);
+				} else if (tableEarly(entry)) {
+					return;
 				} else if (accessEarly(entry.goto, entry.code, tableRefuse(entry))) {
 					return;
 				} else if (entry.pin) {
