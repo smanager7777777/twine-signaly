@@ -2857,7 +2857,8 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		var fx = String(a.missfx || '');
 		var flash = String(hackOption(a, 'fxcolor'));
 
-		if (a.misssound) {
+		// В предпросмотре <<sg-sound>> нет: он объявлен после границы предпросмотра.
+		if (a.misssound && !preview) {
 			Wikifier.wikifyEval('<<sg-sound ' + JSON.stringify(String(a.misssound)) + ' volume ' + hackNumber(a.missvolume, hackDefaults.missvolume, 0) + '>>');
 		}
 		if (fx === 'flash' || fx === 'flicker') {
@@ -3018,6 +3019,10 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 					}, Engine.DOM_DELAY);
 				}
 				return;
+			}
+
+			if (a.misssound && !preview) {
+				signalFor(String(a.misssound));
 			}
 
 			var all = hackList(a.words);
