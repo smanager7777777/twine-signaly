@@ -19,6 +19,8 @@ import {
 
 export interface SignalyEffectFormProps {
 	effect: Effect;
+	/** Виды кнопок и ссылок (для раскрытия). */
+	kinds: Array<{cls: string; name: string}>;
 	text: string;
 	onText: (text: string) => void;
 }
@@ -28,7 +30,7 @@ export function effectTitle(effect: Effect, t: (key: string) => string) {
 }
 
 export const SignalyEffectForm: React.FC<SignalyEffectFormProps> = props => {
-	const {effect, onText, text} = props;
+	const {effect, kinds, onText, text} = props;
 	const {t} = useTranslation();
 	const l = (key: string) => t(`signaly.effects.${key}`);
 	const seconds = t('signaly.appearance.units.seconds');
@@ -236,6 +238,45 @@ export const SignalyEffectForm: React.FC<SignalyEffectFormProps> = props => {
 					{turnOnFields}
 					<div className="signaly-field-hint">{l('blinkHint')}</div>
 					{more}
+				</>
+			);
+
+		case 'reveal':
+			return (
+				<>
+					<TextField
+						hint={l('revealLabelHint')}
+						label={l('revealLabel')}
+						onChange={label => write({label})}
+						value={effect.label ?? ''}
+					/>
+					<div className="signaly-field">
+						<label className="signaly-field-label">
+							{l('revealText')}
+							<textarea
+								className="signaly-text signaly-area"
+								onChange={e =>
+									onText(text.slice(0, effect.contentFrom) + e.target.value + text.slice(effect.contentTo))
+								}
+								rows={3}
+								value={content}
+							/>
+						</label>
+						<div className="signaly-field-hint">{t('signaly.blocks.contentHint')}</div>
+					</div>
+					<ChoiceField
+						label={l('revealForm')}
+						onChange={value => write({button: value === 'button'})}
+						options={['button', 'link'].map(value => ({label: l(`revealForms.${value}`), value}))}
+						value={effect.button ? 'button' : 'link'}
+					/>
+					<ChoiceField
+						label={l('revealKind')}
+						onChange={value => write({kind: value || undefined})}
+						options={kinds.map(k => ({label: k.name, value: k.cls}))}
+						value={effect.kind ?? ''}
+					/>
+					<div className="signaly-field-hint">{l('revealHint')}</div>
 				</>
 			);
 

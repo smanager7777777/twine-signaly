@@ -743,7 +743,8 @@
 				"list": "State list: buttons (procedures)",
 				"tiles": "State list: tiles (systems)",
 				"hack": "Hacking terminal",
-				"camera": "Camera"
+				"camera": "Camera",
+				"pick": "Cycling button"
 			},
 			"image": {
 				"title": "Image",
@@ -1128,6 +1129,27 @@
 				"offColor": "Label color",
 				"offNoise": "Noise",
 				"placeTitle": "Place and border"
+			},
+			"pick": {
+				"title": "Cycling button",
+				"variable": "Variable",
+				"variableHint": "Holds the value. You can test it in a condition and change it with an action. A variable with no value gets the first value in the list.",
+				"form": "Show as",
+				"forms": {
+					"button": "Button",
+					"link": "Link"
+				},
+				"kind": "Style",
+				"values": "Values",
+				"valuesHint": "Each click moves to the next row; after the last it returns to the first.",
+				"label": "Label",
+				"value": "Value",
+				"up": "Up",
+				"down": "Down",
+				"remove": "Remove value",
+				"add": "Add value",
+				"newValue": "New",
+				"repeated": "Two values match: the button cannot move past the first of them."
 			}
 		},
 		"drag": {
@@ -1142,14 +1164,16 @@
 				"lines": "Lines appear one by one",
 				"swap": "Replace text after N seconds",
 				"blink": "Blink",
-				"glitch": "Glitch"
+				"glitch": "Glitch",
+				"reveal": "Reveal on click"
 			},
 			"types": {
 				"type": "Typewriter",
 				"timed": "Appear",
 				"swap": "Replace text",
 				"blink": "Blink",
-				"glitch": "Glitch"
+				"glitch": "Glitch",
+				"reveal": "Reveal on click"
 			},
 			"sample": "Text",
 			"sampleNew": "New text",
@@ -1197,7 +1221,18 @@
 				"after": "After effects above"
 			},
 			"turnOnAfter": "Seconds",
-			"moreHint": "One more effect on the same text: select the text and choose \"Effect\" — the program orders the effects itself."
+			"moreHint": "One more effect on the same text: select the text and choose \"Effect\" — the program orders the effects itself.",
+			"sampleReveal": "[DECRYPT]",
+			"revealLabel": "Label",
+			"revealLabelHint": "What is shown before the click.",
+			"revealText": "Text to reveal",
+			"revealForm": "Show as",
+			"revealForms": {
+				"button": "Button",
+				"link": "Link"
+			},
+			"revealKind": "Style",
+			"revealHint": "A click replaces the label with the text right on the screen, without moving to another one. On returning to the screen the label is back. To type or blink the text, select it inside the reveal and choose Effect."
 		},
 		"sounds": {
 			"button": "Sounds",
@@ -1513,7 +1548,13 @@
 				"volume": "Volume",
 				"keep": "Do not restart if still playing",
 				"keepHint": "Without the tick, pressing again starts the sound from the beginning.",
-				"hint": "Plays on its own: buttons A–E, pause and group volume do not affect it."
+				"hint": "Plays on its own: buttons A–E, pause and group volume do not affect it.",
+				"duck": "Lower while the file plays",
+				"duckHint": "While the file plays, the chosen sounds are quieter, then the volume returns by itself.",
+				"duckWho": "What to lower",
+				"duckAll": "Everything playing",
+				"duckTo": "Volume meanwhile",
+				"duckToHint": "Percent of the usual volume that remains."
 			},
 			"if": {
 				"then": "Then (if the condition holds)",

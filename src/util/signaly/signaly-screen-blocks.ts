@@ -31,6 +31,10 @@
 //                                                         (шаг 5.3: камера)
 //   <<sg-image "media/img/off.jpg" second "media/img/on.jpg" toggle "$lamp" sound "media/audio/x.wav" volume 80>>
 //                                                         (шаг 5.4: картинка-переключатель)
+//   <<sg-pick var "$mode" form button kind amber>>         (этап 6: кнопка-перебор)
+//   <<sg-opt "ВЫКЛ" 0>>
+//   <<sg-opt "ВКЛ" 1>>
+//   <</sg-pick>>
 // Окно KR2 — команды <<kr2image>>, <<kr2layout>>, <<kr2vars>>, <<kr2main>>.
 // Команды понимает движок (signaly-engine.ts) — и в обычном Twine тоже.
 //
@@ -49,9 +53,10 @@ export type BlockType =
 	| 'articles'
 	| 'list'
 	| 'hack'
-	| 'camera';
+	| 'camera'
+	| 'pick';
 export type CaseKind = 'case' | 'wrong';
-type PartKind = CaseKind | 'step' | 'state' | 'row' | 'win' | 'fail' | 'miss';
+type PartKind = CaseKind | 'step' | 'state' | 'row' | 'win' | 'fail' | 'miss' | 'opt';
 export type Value = string | number | boolean;
 export type Values = Record<string, Value | undefined>;
 
@@ -67,7 +72,8 @@ export const blockMacros: Record<BlockType, string> = {
 	articles: 'sg-articles',
 	list: 'sg-list',
 	hack: 'sg-hack',
-	camera: 'sg-camera'
+	camera: 'sg-camera',
+	pick: 'sg-pick'
 };
 
 const partMacros: Record<PartKind, string> = {
@@ -78,7 +84,8 @@ const partMacros: Record<PartKind, string> = {
 	row: 'sg-row',
 	win: 'sg-hack-win',
 	fail: 'sg-hack-fail',
-	miss: 'sg-hack-miss'
+	miss: 'sg-hack-miss',
+	opt: 'sg-opt'
 };
 
 export const blockTypes = Object.keys(blockMacros) as BlockType[];
@@ -267,6 +274,10 @@ const specs: Record<BlockType | PartKind, ArgSpec> = {
 		flags: [],
 		container: false
 	},
+	// Этап 6: кнопка-перебор. form: button — кнопкой, нет — ссылкой; значения —
+	// строки <<sg-opt "Надпись" значение>>.
+	pick: {pos: [], keys: {var: 'string', form: 'string', kind: 'string'}, flags: [], container: true},
+	opt: {pos: ['label', 'value'], keys: {}, flags: [], container: false},
 	// Шаг 5.2: терминал взлома. key — ключевое слово (нет — случайное из списка);
 	// hint, tries, missplace — место: top, bottom, left, right (missplace ещё over);
 	// triesshow: text, boxes, both; missfx: flicker, flash, ripple.
@@ -375,6 +386,13 @@ export interface ScreenBlock {
 	rows?: ListRow[];
 	/** Действия терминала взлома: при успехе, провале, неверном слове (шаг 5.2). */
 	hack?: HackActions;
+	/** Значения кнопки-перебора (этап 6). */
+	options?: PickOption[];
+}
+
+export interface PickOption {
+	values: Values;
+	extra: string[];
 }
 
 export interface HackActions {
@@ -571,7 +589,7 @@ function writeArgs(values: Values, extra: string[], spec: ArgSpec) {
 
 /* ----- Поиск блоков в тексте ----- */
 
-const openRe = /<<sg-(image|video|alarm|dialog|code|place|timer|chain|articles|list|hack|camera)(?=[\s>])/g;
+const openRe = /<<sg-(image|video|alarm|dialog|code|place|timer|chain|articles|list|hack|camera|pick)(?=[\s>])/g;
 
 function macroType(name: string): BlockType | undefined {
 	return blockTypes.find(type => blockMacros[type] === 'sg-' + name);
@@ -682,6 +700,8 @@ export function findBlocks(text: string): ScreenBlock[] {
 					.filter(part => part.kind === 'state')
 					.map(({values, extra, content}) => ({values, extra, content}));
 				block.rows = parts.filter(part => part.kind === 'row').map(({values, extra}) => ({values, extra}));
+			} else if (type === 'pick') {
+				block.options = parseCases(content, /<<sg-(opt)(?=[\s>])/g).map(({values, extra}) => ({values, extra}));
 			} else if (type === 'hack') {
 				const parts = (parseCases(content, /<<sg-hack-(win|fail|miss)(?=[\s>])/g) as unknown) as Array<{
 					kind: keyof HackActions;
@@ -700,7 +720,7 @@ export function findBlocks(text: string): ScreenBlock[] {
 		// Внутри тревоги, окна и кнопки на экране могут стоять другие блоки и
 		// эффекты — их тоже ищем (у поля кода внутри — таблица кодов, у цепочки —
 		// шаги).
-		openRe.lastIndex = type === 'code' || type === 'chain' || type === 'list' || type === 'hack' ? block.to : scan.end;
+		openRe.lastIndex = type === 'code' || type === 'chain' || type === 'list' || type === 'hack' || type === 'pick' ? block.to : scan.end;
 	}
 	return blocks;
 }
@@ -758,6 +778,11 @@ export function writeBlock(block: Omit<ScreenBlock, 'from' | 'to'>) {
 		];
 
 		return `${head}\n${lines.map(line => line + '\n').join('')}<</${name}>>`;
+	}
+	if (block.type === 'pick') {
+		const lines = (block.options ?? []).map(o => `<<${partMacros.opt}${writeArgs(o.values, o.extra, specs.opt)}>>\n`);
+
+		return `${head}\n${lines.join('')}<</${name}>>`;
 	}
 	if (block.type === 'hack') {
 		const actions = block.hack;
@@ -842,6 +867,17 @@ export function newBlock(type: BlockType): Omit<ScreenBlock, 'from' | 'to'> {
 			return {type, values: {columns: 1, headings: true}, extra: []};
 		case 'list':
 			return newStateList(false);
+		case 'pick':
+			return {
+				type,
+				values: {var: '$switch1', form: 'button'},
+				extra: [],
+				options: [
+					{values: {label: 'ВЫКЛ', value: 0}, extra: []},
+					{values: {label: 'ВКЛ', value: 1}, extra: []},
+					{values: {label: 'АВТО', value: 2}, extra: []}
+				]
+			};
 		case 'hack':
 			// Заготовка (ответ 4): столбцы, квадратики, рамка, глитч выбранных слов.
 			return {

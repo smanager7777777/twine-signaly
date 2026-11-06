@@ -209,6 +209,19 @@ describe('действия ссылок и кнопок', () => {
 		expect(parseAction('<<sg-sound "a.wav">>')).toMatchObject({type: 'signal', volume: 100, keep: false});
 		expect(writeAction({type: 'signal', src: 'a.wav', volume: 40, keep: true})).toBe('<<sg-sound "a.wav" volume 40 keep>>');
 		expect(parseAction('<<sg-sound "a.wav" loud>>').type).toBe('code');
+		// Этап 6: приглушение на время файла.
+		expect(parseAction('<<sg-sound "a.wav" volume 80 duck ":AMBIENT" to 25>>')).toMatchObject({
+			type: 'signal',
+			volume: 80,
+			duck: ':AMBIENT',
+			duckTo: 25
+		});
+		expect(writeAction({type: 'signal', src: 'a.wav', volume: 80, keep: true, duck: ':playing', duckTo: 15})).toBe(
+			'<<sg-sound "a.wav" volume 80 keep duck ":playing" to 15>>'
+		);
+		expect(writeAction({type: 'signal', src: 'a.wav', volume: 80, keep: false, duck: ':AMBIENT'})).toBe(
+			'<<sg-sound "a.wav" volume 80 duck ":AMBIENT" to 30>>'
+		);
 	});
 
 	it('[[…]] остаётся разметкой, пока хватает', () => {

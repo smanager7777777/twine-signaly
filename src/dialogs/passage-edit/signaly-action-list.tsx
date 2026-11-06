@@ -444,6 +444,39 @@ export const ActionList: React.FC<ActionListProps> = props => {
 				value={a.volume}
 			/>
 			<CheckField hint={l('signal.keepHint')} label={l('signal.keep')} onChange={keep => edit(index, a, {keep})} value={a.keep} />
+			<CheckField
+				hint={l('signal.duckHint')}
+				label={l('signal.duck')}
+				onChange={on =>
+					edit(index, a, on ? {duck: audio.groups[0]?.id ?? ':playing', duckTo: 30} : {duck: undefined, duckTo: undefined})
+				}
+				value={!!a.duck}
+			/>
+			{!!a.duck && (
+				<>
+					<ChoiceField
+						label={l('signal.duckWho')}
+						onChange={duck => edit(index, a, {duck})}
+						options={[
+							...[...new Set([...audio.groups.map(g => g.id), ...(a.duck === ':playing' ? [] : [a.duck])])].map(id => ({
+								label: id,
+								value: id
+							})),
+							{label: l('signal.duckAll'), value: ':playing'}
+						]}
+						value={a.duck}
+					/>
+					<RangeField
+						hint={l('signal.duckToHint')}
+						label={l('signal.duckTo')}
+						max={100}
+						min={0}
+						onChange={duckTo => edit(index, a, {duckTo})}
+						unit="%"
+						value={a.duckTo ?? 30}
+					/>
+				</>
+			)}
 			<div className="signaly-field-hint">{l('signal.hint')}</div>
 		</>
 	);

@@ -200,4 +200,64 @@ describe('signaly-effects', () => {
 
 		expect(apply(typed, 0, typed.length, 'lines')).toBe('<<timed 1s>>' + typed + '<</timed>>');
 	});
+
+	describe('раскрытие по щелчку (этап 6)', () => {
+		const samples = {text: 'Текст', next: 'Новый', lines: 'а\nб', label: '[РАСШИФРОВАТЬ]'};
+
+		it('выделенный текст становится текстом раскрытия', () => {
+			const made = composeEffect('reveal', 'до Тайна после', 3, 8, samples);
+
+			expect(made.insert).toBe(
+				'<span id="sg-reveal1"><<button "[РАСШИФРОВАТЬ]">><<replace "#sg-reveal1">>Тайна<</replace>><</button>></span>'
+			);
+			expect(made.from).toBe(3);
+			expect(made.to).toBe(8);
+		});
+
+		it('без выделения — образец, номер свободный', () => {
+			const text = '<span id="sg-reveal1">x</span>';
+
+			expect(composeEffect('reveal', text, 0, 0, samples).insert).toContain('id="sg-reveal2"');
+			expect(composeEffect('reveal', text, 0, 0, samples).insert).toContain('>>Текст<</replace>>');
+		});
+
+		it('читает и записывает обратно дословно', () => {
+			const text =
+				'а <span id="sg-reveal1"><span class="amber"><<link "[ОТКРЫТЬ \\"Х\\"]">><<replace "#sg-reveal1">>Тайна<</replace>><</link>></span></span> б';
+			const [effect] = findEffects(text);
+
+			expect(effect).toMatchObject({type: 'reveal', label: '[ОТКРЫТЬ "Х"]', kind: 'amber', button: false, target: 'sg-reveal1'});
+			expect(text.slice(effect.contentFrom, effect.contentTo)).toBe('Тайна');
+			expect(replaceEffect(text, effect, effect)).toBe(text);
+			expect(text.slice(effect.linkFrom!).startsWith('<<link')).toBe(true);
+		});
+
+		it('меняет форму и вид, текст остаётся', () => {
+			const text = '<span id="sg-reveal1"><<button "x">><<replace "#sg-reveal1">>Тайна<</replace>><</button>></span>';
+			const [effect] = findEffects(text);
+
+			expect(replaceEffect(text, effect, {...effect, button: false, kind: 'red-big'})).toBe(
+				'<span id="sg-reveal1"><span class="red-big"><<link "x">><<replace "#sg-reveal1">>Тайна<</replace>><</link>></span></span>'
+			);
+		});
+
+		it('эффекты внутри раскрытия видны отдельно, новый встаёт внутрь', () => {
+			const inner = '<span class="sg-blink">Тайна</span>';
+			const text = `<span id="sg-reveal1"><<button "x">><<replace "#sg-reveal1">>${inner}<</replace>><</button>></span>`;
+
+			expect(findEffects(text).map(e => e.type)).toEqual(['reveal', 'blink']);
+
+			const plain = '<span id="sg-reveal1"><<button "x">><<replace "#sg-reveal1">>Тайна<</replace>><</button>></span>';
+			const at = plain.indexOf('Тайна');
+			const made = composeEffect('type', plain, at, at + 5, samples);
+
+			expect(made.from).toBe(at);
+			expect(made.insert).toContain('<<type');
+		});
+
+		it('чужая разметка раскрытием не считается', () => {
+			expect(findEffects('<span id="sg-reveal1"><<link "x">><<replace "#другой">>т<</replace>><</link>></span>')).toEqual([]);
+			expect(findEffects('<span id="sg-reveal1"><<link "x">><<replace "#sg-reveal1">>т<</replace>>ещё<</link>></span>')).toEqual([]);
+		});
+	});
 });

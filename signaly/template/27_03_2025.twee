@@ -864,7 +864,7 @@ setup.signalySounds = {
 
 
 /* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */
-/* Версия движка: 19. Обновляется программой «Twine СИГНАЛЫ».
+/* Версия движка: 20. Обновляется программой «Twine СИГНАЛЫ».
    Настройки — в окне «Оформление терминала» (они лежат в таблице стилей).
    Свой код пишите ниже конца этого блока. */
 (function () {
@@ -909,7 +909,7 @@ setup.signalySounds = {
 	// Предпросмотр в программе: без стартового экрана, автокопии и защиты.
 	var preview = window.SIGNALY_PREVIEW;
 
-	setup.signaly = {engine: 19, preview: !!preview};
+	setup.signaly = {engine: 20, preview: !!preview};
 
 	function showStartScreen(onClick) {
 		var screen = document.createElement('div');
@@ -3810,6 +3810,95 @@ setup.signalySounds = {
 		}
 	});
 
+	/* ----- Кнопка-перебор (этап 6, ответ 2А) ----- */
+
+	// <<sg-pick var "$mode" [form button] [kind amber]>> со строками
+	// <<sg-opt "Надпись" значение>>. Щелчок даёт следующее значение, значение лежит
+	// в переменной. Его меняет и всё остальное в игре (код, клавиша мастера):
+	// надпись следит сама, 4 раза в секунду.
+	var pickItems = [];
+	var pickTimer = null;
+
+	function pickIndex(item) {
+		var value = State.getVar(item.name);
+		var text = value === false ? '0' : value === true ? '1' : String(value);
+
+		for (var i = 0; i < item.options.length; i++) {
+			if (String(item.options[i].value) === text) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	function pickDraw(item) {
+		var index = Math.max(0, pickIndex(item));
+
+		if (index !== item.index) {
+			item.index = index;
+			item.el.textContent = String(item.options[index].label || '—');
+		}
+	}
+
+	function pickTick() {
+		pickItems.forEach(pickDraw);
+	}
+
+	function pickNext(item) {
+		var now = State.getVar(item.name);
+		var next = item.options[(Math.max(-1, pickIndex(item)) + 1) % item.options.length].value;
+
+		// Да-нет остаётся да-нет, как у картинки-переключателя.
+		State.setVar(item.name, typeof now === 'boolean' ? !!next : next);
+		pickDraw(item);
+	}
+
+	$(document).on(':passageinit', function () {
+		pickItems = [];
+	});
+
+	Macro.add('sg-pick', {
+		tags: ['sg-opt'],
+		handler: function () {
+			var a = blockArgs(this, [], ['var', 'form', 'kind'], []);
+			var options = this.payload.slice(1).map(function (part) {
+				return blockArgs({args: part.args}, ['label', 'value'], [], []);
+			});
+			var name = String(a['var'] || '');
+
+			if (!name || !options.length) {
+				return;
+			}
+
+			var item = {name: /^[$_]/.test(name) ? name : '$' + name, options: options, index: -1};
+			var box = document.createElement('span');
+			var inner = box;
+			var tag = a.form === 'button' ? 'button' : 'link';
+
+			box.className = 'sg-pick';
+			if (a.kind) {
+				inner = document.createElement('span');
+				inner.className = String(a.kind);
+				box.appendChild(inner);
+			}
+			// Переменная без значения получает первое: на экране и в условиях одно и то же.
+			if (State.getVar(item.name) === undefined) {
+				State.setVar(item.name, options[0].value);
+			}
+			$(inner).wiki('<<' + tag + ' "—">><</' + tag + '>>');
+			item.el = inner.querySelector('a, button');
+			pickDraw(item);
+			$(item.el).on('click', function () {
+				pickNext(item);
+			});
+			pickItems.push(item);
+			this.output.appendChild(box);
+			if (!pickTimer) {
+				pickTimer = setInterval(pickTick, 250);
+			}
+		}
+	});
+
 	/* ----- Терминал взлома (шаг 5.2) ----- */
 
 	// <<sg-hack слова>> с частями <<sg-hack-win>>, <<sg-hack-fail>>, <<sg-hack-miss>>
@@ -5759,6 +5848,43 @@ setup.signalySounds = {
 		return;
 	}
 
+	/* ----- Предзагрузка картинок (этап 6, ответ 6А) ----- */
+
+	// Все картинки из текста экранов загружаются при запуске, пока горит
+	// стартовый экран. Запуск их не ждёт. Пути с переменными не загружаются:
+	// значения ещё нет. Ссылки на картинки хранятся, иначе браузер их выбросит.
+	var imageExt = 'jpe?g|png|gif|webp|bmp|svg|avif';
+	var imageLoaded = {};
+
+	function imageRes() {
+		return [
+			new RegExp('(["\'])((?:(?!\\1)[^\\n<>])+?\\.(?:' + imageExt + '))\\1', 'gi'),
+			new RegExp('\\[img\\[(?:[^\\]|]*\\|)?()([^\\]|]+?\\.(?:' + imageExt + '))\\]', 'gi'),
+			new RegExp('url\\(\\s*()([^"\')]+?\\.(?:' + imageExt + '))\\s*\\)', 'gi')
+		];
+	}
+
+	function imagesPreload() {
+		Story.filter(function () {
+			return true;
+		}).forEach(function (p) {
+			imageRes().forEach(function (re) {
+				var m;
+
+				while ((m = re.exec(p.text))) {
+					var src = m[2].trim();
+
+					if (!imageLoaded[src] && !/^data:/i.test(src) && src.charAt(0) !== '$') {
+						imageLoaded[src] = new Image();
+						imageLoaded[src].src = src;
+					}
+				}
+			});
+		});
+	}
+
+	imagesPreload();
+
 	/* ----- Полный экран и звук запуска ----- */
 
 	function requestFullscreen() {
@@ -6186,13 +6312,99 @@ setup.signalySounds = {
 
 	/* ----- Звук-сигнал (шаг 3.3, ответ 3А) ----- */
 
-	// <<sg-sound "media/audio/x.wav" volume 100 [keep]>> — звук-сигнал,
-	// keep — не начинать заново, если ещё звучит.
+	// <<sg-sound "media/audio/x.wav" volume 100 [keep] [duck ":AMBIENT" to 30]>> —
+	// звук-сигнал, keep — не начинать заново, если ещё звучит.
+	//
+	// Этап 6 (ответ 5А): duck — что приглушить на время файла, to — до скольких
+	// процентов. Своя громкость дорожек не меняется: дорожка умножается на
+	// множитель, поэтому кнопки A–E и плавные смены громкости работают и во время
+	// приглушения, а по окончании громкость та, что выставил мастер.
+	var duckFade = 500;
+	var duckList = [];
+	var duckNow = new Map();
+	var duckTimer = null;
+	var duckLast = 0;
+
+	function duckApply(track, factor) {
+		if (!track.sgDuckBase) {
+			track.sgDuckBase = track._updateAudioVolume;
+			track._updateAudioVolume = function () {
+				track.sgDuckBase.call(track);
+				if (track.sgDuck < 1) {
+					track.audio.volume *= track.sgDuck;
+				}
+			};
+		}
+		track.sgDuck = factor;
+		track._updateAudioVolume();
+	}
+
+	function duckTracks(who, wanted, level) {
+		SimpleAudio.select(who).trackIds.forEach(function (id) {
+			var track = SimpleAudio.tracks.get(id);
+
+			if (track) {
+				wanted.set(track, Math.min(level, wanted.has(track) ? wanted.get(track) : 1));
+			}
+		});
+	}
+
+	function duckTick() {
+		var now = Date.now();
+		var step = (now - duckLast) / duckFade;
+		var wanted = new Map();
+
+		duckLast = now;
+		duckList = duckList.filter(function (d) {
+			return !d.audio.paused && !d.audio.ended;
+		});
+		duckList.forEach(function (d) {
+			duckTracks(d.who, wanted, d.level);
+		});
+		wanted.forEach(function (level, track) {
+			if (!duckNow.has(track)) {
+				duckNow.set(track, 1);
+			}
+		});
+		duckNow.forEach(function (factor, track) {
+			var goal = wanted.has(track) ? wanted.get(track) : 1;
+			var next = factor < goal ? Math.min(goal, factor + step) : Math.max(goal, factor - step);
+
+			duckApply(track, next);
+			if (next === 1 && !wanted.has(track)) {
+				duckNow.delete(track);
+			} else {
+				duckNow.set(track, next);
+			}
+		});
+		if (!duckList.length && !duckNow.size) {
+			clearInterval(duckTimer);
+			duckTimer = null;
+		}
+	}
+
+	function duckStart(src, who, percent) {
+		var audio = signalFor(String(src));
+		var level = Number(percent);
+
+		duckList = duckList.filter(function (d) {
+			return d.audio !== audio;
+		});
+		duckList.push({audio: audio, who: String(who), level: Math.max(0, Math.min(1, (isNaN(level) ? 30 : level) / 100))});
+		if (!duckTimer) {
+			duckLast = Date.now();
+			duckTimer = setInterval(duckTick, 30);
+		}
+	}
+
 	Macro.add('sg-sound', {
 		handler: function () {
-			var a = blockArgs(this, ['src'], ['volume'], ['keep']);
+			var a = blockArgs(this, ['src'], ['volume', 'duck', 'to'], ['keep']);
 
 			signalPlay(a.src, a.volume, a.keep);
+			if (a.src && a.duck) {
+				duckStart(a.src, a.duck, a.to);
+			}
 		}
 	});
 

@@ -41,6 +41,7 @@ import {
 	TextField
 } from '../signaly-appearance/signaly-appearance-fields';
 import {effectTitle, SignalyEffectForm} from './signaly-effect-form';
+import {PickForm} from './signaly-pick-form';
 import {ConditionForm, StatesForm, ValueForm} from './signaly-logic-form';
 import {findConditions, findStates, findValues} from '../../util/signaly/signaly-logic';
 import {knownVariables} from '../../util/signaly/signaly-variables';
@@ -104,7 +105,7 @@ export interface SignalyBlockPanelProps {
 }
 
 /** Имя новой переменной картинки-переключателя: свободное, чтобы не задеть чужую. */
-function newSwitch(names: string[]) {
+export function newSwitch(names: string[]) {
 	let n = 1;
 
 	while (names.includes(`switch${n}`)) {
@@ -321,7 +322,7 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 			return null;
 		}
 		title = effectTitle(effect, t);
-		body = <SignalyEffectForm effect={effect} onText={onText} text={text} />;
+		body = <SignalyEffectForm effect={effect} kinds={kinds} onText={onText} text={text} />;
 	} else if (target.kind === 'condition' || target.kind === 'states' || target.kind === 'value') {
 		const variables = knownVariables(story.passages);
 
@@ -748,6 +749,19 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 						onCreatePassages={onCreatePassages}
 						passages={passages}
 						savedColors={savedColors}
+						variables={knownVariables(story.passages)}
+						write={write}
+					/>
+				);
+				break;
+
+			case 'pick':
+				// Этап 6 (ответ 2А).
+				title = l('pick.title');
+				body = (
+					<PickForm
+						block={block}
+						kinds={kinds}
 						variables={knownVariables(story.passages)}
 						write={write}
 					/>

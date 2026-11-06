@@ -100,6 +100,9 @@ export interface SignalAction {
 	/** Громкость 0–100 %. */
 	volume: number;
 	keep: boolean;
+	/** Этап 6: что приглушить на время файла (группа или «:playing»), до скольких %. */
+	duck?: string;
+	duckTo?: number;
 	raw?: string;
 }
 
@@ -432,6 +435,10 @@ function parseSignal(piece: string): SignalAction | undefined {
 			result.keep = true;
 		} else if (word === 'volume' && words.length && isFinite(Number(words[0]))) {
 			result.volume = Number(words.shift());
+		} else if (word === 'duck' && words.length && plain(words[0]) !== undefined) {
+			result.duck = plain(words.shift()!);
+		} else if (word === 'to' && words.length && isFinite(Number(words[0]))) {
+			result.duckTo = Number(words.shift());
 		} else {
 			return undefined;
 		}
@@ -636,7 +643,11 @@ export function writeAction(action: Action): string {
 		case 'stop':
 			return `<<sg-timer-stop ${arg(action.name)}>>`;
 		case 'signal':
-			return `<<sg-sound ${arg(action.src)} volume ${Number(action.volume.toFixed(1))}${action.keep ? ' keep' : ''}>>`;
+			return (
+				`<<sg-sound ${arg(action.src)} volume ${Number(action.volume.toFixed(1))}${action.keep ? ' keep' : ''}` +
+				(action.duck ? ` duck ${arg(action.duck)} to ${Number((action.duckTo ?? 30).toFixed(1))}` : '') +
+				'>>'
+			);
 		case 'if': {
 			const multiline =
 				action.multiline || action.then.length > 1 || (action.else !== undefined && action.else.length > 1);

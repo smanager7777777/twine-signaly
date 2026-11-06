@@ -106,3 +106,35 @@ describe('блок «Список состояний»', () => {
 		expect(accessSources([fakePassage({name: 'Список', text: sample})], 'PRCD001')).toEqual([]);
 	});
 });
+
+describe('блок «Кнопка-перебор» (этап 6)', () => {
+	const text = 'до <<sg-pick var "$mode" form button kind amber odd>>\n<<sg-opt "ВЫКЛ" 0>>\n<<sg-opt "РЕЖИМ 2" "авто">>\n<</sg-pick>> после';
+
+	it('читает блок и значения', () => {
+		const [block] = findBlocks(text);
+
+		expect(block).toMatchObject({type: 'pick', values: {var: '$mode', form: 'button', kind: 'amber'}, extra: ['odd']});
+		expect(block.options!.map(o => o.values)).toEqual([
+			{label: 'ВЫКЛ', value: 0},
+			{label: 'РЕЖИМ 2', value: 'авто'}
+		]);
+	});
+
+	it('записывает обратно дословно', () => {
+		const [block] = findBlocks(text);
+
+		expect(writeBlock(block)).toBe(text.slice(block.from, block.to));
+	});
+
+	it('заготовка', () => {
+		const made = writeBlock(newBlock('pick'));
+
+		expect(made).toBe('<<sg-pick var "$switch1" form button>>\n<<sg-opt "ВЫКЛ" 0>>\n<<sg-opt "ВКЛ" 1>>\n<<sg-opt "АВТО" 2>>\n<</sg-pick>>');
+		expect(findBlocks(made)[0].options).toHaveLength(3);
+	});
+
+	it('не путается с <<sg-cycle>> строки событий', () => {
+		expect(findBlocks('<<sg-cycle var "$progress">>')).toEqual([]);
+	});
+});
+

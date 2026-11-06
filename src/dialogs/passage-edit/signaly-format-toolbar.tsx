@@ -105,7 +105,7 @@ import {
 import {knownVariables} from '../../util/signaly/signaly-variables';
 import {SignalyPreviewButton} from '../signaly-passage-preview';
 import {saveStoryWithUpgrade} from '../signaly-upgrade';
-import {PanelTarget, SignalyBlockPanel} from './signaly-block-panel';
+import {newSwitch, PanelTarget, SignalyBlockPanel} from './signaly-block-panel';
 import {
 	accessTag,
 	accessTagColor,
@@ -157,11 +157,12 @@ const addable: Array<BlockType | 'kr2' | 'states' | 'value' | 'tiles'> = [
 	'articles',
 	'list',
 	'tiles',
-	'hack'
+	'hack',
+	'pick'
 ];
 
 /** Пункты «Эффект» (шаг 2.1, ответ 5А); lines — появление строк по очереди. */
-const effectItems: Array<EffectType | 'lines'> = ['type', 'timed', 'lines', 'swap', 'blink', 'glitch'];
+const effectItems: Array<EffectType | 'lines'> = ['type', 'timed', 'lines', 'swap', 'blink', 'glitch', 'reveal'];
 
 /**
  * Где в тексте щелчок открывает форму: блоки — целиком, эффекты — по своим
@@ -170,15 +171,21 @@ const effectItems: Array<EffectType | 'lines'> = ['type', 'timed', 'lines', 'swa
 function clickTargets(value: string) {
 	const targets: Array<{from: number; to: number; target: PanelTarget}> = [];
 
+	const effects = findEffects(value);
+	// Этап 6: ссылка самого раскрытия открывает форму раскрытия, а не ссылки.
+	const revealLinks = new Set(effects.filter(e => e.type === 'reveal').map(e => e.linkFrom));
+
 	// Шаг 3.2: ссылка или кнопка целиком — форма с действиями.
-	findLinks(value).forEach((link, index) =>
-		targets.push({from: link.from, to: link.to, target: {kind: 'link', index}})
-	);
+	findLinks(value).forEach((link, index) => {
+		if (!revealLinks.has(link.from)) {
+			targets.push({from: link.from, to: link.to, target: {kind: 'link', index}});
+		}
+	});
 
 	findBlocks(value).forEach((b, index) =>
 		targets.push({from: b.from, to: b.to, target: {kind: 'block', index}})
 	);
-	findEffects(value).forEach((e, index) => {
+	effects.forEach((e, index) => {
 		const target: PanelTarget = {kind: 'effect', index};
 
 		if (e.type === 'swap') {
@@ -601,6 +608,11 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 		const block = type === 'tiles' ? newStateList(true) : newBlock(type);
 		const selected = value.slice(from, to);
 
+		// Этап 6: свободное имя переменной, чтобы не задеть чужую.
+		if (type === 'pick') {
+			block.values.var = newSwitch(knownVariables(story.passages).map(item => item.name));
+		}
+
 		// Выделенный текст становится текстом тревоги или окна, а выделенная
 		// ссылка или кнопка — кнопкой на экране.
 		if (selected.trim() !== '' && (type === 'alarm' || type === 'dialog' || type === 'place')) {
@@ -732,7 +744,8 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 		const made = composeEffect(type, value, from, to, {
 			text: t('signaly.effects.sample'),
 			next: t('signaly.effects.sampleNew'),
-			lines: t('signaly.effects.sampleLines')
+			lines: t('signaly.effects.sampleLines'),
+			label: t('signaly.effects.sampleReveal')
 		});
 
 		run(() => ({from: made.from, to: made.to, insert: made.insert, selFrom: made.from, selTo: made.from}));

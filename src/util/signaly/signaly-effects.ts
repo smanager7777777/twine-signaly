@@ -8,12 +8,14 @@
 //   смена через N с  <span id="sg-swap1">старый</span><<timed 3s>><<replace "#sg-swap1">>новый<</replace>><</timed>>
 //   мигание          <span class="sg-blink">текст</span> (style="animation-duration: 0.5s")
 //   глитч            <span class="glitchy" data-text="подменный">текст</span>
+//   раскрытие        <span id="sg-reveal1"><span class="amber"><<button "[РАСШИФРОВАТЬ]">><<replace "#sg-reveal1">>текст<</replace>><</button>></span></span>
+//                    (этап 6, ответ 1А; вид — по желанию, ссылка — <<link>>)
 // Кнопка «Эффект» в панели над текстом ставит их на выделенный текст; щелчок по
 // команде открывает форму. Непонятые слова в командах сохраняются как есть.
 
 import {quote} from './signaly-screen-blocks';
 
-export type EffectType = 'type' | 'timed' | 'swap' | 'blink' | 'glitch';
+export type EffectType = 'type' | 'timed' | 'swap' | 'blink' | 'glitch' | 'reveal';
 export type Cursor = 'blink' | 'none' | 'keep';
 
 export interface TypeValues {
@@ -61,6 +63,11 @@ export interface Effect {
 	period?: number;
 	/** Глитч: подменный текст. */
 	shadow?: string;
+	/** Раскрытие (этап 6): надпись, кнопка или ссылка, вид, где команда ссылки. */
+	label?: string;
+	button?: boolean;
+	kind?: string;
+	linkFrom?: number;
 }
 
 /* ----- Время ----- */
@@ -347,6 +354,53 @@ export function glitchOpen(shadow: string, start?: number, after?: boolean) {
 	return `<span class="glitchy" data-text="${htmlAttr(shadow)}"${startAttrs(start, after)}>`;
 }
 
+/* ----- Раскрытие по щелчку (этап 6, ответ 1А) ----- */
+
+const revealHead =
+	/<span id="(sg-reveal\d+)">(<span class="([^"]*)">)?<<(link|button) ("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')>><<replace "#\1">>/g;
+
+/** Открывающая часть раскрытия: всё до текста, который откроется. */
+function revealOpen(id: string, label: string, button: boolean, kind?: string) {
+	const tag = button ? 'button' : 'link';
+
+	return `<span id="${id}">${kind ? `<span class="${kind}">` : ''}<<${tag} ${quote(label)}>><<replace "#${id}">>`;
+}
+
+function revealTail(button: boolean, kind?: string) {
+	return `<</replace>><</${button ? 'button' : 'link'}>>${kind ? '</span>' : ''}</span>`;
+}
+
+function findReveals(text: string): Effect[] {
+	const effects: Effect[] = [];
+	let match: RegExpExecArray | null;
+
+	revealHead.lastIndex = 0;
+	while ((match = revealHead.exec(text))) {
+		const headTo = match.index + match[0].length;
+		const close = findClose(text, 'replace', headTo);
+		const button = match[4] === 'button';
+		const kind = match[2] ? match[3] : undefined;
+		const tail = revealTail(button, kind);
+
+		if (close && text.startsWith(tail, close.at)) {
+			effects.push({
+				type: 'reveal',
+				from: match.index,
+				to: close.at + tail.length,
+				contentFrom: headTo,
+				contentTo: close.at,
+				extra: [],
+				target: match[1],
+				label: unquoteToken(match[5]),
+				button,
+				kind,
+				linkFrom: match.index + match[0].indexOf('<<')
+			});
+		}
+	}
+	return effects;
+}
+
 /* ----- Поиск эффектов ----- */
 
 /** Все эффекты в тексте пассажа по порядку (вложенные тоже). */
@@ -464,6 +518,7 @@ export function findEffects(text: string): Effect[] {
 		effects.push(effect);
 	}
 
+	effects.push(...findReveals(text));
 	return effects.sort((a, b) => a.from - b.from);
 }
 
@@ -490,6 +545,12 @@ export function writeEffect(effect: Effect, content: string) {
 			return `${blinkOpen(effect.period, effect.start, effect.after)}${content}</span>`;
 		case 'glitch':
 			return `${glitchOpen(effect.shadow ?? '', effect.start, effect.after)}${content}</span>`;
+		case 'reveal':
+			return (
+				revealOpen(effect.target ?? '', effect.label ?? '', !!effect.button, effect.kind) +
+				content +
+				revealTail(!!effect.button, effect.kind)
+			);
 	}
 }
 
@@ -501,6 +562,16 @@ export function replaceEffect(text: string, effect: Effect, changed: Effect) {
 }
 
 /* ----- Новый эффект на выделенный текст ----- */
+
+/** Свободное имя для <span id="…"> раскрытия. */
+export function freeRevealId(text: string) {
+	let n = 1;
+
+	while (new RegExp(`id\\s*=\\s*["']sg-reveal${n}["']`).test(text)) {
+		n++;
+	}
+	return `sg-reveal${n}`;
+}
 
 /** Свободное имя для <span id="…"> смены текста. */
 export function freeSwapId(text: string) {
@@ -525,7 +596,8 @@ export function newEffect(
 	text: string,
 	sample: string,
 	sampleNew: string,
-	shadow?: string
+	shadow?: string,
+	label = ''
 ): NewEffect {
 	const body = selected === '' ? sample : selected;
 
@@ -544,6 +616,9 @@ export function newEffect(
 			return {insert: `${blinkOpen()}${body}</span>`, at: 0};
 		case 'glitch':
 			return {insert: `${glitchOpen(shadow ?? visibleText(body))}${body}</span>`, at: 0};
+		case 'reveal':
+			// Выделенный текст откроется по щелчку; по умолчанию — кнопкой без вида.
+			return {insert: revealOpen(freeRevealId(text), label, true) + body + revealTail(true), at: 0};
 	}
 }
 
@@ -628,7 +703,8 @@ const layerRank: Record<EffectType | 'lines', number> = {
 	swap: 0,
 	type: 1,
 	blink: 2,
-	glitch: 2
+	glitch: 2,
+	reveal: 0
 };
 
 interface Layer {
@@ -685,7 +761,7 @@ export function composeEffect(
 	text: string,
 	from: number,
 	to: number,
-	samples: {text: string; next: string; lines: string}
+	samples: {text: string; next: string; lines: string; label?: string}
 ): ComposedEffect {
 	const all = layersOf(text);
 	const stack: Layer[] = [];
@@ -727,7 +803,15 @@ export function composeEffect(
 	const made =
 		type === 'lines'
 			? newLinesEffect(body, samples.lines)
-			: newEffect(type, body, text, samples.text, samples.next, bareText === '' ? undefined : visibleText(bareText));
+			: newEffect(
+					type,
+					body,
+					text,
+					samples.text,
+					samples.next,
+					bareText === '' ? undefined : visibleText(bareText),
+					samples.label
+			  );
 
 	return {...made, from: target.from, to: target.to};
 }
