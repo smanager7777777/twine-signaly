@@ -32,10 +32,12 @@ export interface MenuSeparator {
 
 export interface MenuButtonProps extends Omit<IconButtonProps, 'onClick'> {
 	items: (LabeledMenuItem | MenuSeparator)[];
+	/** СИГНАЛЫ: длинное меню в два столбца, чтобы умещалось на экране. */
+	twoColumns?: boolean;
 }
 
 export const MenuButton: React.FC<MenuButtonProps> = props => {
-	const {items, ...other} = props;
+	const {items, twoColumns, ...other} = props;
 	const [buttonEl, setButtonEl] = React.useState<HTMLButtonElement | null>(
 		null
 	);
@@ -68,7 +70,7 @@ export const MenuButton: React.FC<MenuButtonProps> = props => {
 				unmountOnExit
 			>
 				<div
-					className="menu-button-menu"
+					className={twoColumns ? 'menu-button-menu two-columns' : 'menu-button-menu'}
 					ref={setMenuEl}
 					style={styles.popper}
 					{...attributes.popper}

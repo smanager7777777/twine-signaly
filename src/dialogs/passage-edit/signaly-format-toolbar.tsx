@@ -958,6 +958,7 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 						onClick: () => addBlock(type)
 					}))}
 					label={t('signaly.blocks.add.button')}
+					twoColumns
 				/>
 				<MenuButton
 					disabled={off}
