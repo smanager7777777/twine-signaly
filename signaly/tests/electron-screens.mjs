@@ -115,7 +115,7 @@ const pick = async (button, item) => {
 
 let dlg = await openLook();
 
-check('вкладки окна', (await dlg.getByRole('tab').allTextContents()).join() === 'Общее,Виды экранов,Стили текста');
+check('вкладки окна', (await dlg.getByRole('tab').allTextContents()).join() === 'Общее,Виды экранов,Стили текста,Первое посещение');
 
 /* Поля ввода */
 await dlg.getByText('Настраивать поля ввода здесь').waitFor({timeout: 3000});
