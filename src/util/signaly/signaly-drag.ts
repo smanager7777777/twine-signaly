@@ -49,7 +49,7 @@ function findTarget(start: EventTarget | null): Target | undefined {
 		if (source) {
 			const block = findBlocks(source)[0];
 
-			if (!block || !['image', 'video', 'place', 'chain'].includes(block.type)) {
+			if (!block || !['image', 'video', 'place', 'chain', 'camera'].includes(block.type)) {
 				return undefined;
 			}
 
@@ -77,6 +77,12 @@ function findTarget(start: EventTarget | null): Target | undefined {
 function contentWidth(el: HTMLElement): number {
 	if (el.tagName === 'VIDEO') {
 		return Number(el.getAttribute('width')) || el.clientWidth;
+	}
+	// Камера (шаг 5.3) — ширина окна с картинкой, без рамки и кнопки.
+	const camera = el.querySelector<HTMLElement>('.sg-camera-box');
+
+	if (camera) {
+		return camera.clientWidth;
 	}
 	// Цепочка видео (шаг 2.3) — по видимому видео внутри.
 	const video = [...el.querySelectorAll('video')].find(v => v.style.display !== 'none');
@@ -153,7 +159,7 @@ export function attachDrag(doc: Document, options: DragOptions) {
 			if (target.el.tagName === 'VIDEO') {
 				target.el.setAttribute('width', String(width));
 			} else {
-				target.el.style.width = width + 'px';
+				(target.el.querySelector<HTMLElement>('.sg-camera-box') ?? target.el).style.width = width + 'px';
 			}
 		} else {
 			target.el.style.translate = `${dx}px ${dy}px`;

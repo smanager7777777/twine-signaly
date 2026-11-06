@@ -17,6 +17,7 @@ import {
 import {findEffects} from '../../util/signaly/signaly-effects';
 import {readKinds} from '../../util/signaly/signaly-kinds';
 import {
+	cameraDefaults,
 	ChainStep,
 	CodeCase,
 	findBlocks,
@@ -713,6 +714,60 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 					/>
 				);
 				break;
+
+			case 'camera': {
+				// Шаг 5.3: ноль в размере видео и сдвиге не пишется.
+				const crop = (key: string, label: string, min: number, max: number, hint?: string) => (
+					<RangeField
+						hint={hint}
+						label={label}
+						max={max}
+						min={min}
+						onChange={value => set(key, value || undefined)}
+						unit={px}
+						value={num(key, 0)}
+					/>
+				);
+
+				title = l('camera.title');
+				body = (
+					<>
+						<ChoiceField
+							hint={l(`camera.sourceHint.${str('source', 'web')}`)}
+							label={l('camera.source')}
+							onChange={value => set('source', value === 'web' ? undefined : value)}
+							options={['web', 'window'].map(value => ({label: l(`camera.sources.${value}`), value}))}
+							value={str('source', 'web')}
+						/>
+						{v.source === 'window' && (
+							<TextField
+								label={l('camera.button')}
+								onChange={value => set('button', value === cameraDefaults.button || !value ? undefined : value)}
+								value={str('button', cameraDefaults.button)}
+							/>
+						)}
+						{range('width', l('camera.width'), 20, 1920, cameraDefaults.width, px, 1, l('resizeHint'))}
+						{range('height', l('camera.height'), 20, 1080, cameraDefaults.height)}
+						<h4 className="signaly-block-subtitle">{l('camera.cropTitle')}</h4>
+						{crop('vwidth', l('camera.vwidth'), 0, 3840, l('camera.vHint'))}
+						{crop('vheight', l('camera.vheight'), 0, 3840)}
+						{crop('shiftx', l('camera.shiftx'), -3840, 3840)}
+						{crop('shifty', l('camera.shifty'), -3840, 3840, l('camera.shiftHint'))}
+						<h4 className="signaly-block-subtitle">{l('camera.offTitle')}</h4>
+						<TextField
+							hint={l('camera.offHint')}
+							label={l('camera.off')}
+							onChange={value => set('nosignal', value === cameraDefaults.nosignal ? undefined : value)}
+							value={str('nosignal', cameraDefaults.nosignal)}
+						/>
+						{color('nocolor', l('camera.offColor'), '#00cc00')}
+						{range('nonoise', l('camera.offNoise'), 0, 100, cameraDefaults.nonoise, '%')}
+						<h4 className="signaly-block-subtitle">{l('camera.placeTitle')}</h4>
+						{place()}
+					</>
+				);
+				break;
+			}
 
 			case 'timer': {
 				// Шаг 2.3 (ответы 1А–4А).

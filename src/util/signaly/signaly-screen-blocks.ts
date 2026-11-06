@@ -27,6 +27,8 @@
 //   <<sg-hack-fail>>действия
 //   <<sg-hack-miss>>действия
 //   <</sg-hack>>
+//   <<sg-camera source window width 1000 height 490 vwidth 1000 vheight 1000 shifty -270>>
+//                                                         (шаг 5.3: камера)
 // Окно KR2 — команды <<kr2image>>, <<kr2layout>>, <<kr2vars>>, <<kr2main>>.
 // Команды понимает движок (signaly-engine.ts) — и в обычном Twine тоже.
 //
@@ -44,7 +46,8 @@ export type BlockType =
 	| 'chain'
 	| 'articles'
 	| 'list'
-	| 'hack';
+	| 'hack'
+	| 'camera';
 export type CaseKind = 'case' | 'wrong';
 type PartKind = CaseKind | 'step' | 'state' | 'row' | 'win' | 'fail' | 'miss';
 export type Value = string | number | boolean;
@@ -61,7 +64,8 @@ export const blockMacros: Record<BlockType, string> = {
 	chain: 'sg-chain',
 	articles: 'sg-articles',
 	list: 'sg-list',
-	hack: 'sg-hack'
+	hack: 'sg-hack',
+	camera: 'sg-camera'
 };
 
 const partMacros: Record<PartKind, string> = {
@@ -142,6 +146,18 @@ export const hackDefaults = {
 	misssize: 72,
 	missover: 240,
 	missvolume: 100
+};
+
+/**
+ * Значения камеры по умолчанию (шаг 5.3, решение 107): окно 1000×1000, как в
+ * CAMERATEST шаблона. Движок берёт те же значения.
+ */
+export const cameraDefaults = {
+	width: 1000,
+	height: 1000,
+	button: 'Подключить камеру',
+	nosignal: 'НЕТ СИГНАЛА',
+	nonoise: 30
 };
 
 const specs: Record<BlockType | PartKind, ArgSpec> = {
@@ -285,6 +301,28 @@ const specs: Record<BlockType | PartKind, ArgSpec> = {
 		flags: ['frame', 'usedglitch'],
 		container: true
 	},
+	// Шаг 5.3: камера. source: нет — веб-камера, window — захват окна; width, height —
+	// окно на экране; vwidth, vheight, shiftx, shifty — обрезка: размер видео и его
+	// сдвиг; button — надпись кнопки захвата; nosignal, nocolor, nonoise — «нет сигнала».
+	camera: {
+		pos: [],
+		keys: {
+			source: 'string',
+			width: 'number',
+			height: 'number',
+			vwidth: 'number',
+			vheight: 'number',
+			shiftx: 'number',
+			shifty: 'number',
+			button: 'string',
+			nosignal: 'string',
+			nocolor: 'string',
+			nonoise: 'number',
+			...placeKeys
+		},
+		flags: [],
+		container: false
+	},
 	win: {pos: [], keys: {}, flags: [], container: false},
 	fail: {pos: [], keys: {}, flags: [], container: false},
 	miss: {pos: [], keys: {}, flags: [], container: false},
@@ -297,6 +335,9 @@ const specs: Record<BlockType | PartKind, ArgSpec> = {
 
 /** Слова команды терминала взлома: движок разбирает те же. */
 export const hackKeys = Object.keys(specs.hack.keys);
+
+/** Слова команды камеры: движок разбирает те же. */
+export const cameraKeys = Object.keys(specs.camera.keys);
 
 export interface CodeCase {
 	kind: CaseKind;
@@ -523,7 +564,7 @@ function writeArgs(values: Values, extra: string[], spec: ArgSpec) {
 
 /* ----- Поиск блоков в тексте ----- */
 
-const openRe = /<<sg-(image|video|alarm|dialog|code|place|timer|chain|articles|list|hack)(?=[\s>])/g;
+const openRe = /<<sg-(image|video|alarm|dialog|code|place|timer|chain|articles|list|hack|camera)(?=[\s>])/g;
 
 function macroType(name: string): BlockType | undefined {
 	return blockTypes.find(type => blockMacros[type] === 'sg-' + name);
@@ -816,6 +857,8 @@ export function newBlock(type: BlockType): Omit<ScreenBlock, 'from' | 'to'> {
 				extra: [],
 				hack: {win: '', fail: '', miss: ''}
 			};
+		case 'camera':
+			return {type, values: {width: cameraDefaults.width, height: cameraDefaults.height, border: 2}, extra: []};
 		case 'code':
 			return {
 				type,

@@ -46,13 +46,13 @@
 // строке.
 
 import {defaultGlitch, glitchKeyframes, glitchRules} from './signaly-glitch';
-import {hackDefaults, hackKeys, timerDefaults} from './signaly-screen-blocks';
+import {cameraDefaults, cameraKeys, hackDefaults, hackKeys, timerDefaults} from './signaly-screen-blocks';
 
 /** Глитч по умолчанию — правила с нулевой силой (их перекрывает всё остальное). */
 const glitchBase = [...glitchRules(defaultGlitch, ':where(.glitchy)'), glitchKeyframes].join('\n');
 
 /** Версия движка. Увеличивать при каждом изменении кода ниже. */
-export const signalyEngineVersion = 17;
+export const signalyEngineVersion = 18;
 
 export const signalyEngineStart =
 	'/* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */';
@@ -254,6 +254,15 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		'.sg-hack-left { grid-area: left; margin-right: 1.5em; }\n' +
 		'.sg-hack-right { grid-area: right; margin-left: 1.5em; }\n' +
 		'.sg-hack-hint { min-height: 1.5em; }\n' +
+		// Шаг 5.3: камера.
+		'.sg-camera { display: block; width: fit-content; }\n' +
+		'.sg-camera-box { position: relative; overflow: hidden; }\n' +
+		'.sg-camera-box video.sg-camera-fill { width: 100%; height: 100%; display: block; }\n' +
+		'.sg-camera-off { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; text-align: center; background: #000000; }\n' +
+		'.sg-camera-off canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; image-rendering: pixelated; }\n' +
+		'.sg-camera-off span { position: relative; padding: 0 0.5em; }\n' +
+		// Заглушка предпросмотра: сетка и крест по центру видео — видно, как оно сдвинуто.
+		'.sg-camera-grid { background-color: #555555; background-image: linear-gradient(transparent calc(50% - 4px), #cccccc calc(50% - 4px), #cccccc calc(50% + 4px), transparent calc(50% + 4px)), linear-gradient(90deg, transparent calc(50% - 4px), #cccccc calc(50% - 4px), #cccccc calc(50% + 4px), transparent calc(50% + 4px)), linear-gradient(#999999 3px, transparent 3px), linear-gradient(90deg, #999999 3px, transparent 3px); background-size: 100% 100%, 100% 100%, 100px 100px, 100px 100px; }\n' +
 		'.sg-hack-c:hover, .sg-hack-word:hover { background-color: var(--sg-hack-light); color: #000000; }\n' +
 		'.sg-hack-word { cursor: pointer; }\n' +
 		'.sg-hack-word:hover { box-shadow: 0 0 8px var(--sg-hack-light); }\n' +
@@ -448,6 +457,209 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			}
 		}
 	});
+
+	/* ----- Камера (шаг 5.3) ----- */
+
+	// <<sg-camera [source window] width W height H [vwidth … vheight … shiftx … shifty …]
+	// [button "…"] [nosignal "…"] [nocolor "…"] [nonoise N] [место, рамка, свечение]>>.
+	// Подключение одно на источник и живёт до закрытия игры: смена экрана его не
+	// теряет. Веб-камера подключается сама, захват окна браузер разрешает только
+	// после нажатия кнопки. Нет живого подключения — надпись и шум поверх картинки.
+	var cameraDefaults = ${JSON.stringify(cameraDefaults)};
+	var cameraKeys = ${JSON.stringify(cameraKeys)};
+	var cameraStreams = {};
+	var cameraAsked = {};
+	var cameraItems = [];
+	var cameraTimer = null;
+
+	function cameraLive(source) {
+		var stream = cameraStreams[source];
+
+		return !!stream && stream.getVideoTracks().some(function (track) {
+			return track.readyState === 'live';
+		});
+	}
+
+	function cameraRefresh() {
+		cameraItems.forEach(function (item) {
+			if (!item.video) {
+				return;
+			}
+
+			var live = cameraLive(item.source);
+
+			item.off.style.display = live ? 'none' : '';
+			if (live && item.video.srcObject !== cameraStreams[item.source]) {
+				item.video.srcObject = cameraStreams[item.source];
+				item.video.play().catch(function () {});
+			} else if (!live && item.video.srcObject) {
+				item.video.srcObject = null;
+			}
+		});
+	}
+
+	function cameraConnect(source) {
+		var media = navigator.mediaDevices;
+
+		if (preview || !media || cameraLive(source) || cameraAsked[source]) {
+			return;
+		}
+		cameraAsked[source] = true;
+
+		var ask = source === 'window'
+			? media.getDisplayMedia({video: true, audio: false})
+			: media.getUserMedia({video: true, audio: false});
+
+		ask.then(function (stream) {
+			cameraStreams[source] = stream;
+			stream.getVideoTracks().forEach(function (track) {
+				track.addEventListener('ended', cameraRefresh);
+			});
+		}).catch(function (error) {
+			console.log('Камера не подключена:', error);
+		}).then(function () {
+			cameraAsked[source] = false;
+			cameraRefresh();
+		});
+	}
+
+	function cameraNoise(item) {
+		var canvas = item.canvas;
+		var context = canvas.getContext('2d');
+		var image = context.createImageData(canvas.width, canvas.height);
+
+		for (var i = 0; i < image.data.length; i += 4) {
+			var value = Math.floor(Math.random() * 256);
+
+			image.data[i] = image.data[i + 1] = image.data[i + 2] = value;
+			image.data[i + 3] = 255;
+		}
+		context.putImageData(image, 0, 0);
+	}
+
+	function cameraTick() {
+		cameraRefresh();
+		cameraItems.forEach(function (item) {
+			if (item.canvas && item.off.style.display !== 'none' && item.box.isConnected) {
+				cameraNoise(item);
+			}
+		});
+	}
+
+	$(document).on(':passageinit', function () {
+		cameraItems = [];
+	});
+
+	Macro.add('sg-camera', {
+		handler: function () {
+			var a = blockArgs(this, [], cameraKeys, []);
+			var source = a.source === 'window' ? 'window' : 'web';
+			var width = Number(a.width) > 0 ? Number(a.width) : cameraDefaults.width;
+			var height = Number(a.height) > 0 ? Number(a.height) : cameraDefaults.height;
+			var vwidth = Number(a.vwidth) || 0;
+			var vheight = Number(a.vheight) || 0;
+			var root = document.createElement('div');
+			var box = document.createElement('div');
+			var off = document.createElement('div');
+			var label = document.createElement('span');
+			var noise = a.nonoise === undefined ? cameraDefaults.nonoise : Number(a.nonoise) || 0;
+			var item = {box: box, off: off, source: source};
+			var picture;
+
+			root.className = 'sg-camera';
+			box.className = 'sg-camera-box';
+			box.style.width = width + 'px';
+			box.style.height = height + 'px';
+			placeStyle(root, {place: a.place, corner: a.corner, x: a.x, y: a.y});
+			placeStyle(box, {border: a.border, color: a.color, glow: a.glow});
+
+			// В предпросмотре вместо картинки — серая заглушка с сеткой.
+			if (preview) {
+				picture = document.createElement('div');
+				picture.className = 'sg-camera-grid';
+				picture.style.width = vwidth > 0 ? vwidth + 'px' : '100%';
+				picture.style.height = vheight > 0 ? vheight + 'px' : '100%';
+			} else {
+				picture = document.createElement('video');
+				['autoplay', 'muted'].forEach(function (flag) {
+					picture.setAttribute(flag, '');
+					picture[flag] = true;
+				});
+				picture.setAttribute('playsinline', '');
+				if (vwidth > 0 || vheight > 0) {
+					picture.setAttribute('width', vwidth || width);
+					picture.setAttribute('height', vheight || height);
+				} else {
+					picture.className = 'sg-camera-fill';
+				}
+				item.video = picture;
+			}
+			picture.style.marginLeft = (Number(a.shiftx) || 0) + 'px';
+			picture.style.marginTop = (Number(a.shifty) || 0) + 'px';
+			box.appendChild(picture);
+
+			off.className = 'sg-camera-off';
+			off.style.color = a.nocolor || 'var(--sg-text, #00cc00)';
+			off.style.fontSize = Math.max(16, Math.round(Math.min(width, height * 2) / 12)) + 'px';
+			if (noise > 0) {
+				item.canvas = document.createElement('canvas');
+				item.canvas.width = 160;
+				item.canvas.height = Math.max(1, Math.round(160 * height / width));
+				item.canvas.style.opacity = Math.min(100, noise) / 100;
+				off.appendChild(item.canvas);
+			}
+			label.textContent = a.nosignal === undefined ? cameraDefaults.nosignal : String(a.nosignal);
+			off.appendChild(label);
+			box.appendChild(off);
+			root.appendChild(box);
+
+			if (source === 'window') {
+				root.appendChild(document.createElement('br'));
+				actionControl(root, a.button || cameraDefaults.button, true, function () {
+					cameraConnect('window');
+				});
+			}
+			if (preview) {
+				// Щелчок в предпросмотре показывает, как выглядит «нет сигнала».
+				off.style.display = 'none';
+				box.addEventListener('click', function () {
+					off.style.display = off.style.display === 'none' ? '' : 'none';
+				});
+			}
+			if (a.place === 'center') {
+				root.style.display = 'inline-block';
+				root.style.verticalAlign = 'top';
+			}
+			cameraItems.push(item);
+			putPlaced(this, root, a, 'camera');
+			cameraRefresh();
+			if (source === 'web') {
+				cameraConnect('web');
+			}
+			if (!cameraTimer) {
+				cameraTimer = setInterval(cameraTick, 90);
+			}
+		}
+	});
+
+	if (!preview) {
+		// Как в шаблоне: веб-камера подключается при запуске игры, разрешение
+		// браузер спрашивает до первого экрана с камерой.
+		$(document).one(':passagestart', function () {
+			if (Story.filter(function (p) {
+				return /<<sg-camera(?=[\s>])(?![^>]*\bsource\s+"?window)/.test(p.text);
+			}).length) {
+				cameraConnect('web');
+			}
+		});
+		if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+			navigator.mediaDevices.addEventListener('devicechange', function () {
+				if (cameraItems.some(function (item) { return item.source === 'web'; })) {
+					cameraConnect('web');
+				}
+			});
+		}
+	}
 
 	/* Кнопка на экране (сессия 6): содержимое стоит на месте от угла окна
 	   терминала и не прокручивается с текстом; kind — вид кнопок и ссылок. */
@@ -880,7 +1092,8 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		return null;
 	}
 
-	$(document).on('mouseenter', 'a, button', function () {
+	// Шаг 5.3: символы и слова поля взлома звучат при наведении, как ссылки.
+	$(document).on('mouseenter', 'a, button, .sg-hack-c, .sg-hack-word', function () {
 		if (!uiSoundOn()) {
 			return;
 		}
@@ -899,14 +1112,18 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			});
 		}
 	});
-	$(document).on('click', 'a, button', function () {
-		var set = uiSoundOn() && uiSet(this, 'click');
+	function uiClick(el) {
+		var set = uiSoundOn() && uiSet(el, 'click');
 
 		if (set) {
 			later(set, function () {
 				playSet(set);
 			});
 		}
+	}
+
+	$(document).on('click', 'a, button', function () {
+		uiClick(this);
 	});
 
 	/* ----- Порядок эффектов (сессия 7): «после эффектов выше» ----- */
@@ -3050,6 +3267,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 				var word = ev.target.closest ? ev.target.closest('.sg-hack-word') : null;
 
 				if (word && !run.over && !word.classList.contains('sg-hack-used')) {
+					uiClick(word);
 					hackChoose(run, word);
 				}
 			});
@@ -4028,7 +4246,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	var fvRestored = false;
 	// Нельзя переносить или накрывать обёрткой: видео сбросится, фиксированное
 	// место собьётся из-за фильтра на родителе.
-	var fvKeep = '.sg-place, .sg-alarm, .sg-chain, video, iframe, [style*="position: fixed"]';
+	var fvKeep = '.sg-place, .sg-alarm, .sg-chain, .sg-camera, video, iframe, [style*="position: fixed"]';
 	var fvOwn = fvKeep + ', img, canvas, svg, input, textarea, select, .sg-timer';
 
 	function fvParse(value) {

@@ -5,6 +5,7 @@
 // Шаг 3.2: окна <<script>>Dialog.create…<</script>> в ссылках — действием <<sg-open>>.
 // Шаг 3.3: код горячих клавиш шаблона (Shift+Z+A/B/C) — пассажем «Горячие клавиши».
 // Шаг 5.2: экран «Хактест» шаблона — блоком «Терминал взлома».
+// Шаг 5.3: CAMERATEST, XIAOMICAM и код камер шаблона — блоками «Камера».
 
 import {
 	Story,
@@ -15,6 +16,7 @@ import {
 import {upgradePlaces} from '../util/signaly/signaly-places';
 import {moveTemplateTimers} from '../util/signaly/signaly-timers';
 import {moveScriptDialogs} from '../util/signaly/signaly-actions';
+import {moveTemplateCamera} from '../util/signaly/signaly-camera';
 import {moveTemplateHack} from '../util/signaly/signaly-hack';
 import {freeSpot, keysPassageName, keysTag, moveTemplateKeys} from '../util/signaly/signaly-keys';
 
@@ -47,9 +49,17 @@ export function saveStoryWithUpgrade(
 			texts.set(passage, moveTemplateHack(moveScriptDialogs(texts.get(passage)!)));
 		}
 	});
+	// Шаг 5.3: камеры шаблона → блоки «Камера».
+	const camera = moveTemplateCamera(
+		timers.script,
+		story.passages.map(p => ({name: p.name, text: texts.get(p)!})),
+		exclude
+	);
+
+	camera.texts.forEach((text, index) => texts.set(story.passages[index], text));
 	// Шаг 3.3: горячие клавиши шаблона → пассаж «Горячие клавиши».
-	const keys = moveTemplateKeys(timers.script, story.passages);
-	const script = keys ? keys.script : timers.script;
+	const keys = moveTemplateKeys(camera.script, story.passages);
+	const script = keys ? keys.script : camera.script;
 
 	dispatch(
 		updateStory(stories, story, {

@@ -1,0 +1,85 @@
+@@web
+<div class="center-text">\
+<video id="webcam" autoplay playsinline muted width="1000" height="1000" style="border: 2px solid #00cc00;">\</video>\
+</div>\
+
+<<script>>
+$(document).one(':passagedisplay', function () {
+    var video = document.getElementById('webcam');
+    if (setup.webcamStream) {
+        video.srcObject = setup.webcamStream;
+    } else {
+        // fallback (если вдруг не успело)
+        setup.initWebcam().then(function(stream) {
+            video.srcObject = stream;
+        });
+    }
+});
+<</script>>
+@@window
+<div style="overflow: hidden; width: 1000px; height: 490px; border: 2px solid #00cc00;">\
+<video id="xiaomi" autoplay playsinline muted width="1000" height="1000" style="margin-top: -270px; margin-left: 0px;">\</video>\
+</div>\
+
+/* СИГНАЛЫ: браузер разрешает захват окна только после нажатия кнопки */\
+<<button "Подключить камеру">>
+<<run setup.initXiaomi().then(function (stream) {
+    var video = document.getElementById('xiaomi');
+    if (video && stream) {
+        video.srcObject = stream;
+    }
+})>>
+<</button>>
+
+<<script>>
+$(document).one(':passagedisplay', function () {
+    var video = document.getElementById('xiaomi');
+    if (setup.xiaomiStream) {
+        video.srcObject = setup.xiaomiStream;
+    }
+});
+<</script>>
+@@init
+/* СИГНАЛЫ: камера включается один раз; захват окна Xiaomi — кнопкой на экране XIAOMICAM */
+<<script>>
+setup.initWebcam();
+<</script>>
+@@script
+/* ===== Камера и захват окна ===== */
+setup.webcamStream = null;
+
+setup.initWebcam = function () {
+    if (setup.webcamStream) return Promise.resolve(setup.webcamStream);
+
+    return navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+        .then(function(stream) {
+            setup.webcamStream = stream;
+            return stream;
+        })
+        .catch(function(err) {
+            console.log("Ошибка доступа к камере:", err);
+        });
+};
+
+
+setup.xiaomiStream = null;
+setup.initXiaomi = function () {
+    if (setup.xiaomiStream) return Promise.resolve(setup.xiaomiStream);
+    return navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: false
+    })
+        .then(function(stream) {
+            setup.xiaomiStream = stream;
+            // Если захват остановлен — следующее нажатие кнопки запросит его заново
+            stream.getVideoTracks().forEach(function (track) {
+                track.addEventListener('ended', function () {
+                    setup.xiaomiStream = null;
+                });
+            });
+            return stream;
+        })
+        .catch(function(err) {
+            console.log("Ошибка захвата экрана:", err);
+        });
+};

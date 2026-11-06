@@ -146,6 +146,7 @@ const addable: Array<BlockType | 'kr2' | 'states' | 'value' | 'tiles'> = [
 	'image',
 	'video',
 	'chain',
+	'camera',
 	'timer',
 	'place',
 	'kr2',

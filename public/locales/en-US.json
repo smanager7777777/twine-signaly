@@ -727,7 +727,8 @@
 				"articles": "Article list",
 				"list": "State list: buttons (procedures)",
 				"tiles": "State list: tiles (systems)",
-				"hack": "Hacking terminal"
+				"hack": "Hacking terminal",
+				"camera": "Camera"
 			},
 			"image": {
 				"title": "Image"
@@ -1075,6 +1076,34 @@
 				"hint": "Attempts reset on entry. After success the screen is no longer shown: going to it leads straight to the success screen. Check with Test; preview runs no actions or transitions.",
 				"fxcolor": "Flash or flicker color",
 				"tooWide": "The field is wider than the terminal window: about {{width}} with a {{win}} window. Reduce columns, characters or text size."
+			},
+			"camera": {
+				"title": "Camera",
+				"source": "Source",
+				"sources": {
+					"web": "Webcam",
+					"window": "Window capture"
+				},
+				"sourceHint": {
+					"web": "Connects by itself when the game starts. The browser asks for permission once.",
+					"window": "The browser allows capture only after a button press: a button appears on screen, then pick the camera program in the browser window. The connection lasts until the game is closed."
+				},
+				"button": "Button label",
+				"width": "Frame width",
+				"height": "Frame height",
+				"cropTitle": "Crop",
+				"vwidth": "Video width",
+				"vheight": "Video height",
+				"vHint": "0 — the video fills the frame, no crop.",
+				"shiftx": "Shift video right",
+				"shifty": "Shift video down",
+				"shiftHint": "A minus shifts left and up. The grey grid in the preview is the whole video; the frame shows part of it.",
+				"offTitle": "No signal",
+				"off": "Label",
+				"offHint": "Shown while the camera is not connected, is unplugged or the window is closed. In the preview, click the camera to see it.",
+				"offColor": "Label color",
+				"offNoise": "Noise",
+				"placeTitle": "Place and border"
 			}
 		},
 		"drag": {

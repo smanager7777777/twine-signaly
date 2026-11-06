@@ -35,6 +35,10 @@ const test =
 Провал
 [[Снова|HkMain]]
 
+:: HkSound {"position":"1300,5000","size":"100,100"}
+<<sg-hack words "СТОЛ, ДОМА, ЛЕСА, ПАРИЯ" key "ДОМА" count 3 attempts 5 rows 6 cols 12>>
+<</sg-hack>>
+
 :: HkFixed {"position":"500,5000","size":"100,100"}
 <<sg-hack words "СТОЛ, ДОМА, ЛЕСА, ПАРИЯ" key "ОКНО" count 3 attempts 1 rows 6 cols 12 fail "HkFail" delay 0.1>>
 <</sg-hack>>
@@ -128,6 +132,58 @@ const rect = (page, sel) => page.$eval(sel, el => {
 
 async function run(url, say) {
 	const page = await open(url);
+
+	/* Звуки поля (сессия 21, ответ 7А): символы и слова звучат как ссылки */
+	await page.evaluate(() => {
+		const play = HTMLMediaElement.prototype.play;
+
+		window.sgPlayed = [];
+		HTMLMediaElement.prototype.play = function () {
+			if (this.sgUi) {
+				window.sgPlayed.push(this.getAttribute('src'));
+			}
+			return play.apply(this, arguments);
+		};
+	});
+
+	const played = async action => {
+		await page.evaluate(() => (window.sgPlayed = []));
+		await action();
+		await page.waitForTimeout(150);
+		return page.evaluate(() => window.sgPlayed);
+	};
+
+	await go(page, 'HkSound');
+	await page.mouse.move(5, 5);
+
+	const setFiles = name => page.evaluate(n => SugarCube.setup.signalySounds.sets.find(set => set.name === n).files, name);
+	const hoverOf = await setFiles('Наведение');
+	const clickOf = await setFiles('Нажатие');
+
+	const onChar = await played(() => page.hover('.sg-hack-c'));
+
+	say('наведение на символ звучит из набора наведения', onChar.length === 1 && hoverOf.includes(onChar[0]), onChar.join());
+	const toChars = await played(async () => {
+		await page.hover('.sg-hack-line:nth-child(2) .sg-hack-c:nth-child(3)');
+		await page.hover('.sg-hack-line:nth-child(2) .sg-hack-c:nth-child(4)');
+	});
+
+	say('каждый символ звучит отдельно', toChars.length === 2, toChars.join());
+	const onWord = await played(() => page.hover('.sg-hack-word'));
+
+	say('наведение на слово звучит из набора наведения', onWord.length === 1 && hoverOf.includes(onWord[0]), onWord.join());
+	const wordList = await words(page);
+	const miss = wordList.find(w => w !== 'ДОМА');
+	const onPick = await played(() => pick(page, miss));
+
+	say('щелчок по слову звучит из набора нажатия', onPick.some(f => clickOf.includes(f)), onPick.join());
+	const usedAt = await rect(page, `.sg-hack-word[data-word="${miss}"]`);
+	const again = await played(() => page.mouse.click((usedAt.left + usedAt.right) / 2, (usedAt.top + usedAt.bottom) / 2));
+
+	say('щелчок по выбранному слову нажатием не звучит', !again.some(f => clickOf.includes(f)), again.join());
+	const onField = await played(() => page.click('.sg-hack-c'));
+
+	say('щелчок по символу нажатием не звучит', !onField.some(f => clickOf.includes(f)), onField.join());
 
 	/* Поле */
 	await go(page, 'HkHome');

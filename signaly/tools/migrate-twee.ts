@@ -31,6 +31,7 @@ import {findAudioInit, readSounds, templateSounds, withAudioInit} from '../../sr
 import {moveTemplateTimers} from '../../src/util/signaly/signaly-timers';
 import {moveScriptDialogs} from '../../src/util/signaly/signaly-actions';
 import {moveTemplateHack} from '../../src/util/signaly/signaly-hack';
+import {moveTemplateCamera} from '../../src/util/signaly/signaly-camera';
 import {freeSpot, keysPassageName, keysTag, moveTemplateKeys} from '../../src/util/signaly/signaly-keys';
 
 function section(source: string, header: RegExp) {
@@ -163,9 +164,8 @@ if (init && findAudioInit(init.text).ranges.length) {
 	);
 	const timers = moveTemplateTimers(bodies[scriptIndex], list.map(p => ({name: p.name, text: p.text})));
 	const put = (index: number, text: string) => {
-		const tail = chunks[index].slice(heads[index].length + bodies[index].length);
-
-		chunks[index] = heads[index] + text + tail;
+		// Пустые строки в конце — разделитель .twee, они остаются.
+		chunks[index] = heads[index] + text + /\s*$/.exec(chunks[index])![0];
 	};
 
 	timers.texts.forEach((text, i) => put(list[i].index, text));
@@ -187,8 +187,16 @@ if (init && findAudioInit(init.text).ranges.length) {
 			put(p.index, hack);
 		}
 	});
-	if (timers.script !== bodies[scriptIndex]) {
-		put(scriptIndex, timers.script);
+	// Шаг 5.3: камеры шаблона → блоки «Камера». Текст берётся уже перенесённый.
+	const current = (i: number) => chunks[list[i].index].slice(heads[list[i].index].length).replace(/\s+$/, '');
+	const camera = moveTemplateCamera(timers.script, list.map((p, i) => ({name: p.name, text: current(i)})));
+
+	camera.texts.forEach((text, i) => {
+		result.moved.push(`камера → блок (${list[i].name})`);
+		put(list[i].index, text);
+	});
+	if (camera.script !== bodies[scriptIndex]) {
+		put(scriptIndex, camera.script);
 	}
 	twee = chunks.join('');
 	result.moved.push(...timers.moved);
