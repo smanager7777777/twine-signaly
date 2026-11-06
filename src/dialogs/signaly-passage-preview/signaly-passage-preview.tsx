@@ -4,7 +4,7 @@
 // начиная с этого пассажа. Текст пассажа попадает в историю через секунду
 // после набора — тогда же обновляется и предпросмотр.
 
-import {IconEye, IconRefresh, IconX} from '@tabler/icons';
+import {IconEye, IconRefresh, IconWaveSine, IconX} from '@tabler/icons';
 import * as React from 'react';
 import {useTranslation} from 'react-i18next';
 import {IconButton} from '../../components/control/icon-button';
@@ -16,6 +16,7 @@ import {
 } from '../../store/stories';
 import {useGameFolder} from '../../store/use-game-folder';
 import {blockAfterDrop, DragResult} from '../../util/signaly/signaly-drag';
+import {firstTagPrefix} from '../../util/signaly/signaly-first';
 import {folderToFileUrl} from '../../util/signaly/signaly-preview';
 import {writeBlock} from '../../util/signaly/signaly-screen-blocks';
 import {
@@ -81,6 +82,7 @@ export const SignalyPassagePreview: React.FC<{story: Story}> = ({story}) => {
 	const {gameFolder} = useGameFolder();
 	const passageId = usePreviewPassage();
 	const [refresh, setRefresh] = React.useState(0);
+	const [firstDemo, setFirstDemo] = React.useState(0);
 	const [top, setTop] = React.useState<number>();
 	const passage = story.passages.find(p => p.id === passageId);
 
@@ -173,6 +175,14 @@ export const SignalyPassagePreview: React.FC<{story: Story}> = ({story}) => {
 				</span>
 				<SignalyDragLock />
 				<SignalyPreviewMute />
+				{passage.tags.some(tag => tag.startsWith(firstTagPrefix)) && (
+					<IconButton
+						icon={<IconWaveSine />}
+						iconOnly
+						label={t('signaly.first.show')}
+						onClick={() => setFirstDemo(n => n + 1)}
+					/>
+				)}
 				<IconButton
 					icon={<IconRefresh />}
 					iconOnly
@@ -197,6 +207,7 @@ export const SignalyPassagePreview: React.FC<{story: Story}> = ({story}) => {
 					locked: prefs.signalyDragLock,
 					onDrop: drop
 				}}
+				firstDemo={firstDemo}
 				mode="passage"
 				passageId={passage.id}
 				refresh={refresh}

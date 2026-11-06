@@ -66,6 +66,10 @@ export interface SignalyAppearancePreviewProps {
 	sampleDialog?: number;
 	/** Меняется — во фрейме проигрывается смена цикла (окно «Строка событий»). */
 	cycleDemo?: number;
+	/** Увеличивается — показать появление при первом посещении (шаг 4.5). */
+	firstDemo?: number;
+	/** Способ появления; нет — тот, что стоит на открытом экране. */
+	firstWay?: string;
 	/** История с готовыми блоками (JavaScript и таблица стилей). */
 	story: Story;
 	/** Перетаскивание мышью (шаг 1.4): что делать, когда элемент отпустили. */
@@ -77,7 +81,7 @@ export interface SignalyAppearancePreviewProps {
 export const SignalyAppearancePreview: React.FC<
 	SignalyAppearancePreviewProps
 > = props => {
-	const {baseUrl, cycleDemo, drag, mode, passageId, refresh, sampleDialog, sounds, story} = props;
+	const {baseUrl, cycleDemo, drag, firstDemo, firstWay, mode, passageId, refresh, sampleDialog, sounds, story} = props;
 	const {dispatch, formats} = useStoryFormatsContext();
 	const {prefs} = usePrefsContext();
 	const muteRef = React.useRef(prefs.signalyPreviewMute);
@@ -197,6 +201,15 @@ export const SignalyAppearancePreview: React.FC<
 			sugar.setup.signaly.cycleDemo();
 		}
 	}, [cycleDemo]);
+
+	// Первое посещение — показать появление элементов.
+	React.useEffect(() => {
+		const sugar = (frameRef.current?.contentWindow as any)?.SugarCube;
+
+		if (firstDemo && sugar?.setup?.signaly?.firstDemo) {
+			sugar.setup.signaly.firstDemo(firstWay);
+		}
+	}, [firstDemo]); // eslint-disable-line
 
 	// Масштаб под размер окна.
 	React.useEffect(() => {

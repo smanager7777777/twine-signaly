@@ -37,6 +37,8 @@ import {
 } from './signaly-appearance-fields';
 import {SignalyAppearancePreview, SignalyPreviewMute} from './signaly-appearance-preview';
 import {ScreenViewsTab, TextStylesTab} from './signaly-screens-tabs';
+import {FirstWaysTab} from './signaly-first-tab';
+import {firstTag, firstTagPrefix, firstValue, tagsWithWay} from '../../util/signaly/signaly-first';
 import '../signaly-kinds/signaly-kinds.css';
 import '../signaly-sounds/signaly-sounds.css';
 import './signaly-appearance.css';
@@ -48,7 +50,7 @@ export interface SignalyAppearanceWindowProps {
 
 const startScreenValue = '__sg-start__';
 
-type Tab = 'general' | 'screens' | 'styles';
+type Tab = 'general' | 'screens' | 'styles' | 'first';
 
 export const SignalyAppearanceWindow: React.FC<
 	SignalyAppearanceWindowProps
@@ -81,6 +83,8 @@ export const SignalyAppearanceWindow: React.FC<
 	const [tab, setTab] = React.useState<Tab>('general');
 	const [viewIndex, setViewIndex] = React.useState(0);
 	const [styleIndex, setStyleIndex] = React.useState(0);
+	const [wayIndex, setWayIndex] = React.useState(0);
+	const [firstDemo, setFirstDemo] = React.useState(0);
 	const folder = gameFolder(story.id);
 
 	React.useEffect(() => {
@@ -195,6 +199,13 @@ export const SignalyAppearanceWindow: React.FC<
 			if (!known && p.tags.some(tag => tag.startsWith(screenTagPrefix))) {
 				dispatch(updatePassage(story, p, {tags: tagsWithView(p.tags, undefined)}));
 			}
+			// Удалённые способы появления: экраны возникают как обычно.
+			if (
+				p.tags.some(tag => tag.startsWith(firstTagPrefix)) &&
+				!appearance.firstWays.some(w => p.tags.includes(firstTag(w)))
+			) {
+				dispatch(updatePassage(story, p, {tags: tagsWithWay(p.tags, undefined)}));
+			}
 		});
 		setSaved(true);
 		setSavedOnce(true);
@@ -297,7 +308,7 @@ export const SignalyAppearanceWindow: React.FC<
 			<div className="signaly-appearance-body">
 				<div className="signaly-appearance-settings">
 					<div className="signaly-tabs" role="tablist">
-						{(['general', 'screens', 'styles'] as const).map(name => (
+						{(['general', 'screens', 'styles', 'first'] as const).map(name => (
 							<button
 								aria-selected={tab === name}
 								className="signaly-tab"
@@ -332,6 +343,17 @@ export const SignalyAppearanceWindow: React.FC<
 							selected={styleIndex}
 							styles={appearance.textStyles}
 							used={id => classUseCount(textStyleClass({id}), passageTexts)}
+						/>
+					)}
+					{tab === 'first' && (
+						<FirstWaysTab
+							onChange={ways => change('firstWays', ways)}
+							onSaveColor={saveColor}
+							onSelect={setWayIndex}
+							savedColors={appearance.savedColors}
+							selected={wayIndex}
+							used={id => story.passages.filter(p => p.tags.includes(firstTag({id}))).length}
+							ways={appearance.firstWays}
 						/>
 					)}
 					{tab === 'general' && (
@@ -593,6 +615,11 @@ export const SignalyAppearanceWindow: React.FC<
 						>
 							{t('signaly.appearance.preview.refresh')}
 						</button>
+						{tab === 'first' && appearance.firstWays[wayIndex] && (
+							<button className="signaly-button" onClick={() => setFirstDemo(n => n + 1)} type="button">
+								{t('signaly.first.show')}
+							</button>
+						)}
 						<SignalyPreviewMute />
 						<span className="signaly-field-hint">
 							{t('signaly.appearance.preview.size')}
@@ -614,6 +641,8 @@ export const SignalyAppearanceWindow: React.FC<
 						baseUrl={folder ? folderToFileUrl(folder) : undefined}
 						mode={tab === 'general' && screen === startScreenValue ? 'start' : 'passage'}
 						passageId={tab === 'general' && screen === startScreenValue ? undefined : shownId}
+						firstDemo={firstDemo}
+						firstWay={appearance.firstWays[wayIndex] && firstValue(appearance.firstWays[wayIndex])}
 						refresh={refresh}
 						sampleDialog={sampleDialog}
 						story={previewStory}

@@ -4,11 +4,14 @@
 //   <<sg-replies title "Ошибка" wrong "Неверный код" denied "Нет доступа"
 //     badpin "Неверный личный код" used "Пусто" ask "Введите личный код">>
 //   <<sg-person "3" pin "417" var "$progress3">>          — сотрудник
-//   <<sg-entry "205" "Препарат" who "3, 5" once each title "Медблок" goto "Экран">>
+//   <<sg-entry "205" "Препарат" decoder who "3, 5" once each title "Медблок" goto "Экран">>
 //   действия — те же команды, что внутри ссылки (signaly-actions.ts),
 //   и <<sg-progress 1>> — «прогресс вводящего +1»
 //   <<sg-answer>>Сотрудник <<= _who>>, откройте конверт 3-2
+//   <<sg-when>>$chapter gte 2 (когда можно ввести; раньше — пассаж блокировки lock)
 //   <</sg-entry>>
+// decoder — метка «ДЕШИФРАТОР»: только для порядка в окне (ответы 2А, 3Б), на ввод
+// не влияет.
 // Движок (с версии 9) проверяет по ней блок «Поле кода» со словом table:
 // сначала свои коды поля, потом общая таблица; если коду важно, кто вводит
 // (права, «для каждого», прогресс, _who), — просит личный код во втором поле.
@@ -42,6 +45,8 @@ export interface TableCode {
 	code: string;
 	/** Подпись для себя. */
 	label: string;
+	/** Метка «ДЕШИФРАТОР»: для фильтра в окне, на ввод не влияет. */
+	decoder: boolean;
 	/** Кто может ввести; пусто — все. */
 	who: string[];
 	once: Once;
@@ -53,6 +58,10 @@ export interface TableCode {
 	/** Свои тексты «нет доступа» и «уже использован»; '' — общие. */
 	denied: string;
 	used: string;
+	/** Когда код можно ввести (как в <<if>>); '' — всегда. */
+	when: string;
+	/** Куда уводит код раньше времени; '' — общий пассаж блокировки. */
+	lock: string;
 	actions: Action[];
 	multiline: boolean;
 	extra: string[];
@@ -172,6 +181,7 @@ function parseEntry(tokens: string[], body: string, raw: string): TableCode | un
 	const entry: TableCode = {
 		code,
 		label: '',
+		decoder: false,
 		who: [],
 		once: '',
 		title: '',
@@ -179,20 +189,24 @@ function parseEntry(tokens: string[], body: string, raw: string): TableCode | un
 		goto: '',
 		denied: '',
 		used: '',
+		when: '',
+		lock: '',
 		actions: [],
 		multiline: false,
 		extra: [],
 		raw
 	};
-	const keys = ['who', 'once', 'title', 'goto', 'denied', 'used'];
+	const keys = ['who', 'once', 'title', 'goto', 'denied', 'used', 'lock'];
 
-	if (words.length && !keys.includes(words[0])) {
+	if (words.length && !keys.includes(words[0]) && words[0] !== 'decoder') {
 		entry.label = value(words.shift()) ?? '';
 	}
 	while (words.length) {
 		const word = words.shift()!;
 
-		if (keys.includes(word) && words.length) {
+		if (word === 'decoder') {
+			entry.decoder = true;
+		} else if (keys.includes(word) && words.length) {
 			const v = value(words.shift()) ?? '';
 
 			if (word === 'who') {
@@ -207,10 +221,13 @@ function parseEntry(tokens: string[], body: string, raw: string): TableCode | un
 		}
 	}
 
-	const split = body.indexOf('<<sg-answer>>');
-	const actions = split === -1 ? body : body.slice(0, split);
+	const whenAt = body.lastIndexOf('<<sg-when>>');
+	const main = whenAt === -1 ? body : body.slice(0, whenAt);
+	const split = main.indexOf('<<sg-answer>>');
+	const actions = split === -1 ? main : main.slice(0, split);
 
-	entry.answer = split === -1 ? '' : body.slice(split + '<<sg-answer>>'.length).replace(/^[ \t]*\n/, '').replace(/\n\s*$/, '');
+	entry.when = whenAt === -1 ? '' : body.slice(whenAt + '<<sg-when>>'.length).trim();
+	entry.answer = split === -1 ? '' : main.slice(split + '<<sg-answer>>'.length).replace(/^[ \t]*\n/, '').replace(/\n\s*$/, '');
 	entry.actions = splitBody(actions).map(parseAction);
 	entry.multiline = actions.includes('\n');
 	return entry;
@@ -262,13 +279,16 @@ export function writeEntry(entry: TableCode) {
 
 	const words = [arg(entry.code), arg(entry.label)];
 
+	if (entry.decoder) {
+		words.push('decoder');
+	}
 	if (entry.who.length) {
 		words.push('who', arg(entry.who.join(', ')));
 	}
 	if (entry.once) {
 		words.push('once', entry.once);
 	}
-	(['title', 'goto', 'denied', 'used'] as const).forEach(key => {
+	(['title', 'goto', 'denied', 'used', 'lock'] as const).forEach(key => {
 		if (entry[key]) {
 			words.push(key, arg(entry[key]));
 		}
@@ -278,8 +298,9 @@ export function writeEntry(entry: TableCode) {
 	const multiline = entry.multiline || entry.actions.length > 1 || entry.answer.includes('\n');
 	const actions = entry.actions.length ? writeActions(entry.actions, multiline) : multiline ? '\n' : '';
 	const answer = entry.answer.trim() === '' ? '' : `<<sg-answer>>${entry.answer}${multiline ? '\n' : ''}`;
+	const when = entry.when.trim() === '' ? '' : `<<sg-when>>${entry.when.trim()}${multiline ? '\n' : ''}`;
 
-	return `<<sg-entry ${words.join(' ')}>>${actions}${answer}<</sg-entry>>`;
+	return `<<sg-entry ${words.join(' ')}>>${actions}${answer}${when}<</sg-entry>>`;
 }
 
 export function writeTexts(texts: CodeTexts) {
@@ -357,6 +378,7 @@ export function newEntry(): TableCode {
 	return {
 		code: '',
 		label: '',
+		decoder: false,
 		who: [],
 		once: '',
 		title: '',
@@ -364,6 +386,8 @@ export function newEntry(): TableCode {
 		goto: '',
 		denied: '',
 		used: '',
+		when: '',
+		lock: '',
 		actions: [],
 		multiline: true,
 		extra: []

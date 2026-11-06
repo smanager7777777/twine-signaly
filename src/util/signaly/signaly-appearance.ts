@@ -22,6 +22,7 @@ import {
 	parseSeconds,
 	topLevelRules
 } from './signaly-css';
+import {firstCss, FirstWay, sanitizeWays} from './signaly-first';
 import {
 	flickerKeyframes,
 	inputCss,
@@ -123,6 +124,8 @@ export interface SignalyAppearance extends GlitchSettings, InputLook {
 	/** Виды экранов и стили текста (шаг 4.2, ответы 1А, 2А, 5А). */
 	screens: ScreenView[];
 	textStyles: TextStyle[];
+	/** Способы появления при первом посещении (шаг 4.5). */
+	firstWays: FirstWay[];
 }
 
 /** Значения по умолчанию — как в шаблоне автора 27_03_2025. */
@@ -193,6 +196,7 @@ export const defaultAppearance: SignalyAppearance = {
 	articleBackButton: false,
 	screens: [],
 	textStyles: [],
+	firstWays: [],
 	...defaultGlitch
 };
 
@@ -395,7 +399,8 @@ export function appearanceCss(a: SignalyAppearance): string {
 	// Виды экранов и стили текста (шаг 4.2) — сильнее общих правил.
 	lines.push(
 		...screensCss(a.screens, {...a, fontFamily: fontFamily(a)}),
-		...textStylesCss(a.textStyles)
+		...textStylesCss(a.textStyles),
+		...firstCss(a.firstWays, a.glitchShadow1, a.glitchShadow2)
 	);
 
 	return lines.join('\n');
@@ -629,6 +634,8 @@ export function sanitizeAppearance(data: any): SignalyAppearance {
 				result.screens = sanitizeViews(value);
 			} else if (key === 'textStyles') {
 				result.textStyles = sanitizeStyles(value);
+			} else if (key === 'firstWays') {
+				result.firstWays = sanitizeWays(value);
 			} else if (Array.isArray(fallback)) {
 				if (Array.isArray(value)) {
 					(result as any)[key] = value

@@ -24,7 +24,8 @@ import {
 	IconSeparatorHorizontal,
 	IconStrikethrough,
 	IconTextSize,
-	IconUnderline
+	IconUnderline,
+	IconWaveSine
 } from '@tabler/icons';
 import CodeMirror from 'codemirror';
 import * as React from 'react';
@@ -50,6 +51,7 @@ import {
 } from '../../util/signaly/signaly-appearance';
 import {normalizeHex} from '../../util/signaly/signaly-css';
 import {ScreenView, tagsWithView, textStyleClass, viewOfTags} from '../../util/signaly/signaly-screens';
+import {FirstWay, tagsWithWay, wayOfTags} from '../../util/signaly/signaly-first';
 import {
 	Align,
 	alignAt,
@@ -256,6 +258,7 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 	const savedColors = look.savedColors;
 	const views = look.screens;
 	const textStyles = look.textStyles;
+	const ways = look.firstWays;
 	const styleClasses = React.useMemo(() => textStyles.map(textStyleClass), [textStyles]);
 	const kindClasses = React.useMemo(() => kinds.map(k => k.cls), [kinds]);
 	const [panel, setPanel] = React.useState<PanelTarget>();
@@ -442,6 +445,12 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 
 	function setView(view: ScreenView | undefined) {
 		dispatch(updatePassage(story, passage, {tags: tagsWithView(passage.tags, view)}));
+	}
+
+	// Первое посещение (шаг 4.5): способ — тег экрана, показывает движок.
+	function setWay(way: FirstWay | undefined) {
+		ensureEngine();
+		dispatch(updatePassage(story, passage, {tags: tagsWithWay(passage.tags, way)}));
 	}
 
 	function setEventTag(on: boolean) {
@@ -707,6 +716,7 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 	const label = (key: string) => t(`signaly.format.${key}`);
 	const kindName = kinds.find(k => k.cls === info.kind)?.name;
 	const currentView = viewOfTags(passage.tags, views);
+	const currentWay = wayOfTags(passage.tags, ways);
 	const textStyleName = textStyles.find(s => textStyleClass(s) === info.textStyle)?.name;
 	const off = disabled || !editor;
 	const accessExpr = text.includes('<<sg-access') ? findAccess(text)?.expr ?? '' : '';
@@ -952,6 +962,30 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 							  ]
 					}
 					label={currentView ? `${t('signaly.screens.button')}: ${currentView.name}` : t('signaly.screens.button')}
+				/>
+				<MenuButton
+					disabled={off}
+					icon={<IconWaveSine />}
+					items={
+						ways.length === 0
+							? [{disabled: true, label: t('signaly.first.none'), onClick: () => {}}]
+							: [
+									{
+										checkable: true as const,
+										checked: !currentWay,
+										label: t('signaly.first.plain'),
+										onClick: () => setWay(undefined)
+									},
+									{separator: true as const},
+									...ways.map(w => ({
+										checkable: true as const,
+										checked: currentWay === w,
+										label: w.name,
+										onClick: () => setWay(w)
+									}))
+							  ]
+					}
+					label={currentWay ? `${t('signaly.first.button')}: ${currentWay.name}` : t('signaly.first.button')}
 				/>
 				<SignalyPreviewButton passageId={passage.id} />
 			</ButtonBar>

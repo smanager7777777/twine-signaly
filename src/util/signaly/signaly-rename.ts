@@ -11,7 +11,7 @@ function screenWords(macro: string) {
 	return [
 		'goto',
 		'passage',
-		...(macro === 'sg-access' ? ['lock'] : []),
+		...(macro === 'sg-access' || macro === 'sg-entry' ? ['lock'] : []),
 		...(macro === 'sg-rule' ? ['from', 'to'] : []),
 		...(macro === 'sg-ticker' ? ['screen'] : [])
 	];

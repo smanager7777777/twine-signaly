@@ -51,4 +51,8 @@ describe('переименование экрана в командах', () => 
 	it('имя со знаками регулярных выражений', () => {
 		expect(renameScreen('<<goto "a.b$">><<goto "aXb$">>', 'a.b$', 'c')).toBe('<<goto "c">><<goto "aXb$">>');
 	});
+
+	it('пассаж блокировки у кода', () => {
+		expect(renameScreen('<<sg-entry "1" "" lock "Рано">><</sg-entry>>', 'Рано', 'Поздно')).toBe('<<sg-entry "1" "" lock "Поздно">><</sg-entry>>');
+	});
 });

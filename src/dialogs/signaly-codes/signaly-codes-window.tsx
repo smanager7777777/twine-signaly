@@ -29,8 +29,9 @@ import {freeSpot} from '../../util/signaly/signaly-keys';
 import {findAudioInit} from '../../util/signaly/signaly-sounds';
 import {knownVariables} from '../../util/signaly/signaly-variables';
 import {CheckField, ChoiceField, TextField} from '../signaly-appearance/signaly-appearance-fields';
-import {CondListsContext, useCondLists} from '../passage-edit/signaly-logic-form';
-import {enteredCodes} from '../../util/signaly/signaly-logic';
+import {CondListsContext, CondRows, useCondLists} from '../passage-edit/signaly-logic-form';
+import {enteredCodes, parseExpr, writeExpr} from '../../util/signaly/signaly-logic';
+import {lockTag} from '../../util/signaly/signaly-access';
 import {ActionList} from '../passage-edit/signaly-action-list';
 import {AreaField, useLists} from '../passage-edit/signaly-block-panel';
 import {saveStoryWithUpgrade} from '../signaly-upgrade';
@@ -46,6 +47,8 @@ export interface SignalyCodesWindowProps {
 }
 
 type Tab = 'codes' | 'people' | 'texts';
+/** Фильтр списка кодов по метке «ДЕШИФРАТОР» (ответ 2А). */
+type Filter = 'all' | 'decoder' | 'other';
 
 /** Экраны, где поле кода проверяет по общей таблице. */
 function fieldsWithTable(story: Story) {
@@ -66,6 +69,7 @@ export const SignalyCodesWindow: React.FC<SignalyCodesWindowProps> = props => {
 	const [table, setTable] = React.useState<CodeTable>(() => readCodes(codesPassage?.text ?? ''));
 	const [tab, setTab] = React.useState<Tab>('codes');
 	const [selected, setSelected] = React.useState({codes: 0, people: 0});
+	const [filter, setFilter] = React.useState<Filter>('all');
 	const [saved, setSaved] = React.useState(true);
 	const variables = React.useMemo(() => knownVariables(story.passages), [story.passages]);
 	const audio = React.useMemo(
@@ -173,7 +177,7 @@ export const SignalyCodesWindow: React.FC<SignalyCodesWindowProps> = props => {
 
 	function add() {
 		if (tab === 'codes') {
-			change({...table, codes: [...table.codes, newEntry()]});
+			change({...table, codes: [...table.codes, {...newEntry(), decoder: filter === 'decoder'}]});
 			setSelected({...selected, codes: table.codes.length});
 		} else if (tab === 'people') {
 			change({...table, people: [...table.people, newPerson(table.people)]});
@@ -216,6 +220,8 @@ export const SignalyCodesWindow: React.FC<SignalyCodesWindowProps> = props => {
 
 		const pin = needsPin(entry, referenced);
 		const byCondition = pin && !needsPin(entry);
+		const whenRows = entry.when ? parseExpr(entry.when) : undefined;
+		const sharedLock = story.passages.find(p => p.tags.includes(lockTag))?.name ?? '';
 		const insert = (piece: string) =>
 			setEntry({answer: entry.answer + (entry.answer === '' || /\s$/.test(entry.answer) ? '' : ' ') + piece});
 
@@ -224,6 +230,10 @@ export const SignalyCodesWindow: React.FC<SignalyCodesWindowProps> = props => {
 				<TextField hint={l('codeHint')} label={l('code')} onChange={code => setEntry({code})} value={entry.code} />
 				{sameCodes.includes(entry.code.trim()) && <div className="signaly-notice">{l('sameHere')}</div>}
 				<TextField hint={l('labelHint')} label={l('label')} onChange={label => setEntry({label})} value={entry.label} />
+				<CheckField hint={l('decoderHint')} label={l('decoderMark')} onChange={decoder => setEntry({decoder})} value={entry.decoder} />
+				{entry.decoder && entry.code.trim() !== '' && !/^\d+$/.test(entry.code.trim()) && (
+					<div className="signaly-notice">{l('decoderDigits')}</div>
+				)}
 				<ChoiceField
 					label={l('who')}
 					onChange={value =>
@@ -269,6 +279,41 @@ export const SignalyCodesWindow: React.FC<SignalyCodesWindowProps> = props => {
 					]}
 					value={entry.once}
 				/>
+				<ChoiceField
+					hint={l('whenHint')}
+					label={l('when')}
+					onChange={value => setEntry({when: value === 'cond' ? `$${variables[0]?.name ?? 'x'}` : ''})}
+					options={[
+						{label: l('whenAlways'), value: ''},
+						{label: l('whenCond'), value: 'cond'}
+					]}
+					value={entry.when ? 'cond' : ''}
+				/>
+				{entry.when !== '' && (
+					<>
+						<CondListsContext.Provider value={condLists}>
+							{whenRows ? (
+								<CondRows
+									conds={whenRows.conds}
+									join={whenRows.join}
+									onChange={(conds, join) => setEntry({when: writeExpr(conds, join)})}
+									variables={variables}
+								/>
+							) : (
+								<TextField label={t('signaly.logic.cond.expr')} onChange={when => setEntry({when})} value={entry.when} />
+							)}
+						</CondListsContext.Provider>
+						<ChoiceField
+							label={l('lock')}
+							onChange={lock => setEntry({lock})}
+							options={[
+								{label: sharedLock ? l('lockShared', {name: sharedLock}) : l('lockSharedNone'), value: ''},
+								...passages.map(p => ({label: p, value: p}))
+							]}
+							value={entry.lock}
+						/>
+					</>
+				)}
 				<div className="signaly-notice">{l(byCondition ? 'askPinCondition' : pin ? 'askPin' : 'oneStep')}</div>
 				<h3>{t('signaly.actions.list')}</h3>
 				<CondListsContext.Provider value={condLists}>
@@ -368,6 +413,7 @@ export const SignalyCodesWindow: React.FC<SignalyCodesWindowProps> = props => {
 					<>
 						<span className="signaly-keys-item-combo">{c.code || '—'}</span>
 						{c.label}
+						{c.decoder && <span className="signaly-sound-file">{l('decoder')}</span>}
 						{c.once && <span className="signaly-sound-file">{l(c.once === 'all' ? 'onceShortAll' : 'onceShortEach')}</span>}
 					</>
 			  ))
@@ -381,6 +427,20 @@ export const SignalyCodesWindow: React.FC<SignalyCodesWindowProps> = props => {
 			  ))
 			: [];
 	const index = tab === 'people' ? selected.people : selected.codes;
+	// Строки списка с учётом фильтра; i — настоящий номер в таблице.
+	const shown = items
+		.map((item, i) => ({item, i}))
+		.filter(({i}) => tab !== 'codes' || filter === 'all' || table.codes[i].decoder === (filter === 'decoder'));
+
+	function chooseFilter(value: Filter) {
+		const fits = (c?: TableCode) => value === 'all' || c?.decoder === (value === 'decoder');
+		const first = table.codes.findIndex(c => fits(c));
+
+		setFilter(value);
+		if (!fits(table.codes[selected.codes]) && first !== -1) {
+			setSelected({...selected, codes: first});
+		}
+	}
 
 	return (
 		<div aria-label={l('title')} aria-modal="true" className="signaly-appearance-window signaly-sounds-window" role="dialog">
@@ -417,8 +477,20 @@ export const SignalyCodesWindow: React.FC<SignalyCodesWindowProps> = props => {
 					<p className="signaly-field-hint">{l(`intro.${tab}`)}</p>
 					{tab !== 'texts' && (
 						<>
+							{tab === 'codes' && (
+								<ChoiceField
+									label={l('filter')}
+									onChange={value => chooseFilter(value as Filter)}
+									options={[
+										{label: l('filterAll'), value: 'all'},
+										{label: l('decoder'), value: 'decoder'},
+										{label: l('filterOther'), value: 'other'}
+									]}
+									value={filter}
+								/>
+							)}
 							<div className="signaly-kinds-list">
-								{items.map((item, i) => (
+								{shown.map(({item, i}) => (
 									<button
 										aria-pressed={i === index}
 										className="signaly-kinds-item"

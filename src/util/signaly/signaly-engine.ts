@@ -36,7 +36,10 @@
 // - сессия 15: звук цикла — когда игроки видят счётчик; цифры останавливаются
 //   справа налево, у каждой своя скорость в начале и в конце;
 // - сессия 14: событие ждёт, пока закроют окно-сообщение; шаг 4.1 — строка
-//   событий и цикл на главном экране (пассаж с тегом sg-ticker).
+//   событий и цикл на главном экране (пассаж с тегом sg-ticker);
+// - шаг 4.5: поле кода со словом digits (только цифры); первое посещение —
+//   элементы экрана с тегом sg-first-<id> возникают постепенно, из шума,
+//   сквозь помехи или через глитч.
 //
 // Код написан без обратных кавычек и без «${», потому что хранится в шаблонной
 // строке.
@@ -48,7 +51,7 @@ import {timerDefaults} from './signaly-screen-blocks';
 const glitchBase = [...glitchRules(defaultGlitch, ':where(.glitchy)'), glitchKeyframes].join('\n');
 
 /** Версия движка. Увеличивать при каждом изменении кода ниже. */
-export const signalyEngineVersion = 14;
+export const signalyEngineVersion = 15;
 
 export const signalyEngineStart =
 	'/* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */';
@@ -1510,15 +1513,25 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	});
 
 	Macro.add('sg-entry', {
-		tags: ['sg-answer'],
+		tags: ['sg-answer', 'sg-when'],
 		handler: function () {
 			if (!codeCollect) {
 				return;
 			}
 
-			var a = blockArgs(this, ['code', 'label'], ['who', 'once', 'title', 'goto', 'denied', 'used'], []);
+			var a = blockArgs(this, ['code', 'label'], ['who', 'once', 'title', 'goto', 'denied', 'used', 'lock'], []);
 			var actions = this.payload[0].contents;
-			var answer = this.payload[1] ? trimContent(this.payload[1].contents) : '';
+			var answer = '';
+			var when = '';
+
+			this.payload.slice(1).forEach(function (part) {
+				if (part.name === 'sg-answer') {
+					answer = trimContent(part.contents);
+				} else {
+					when = part.contents.trim();
+				}
+			});
+
 			var who = a.who === undefined ? [] : String(a.who).split(',').map(function (s) {
 				return s.trim();
 			}).filter(Boolean);
@@ -1531,6 +1544,8 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 				goto: a.goto === undefined ? '' : String(a.goto),
 				denied: a.denied === undefined ? '' : String(a.denied),
 				used: a.used === undefined ? '' : String(a.used),
+				lock: a.lock === undefined ? '' : String(a.lock),
+				when: when,
 				run: actions,
 				answer: answer,
 				pin:
@@ -1690,10 +1705,25 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		return found;
 	}
 
+	// Шаг 4.5: буквы и знаки просто не печатаются (и при вставке из буфера).
+	function onlyDigits(el) {
+		el.setAttribute('inputmode', 'numeric');
+		el.addEventListener('input', function () {
+			var clean = el.value.replace(/\D/g, '');
+
+			if (clean !== el.value) {
+				var at = el.selectionStart - (el.value.length - clean.length);
+
+				el.value = clean;
+				el.setSelectionRange(Math.max(0, at), Math.max(0, at));
+			}
+		});
+	}
+
 	Macro.add('sg-code', {
 		tags: ['sg-case', 'sg-wrong'],
 		handler: function () {
-			var a = blockArgs(this, [], ['var', 'button', 'gap'], ['password', 'focus', 'clear', 'table']);
+			var a = blockArgs(this, [], ['var', 'button', 'gap'], ['password', 'focus', 'clear', 'table', 'digits']);
 			var cases = [];
 			var wrong = null;
 
@@ -1720,6 +1750,9 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			input.type = a.password ? 'password' : 'text';
 			input.className = 'sg-code';
 			input.setAttribute('tabindex', '0');
+			if (a.digits) {
+				onlyDigits(input);
+			}
 			if (varName) {
 				var start = State.variables[varName];
 
@@ -1769,6 +1802,9 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 				pin.type = a.password ? 'password' : 'text';
 				pin.className = 'sg-code';
 				pin.setAttribute('tabindex', '0');
+				if (a.digits) {
+					onlyDigits(pin);
+				}
 				pin.addEventListener('keydown', function (ev) {
 					if (ev.key === 'Enter') {
 						ev.preventDefault();
@@ -1790,9 +1826,47 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 				pin.focus();
 			}
 
+			// Шаг 4.5: у кода своё «когда можно ввести». Раньше времени — как у
+			// закрытого экрана: пассаж блокировки, код не тратится.
+			function tableEarly(entry) {
+				var open = true;
+
+				if (preview || !entry.when) {
+					return false;
+				}
+				try {
+					open = !!Scripting.evalTwineScript(entry.when);
+				} catch (e) {
+					console.error('СИГНАЛЫ: условие кода ' + entry.code, e);
+				}
+				if (open) {
+					return false;
+				}
+
+				var shared = Story.filter(function (p) {
+					return p.tags.indexOf('sg-lock') !== -1;
+				});
+				var lock = entry.lock && Story.has(entry.lock) ? entry.lock : shared.length ? shared[0].title : '';
+
+				if (!lock || lock === State.passage) {
+					codeMessage(codes().texts.wrong);
+					return true;
+				}
+				State.variables.sgEventFrom = State.passage;
+				accessSkip = true;
+				try {
+					Engine.play(lock);
+				} finally {
+					accessSkip = false;
+				}
+				return true;
+			}
+
 			function tableEntry(entry, value) {
 				if (entry.once === 'all' && usedMarks()[entry.code]) {
 					codeMessage(entry.used || codes().texts.used);
+				} else if (tableEarly(entry)) {
+					return;
 				} else if (accessEarly(entry.goto, entry.code, tableRefuse(entry))) {
 					return;
 				} else if (entry.pin) {
@@ -3245,6 +3319,475 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	});
 	setInterval(tickerCheck, 250);
 	requestAnimationFrame(tickerFrame);
+
+	/* ----- Первое посещение (шаг 4.5): элементы экрана возникают постепенно, из
+	   белого шума, сквозь помехи или через глитч. Способы — переменные
+	   --sg-first-<id> блока оформления, на экране — тег sg-first-<id>. Только при
+	   самом первом заходе; после сбоя экран не показывается так заново. */
+
+	var fvPrefix = 'sg-first-';
+	var fvNow = null;
+	var fvRestored = false;
+	// Нельзя переносить или накрывать обёрткой: видео сбросится, фиксированное
+	// место собьётся из-за фильтра на родителе.
+	var fvKeep = '.sg-place, .sg-alarm, .sg-chain, video, iframe, [style*="position: fixed"]';
+	var fvOwn = fvKeep + ', img, canvas, svg, input, textarea, select, .sg-timer';
+
+	function fvParse(value) {
+		var w = String(value || '').trim().split(/\s+/);
+
+		function part(i) {
+			return w[i] && w[i] !== '-' ? w[i] : w[0];
+		}
+
+		if (w.length < 7) {
+			return null;
+		}
+		return {
+			mode: w[0],
+			time: Math.max(0.001, Number(w[1]) || 0) * 1000,
+			step: Math.max(0, Number(w[2]) || 0) * 1000,
+			delay: Math.max(0, Number(w[3]) || 0) * 1000,
+			power: Math.max(0, Number(w[4]) || 0),
+			color: w[5],
+			skip: w[6] === '1',
+			parts: {text: part(7), links: part(8), media: part(9), fields: part(10)}
+		};
+	}
+
+	function fvWay(tags) {
+		var tag = tags.filter(function (name) {
+			return name.indexOf(fvPrefix) === 0;
+		})[0];
+
+		return tag ? fvParse(rootStyle.getPropertyValue('--' + tag)) : null;
+	}
+
+	function fvKind(el) {
+		function has(selector) {
+			return el.matches(selector) || !!el.querySelector(selector);
+		}
+
+		if (has('img, video, canvas, iframe, svg, .sg-chain')) {
+			return 'media';
+		}
+		if (has('input, textarea, select, .sg-timer')) {
+			return 'fields';
+		}
+		return has('a, button') ? 'links' : 'text';
+	}
+
+	function fvItem(el, kind, wrap) {
+		var look = getComputedStyle(el);
+
+		return {
+			el: el,
+			kind: kind,
+			wrap: !!wrap,
+			style: el.getAttribute('style'),
+			inline: look.display === 'inline',
+			fixed: look.position === 'fixed',
+			staticBox: look.position === 'static',
+			bare:
+				look.display === 'block' &&
+				/^(text|links)$/.test(kind) &&
+				look.backgroundColor === 'rgba(0, 0, 0, 0)' &&
+				parseFloat(look.borderTopWidth) === 0,
+			next: 0
+		};
+	}
+
+	// Элементы экрана по порядку сверху вниз. Текст одной строки — один элемент,
+	// ссылки, кнопки, картинки, поля и блоки — отдельные.
+	function fvScan(box, items) {
+		var run = [];
+
+		function flush() {
+			var visible = run.some(function (node) {
+				return /\S/.test(node.textContent);
+			});
+
+			if (visible) {
+				var wrap = document.createElement('span');
+
+				wrap.className = 'sg-fv';
+				run[0].parentNode.insertBefore(wrap, run[0]);
+				run.forEach(function (node) {
+					wrap.appendChild(node);
+				});
+				items.push(fvItem(wrap, 'text', true));
+			}
+			run = [];
+		}
+
+		Array.prototype.slice.call(box.childNodes).forEach(function (node) {
+			if (node.nodeType === 3) {
+				run.push(node);
+				return;
+			}
+			if (node.nodeType !== 1) {
+				return;
+			}
+			if (/^(BR|STYLE|SCRIPT)$/.test(node.tagName) || node.matches('.sg-alarm')) {
+				flush();
+				return;
+			}
+
+			var display = getComputedStyle(node).display;
+
+			if (display === 'none') {
+				return;
+			}
+			if (node.matches(fvOwn)) {
+				flush();
+				if (node.getClientRects().length) {
+					items.push(fvItem(node, fvKind(node)));
+				}
+			} else if (node.querySelector(fvKeep) || node.matches('.sg-art-list, .sg-art-section, .sg-art-grid')) {
+				flush();
+				fvScan(node, items);
+			} else if (display !== 'inline' || node.matches('a, button') || node.querySelector('a, button')) {
+				flush();
+				if (node.getClientRects().length && /\S/.test(node.textContent + (node.querySelector('img, svg, canvas') ? 'x' : ''))) {
+					items.push(fvItem(node, fvKind(node)));
+				}
+			} else {
+				run.push(node);
+			}
+		});
+		flush();
+	}
+
+	function fvRestore(item) {
+		if (item.style === null) {
+			item.el.removeAttribute('style');
+		} else {
+			item.el.setAttribute('style', item.style);
+		}
+	}
+
+	function fvRelease(item) {
+		fvRestore(item);
+		if (item.wrap && item.el.parentNode) {
+			while (item.el.firstChild) {
+				item.el.parentNode.insertBefore(item.el.firstChild, item.el);
+			}
+			item.el.parentNode.removeChild(item.el);
+		}
+	}
+
+	function fvEnd() {
+		if (!fvNow) {
+			return;
+		}
+		fvNow.items.forEach(fvRelease);
+		[fvNow.canvas, fvNow.svg].forEach(function (el) {
+			if (el.parentNode) {
+				el.parentNode.removeChild(el);
+			}
+		});
+		fvNow = null;
+	}
+
+	function fvRgb(color) {
+		var hex = String(color).replace('#', '');
+
+		return [0, 2, 4].map(function (i) {
+			var n = parseInt(hex.substr(i, 2), 16);
+
+			return isNaN(n) ? 255 : n;
+		});
+	}
+
+	// Узор шума: level — плотность, от 1 (редкие точки) до 8 (сплошной).
+	function fvTile(level) {
+		var key = level + '-' + Math.floor(Math.random() * 3);
+
+		if (fvNow.tiles[key]) {
+			return fvNow.tiles[key];
+		}
+
+		var size = 128;
+		var tile = document.createElement('canvas');
+		var rgb = fvRgb(fvNow.way.color);
+
+		tile.width = size;
+		tile.height = size;
+
+		var tileCtx = tile.getContext('2d');
+		var image = tileCtx.createImageData(size, size);
+
+		for (var i = 0; i < image.data.length; i += 4) {
+			var bright = 0.3 + Math.random() * 0.7;
+
+			image.data[i] = rgb[0] * bright;
+			image.data[i + 1] = rgb[1] * bright;
+			image.data[i + 2] = rgb[2] * bright;
+			image.data[i + 3] = Math.random() < level / 8 ? 255 : 0;
+		}
+		tileCtx.putImageData(image, 0, 0);
+		fvNow.tiles[key] = fvNow.ctx.createPattern(tile, 'repeat');
+		return fvNow.tiles[key];
+	}
+
+	function fvRects(item) {
+		var box = fvNow.box;
+		var source = item.el;
+
+		// Блок без своего фона и рамки: шум — по тексту, а не во всю ширину строки.
+		if (item.bare) {
+			source = document.createRange();
+			source.selectNodeContents(item.el);
+		}
+		return Array.prototype.slice.call(source.getClientRects()).map(function (r) {
+			if (item.fixed || !box) {
+				return r;
+			}
+
+			var top = Math.max(r.top, box.top);
+			var bottom = Math.min(r.bottom, box.bottom);
+
+			return {left: r.left, top: top, width: r.width, height: bottom - top};
+		}).filter(function (r) {
+			return r.width > 0 && r.height > 0;
+		});
+	}
+
+	function fvNoise(item, level) {
+		var ctx = fvNow.ctx;
+		var rects = fvRects(item);
+		var density = Math.ceil(level * 8);
+
+		if (!rects.length || density < 1) {
+			return;
+		}
+		ctx.save();
+		ctx.beginPath();
+		rects.forEach(function (r) {
+			ctx.rect(r.left, r.top, r.width, r.height);
+		});
+		ctx.clip();
+		ctx.imageSmoothingEnabled = false;
+		ctx.translate(Math.floor(Math.random() * 128), Math.floor(Math.random() * 128));
+		ctx.scale(2, 2);
+		ctx.fillStyle = fvTile(density);
+		ctx.fillRect(-128, -128, fvNow.canvas.width, fvNow.canvas.height);
+		ctx.restore();
+	}
+
+	function fvBands(item, level) {
+		var ctx = fvNow.ctx;
+		var rgb = fvRgb(fvNow.way.color);
+
+		fvRects(item).forEach(function (r) {
+			var count = 1 + Math.floor(Math.random() * 3);
+
+			for (var i = 0; i < count; i++) {
+				ctx.fillStyle = 'rgba(' + rgb.join(',') + ',' + level * 0.6 + ')';
+				ctx.fillRect(r.left, r.top + Math.random() * r.height, r.width, 1 + Math.random() * 2);
+			}
+		});
+	}
+
+	function fvMove(item, dx) {
+		if (item.inline) {
+			if (item.staticBox) {
+				item.el.style.position = 'relative';
+			}
+			item.el.style.left = dx + 'px';
+		} else {
+			item.el.style.translate = dx + 'px 0';
+		}
+	}
+
+	function fvFilter(item) {
+		var ns = 'http://www.w3.org/2000/svg';
+		var filter = document.createElementNS(ns, 'filter');
+		var noise = document.createElementNS(ns, 'feTurbulence');
+		var map = document.createElementNS(ns, 'feDisplacementMap');
+		var id = 'sg-fv-f' + fvNow.filters++;
+
+		filter.setAttribute('id', id);
+		filter.setAttribute('x', '-30%');
+		filter.setAttribute('y', '-10%');
+		filter.setAttribute('width', '160%');
+		filter.setAttribute('height', '120%');
+		filter.setAttribute('color-interpolation-filters', 'sRGB');
+		noise.setAttribute('type', 'fractalNoise');
+		noise.setAttribute('baseFrequency', '0.003 0.25');
+		noise.setAttribute('numOctaves', '2');
+		noise.setAttribute('result', 'n');
+		map.setAttribute('in', 'SourceGraphic');
+		map.setAttribute('in2', 'n');
+		map.setAttribute('xChannelSelector', 'R');
+		map.setAttribute('yChannelSelector', 'A');
+		filter.appendChild(noise);
+		filter.appendChild(map);
+		fvNow.svg.appendChild(filter);
+		item.noise = noise;
+		item.map = map;
+		item.el.style.filter = 'url(#' + id + ')';
+	}
+
+	function fvPaint(item, t, now) {
+		var way = fvNow.way;
+		var left = 1 - t;
+		var power = way.power / 100;
+		var s = item.el.style;
+
+		s.pointerEvents = '';
+		if (item.mode === 'fade') {
+			s.opacity = t;
+		} else if (item.mode === 'noise') {
+			s.opacity = Math.min(1, t * 1.5);
+			fvNoise(item, power * left);
+		} else if (item.mode === 'wave') {
+			if (!item.map) {
+				fvFilter(item);
+			}
+			if (now >= item.next) {
+				item.next = now + 50;
+				item.noise.setAttribute('seed', Math.floor(Math.random() * 1000));
+				item.map.setAttribute('scale', way.power * 1.6 * left * left);
+				s.opacity = Math.random() < 0.3 * left ? 0.3 : Math.min(1, 0.3 + t * 2);
+			}
+			fvBands(item, power * left);
+		} else {
+			if (now >= item.next) {
+				var shift = Math.round((way.power / 4) * left);
+				var edge = Math.max(1, shift / 2);
+
+				item.next = now + 60;
+				fvMove(item, Math.round((Math.random() * 2 - 1) * shift));
+				s.filter =
+					'drop-shadow(' + edge + 'px 0 0 ' + fvNow.shadow1 + ') drop-shadow(' + -edge + 'px 0 0 ' + fvNow.shadow2 + ')';
+				s.clipPath = '';
+				if (Math.random() < left * 0.7) {
+					var top = Math.random() * 60;
+
+					s.clipPath = 'inset(' + top + '% 0 ' + Math.random() * (80 - top) + '% 0)';
+				}
+				s.opacity = Math.random() < left * 0.25 ? 0.25 : 1;
+			}
+		}
+	}
+
+	function fvFrame(now) {
+		if (!fvNow) {
+			return;
+		}
+
+		var run = fvNow;
+		var alive = false;
+		var boxEl = document.getElementById('passages');
+
+		run.box = boxEl ? boxEl.getBoundingClientRect() : null;
+		run.ctx.clearRect(0, 0, run.canvas.width, run.canvas.height);
+		run.items.forEach(function (item) {
+			var t = (now - run.start - item.at) / run.way.time;
+
+			if (item.over) {
+				return;
+			}
+			if (t >= 1) {
+				item.over = true;
+				fvRestore(item);
+				return;
+			}
+			alive = true;
+			if (t >= 0) {
+				fvPaint(item, t, now);
+			}
+		});
+		if (alive) {
+			requestAnimationFrame(fvFrame);
+		} else {
+			fvEnd();
+		}
+	}
+
+	function fvStart(way) {
+		fvEnd();
+
+		var found = [];
+		var items = [];
+		var at = way.delay;
+
+		$('#passages').children().not('#sg-ticker').each(function () {
+			fvScan(this, found);
+		});
+		found.forEach(function (item) {
+			item.mode = way.parts[item.kind];
+			if (item.mode === 'now') {
+				fvRelease(item);
+				return;
+			}
+			item.at = at;
+			at += way.step;
+			item.el.style.opacity = '0';
+			item.el.style.pointerEvents = 'none';
+			items.push(item);
+		});
+		if (!items.length) {
+			return;
+		}
+
+		var canvas = document.createElement('canvas');
+		var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+
+		canvas.id = 'sg-fv-canvas';
+		canvas.width = window.innerWidth;
+		canvas.height = window.innerHeight;
+		canvas.style.cssText = 'position: fixed; left: 0; top: 0; z-index: 1001; pointer-events: none;';
+		svg.setAttribute('width', '0');
+		svg.setAttribute('height', '0');
+		svg.style.position = 'absolute';
+		document.body.appendChild(svg);
+		document.body.appendChild(canvas);
+		fvNow = {
+			way: way,
+			items: items,
+			canvas: canvas,
+			svg: svg,
+			ctx: canvas.getContext('2d'),
+			tiles: {},
+			filters: 0,
+			box: null,
+			shadow1: rootStyle.getPropertyValue('--sg-fvs-1').trim() || '#0000ff',
+			shadow2: rootStyle.getPropertyValue('--sg-fvs-2').trim() || '#ff0000',
+			start: performance.now()
+		};
+		requestAnimationFrame(fvFrame);
+	}
+
+	document.addEventListener('click', function () {
+		if (fvNow && fvNow.way.skip) {
+			fvEnd();
+		}
+	}, true);
+
+	$(document).on(':passageinit', fvEnd);
+	$(document).on(':passagestart', function () {
+		fvRestored = restoring;
+	});
+	// После обработчика окна KR2: он перекладывает элементы экрана в свои зоны.
+	$(document).one(':passageinit', function () {
+		$(document).on(':passageend', function (ev) {
+			var way = preview || fvRestored ? null : fvWay(ev.passage.tags);
+
+			if (way && setup.visits(ev.passage.title) === 1) {
+				fvStart(way);
+			}
+		});
+	});
+	// Предпросмотр программы: показать появление на открытом экране.
+	setup.signaly.firstDemo = function (value) {
+		var way = value ? fvParse(value) : fvWay(Story.get(State.passage).tags);
+
+		if (way) {
+			fvStart(way);
+		}
+	};
 
 	if (preview) {
 		// Всегда с выбранного экрана, а не с того, что был в прошлый раз.

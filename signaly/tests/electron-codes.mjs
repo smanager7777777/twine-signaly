@@ -160,7 +160,7 @@ const tag = /<tw-passagedata[^>]*name="Коды"[^>]*>/.exec(file)?.[0] ?? '';
 const text = at === -1 ? '' : file.slice(file.indexOf('>', at) + 1, file.indexOf('</tw-passagedata>', at));
 
 check('пассаж «Коды» с тегом sg-codes', /tags="sg-codes"/.test(tag), tag);
-check('движок 14', file.includes('Версия движка: 14'));
+check('движок 15', file.includes('Версия движка: 15'));
 check(
 	'в пассаже: тексты, сотрудники, коды',
 	text.includes('<<sg-replies title "Ошибка" wrong "Неверный код" denied "Доступ запрещён" badpin "Неверный личный код" used "Пусто" ask "Введите личный код">>') &&

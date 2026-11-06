@@ -128,7 +128,8 @@ const specs: Record<BlockType | PartKind, ArgSpec> = {
 		pos: [],
 		keys: {var: 'string', button: 'string', gap: 'number'},
 		// table — проверять ещё и по общей таблице кодов (шаг 3.4).
-		flags: ['password', 'focus', 'clear', 'table'],
+		// digits — только цифры (шаг 4.5, ДЕШИФРАТОР).
+		flags: ['password', 'focus', 'clear', 'table', 'digits'],
 		container: true
 	},
 	place: {

@@ -44,7 +44,7 @@ interface NamedListProps<T extends {id: string; name: string}> {
 	used: (id: string) => number;
 }
 
-function NamedList<T extends {id: string; name: string}>(props: NamedListProps<T>) {
+export function NamedList<T extends {id: string; name: string}>(props: NamedListProps<T>) {
 	const {items, l, onAdd, onChange, onCopy, onSelect, selected, used} = props;
 	const row = items[selected];
 

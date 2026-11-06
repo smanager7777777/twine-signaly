@@ -589,7 +589,8 @@
 			"tabs": {
 				"general": "General",
 				"screens": "Screen views",
-				"styles": "Text styles"
+				"styles": "Text styles",
+				"first": "First visit"
 			},
 			"inputFontSame": "As is"
 		},
@@ -805,7 +806,9 @@
 				"wrongTitle": "Error",
 				"wrongText": "Wrong code",
 				"table": "Also check the shared code table",
-				"tableHint": "This field's codes first, then the shared table from the Codes window (Story tab). \"Wrong code\" — the message below, or the shared one from the Codes window."
+				"tableHint": "This field's codes first, then the shared table from the Codes window (Story tab). \"Wrong code\" — the message below, or the shared one from the Codes window.",
+				"digits": "Digits only",
+				"digitsHint": "Letters and symbols are not typed. For the shared password window (DECODER): use together with “Check the shared code table”."
 			},
 			"kr2": {
 				"title": "KR2 window",
@@ -1448,7 +1451,21 @@
 				"samePin": "Duplicate personal codes: {{list}}.",
 				"badVar": "Progress variable name: Latin letters, no spaces."
 			},
-			"askPinCondition": "The terminal will ask for a personal code: this code is used in an “employee entered a code” condition."
+			"askPinCondition": "The terminal will ask for a personal code: this code is used in an “employee entered a code” condition.",
+			"decoder": "DECODER",
+			"decoderMark": "“DECODER” mark",
+			"decoderHint": "For tidiness only: the list filter uses this mark. The code can be entered in any field that checks the shared table. Whether it is too early is decided by “When it can be entered” or by the “Access” of the screen it leads to.",
+			"decoderDigits": "This code has more than digits: it cannot be typed into a “Digits only” field.",
+			"filter": "Show",
+			"filterAll": "All codes",
+			"filterOther": "Unmarked",
+			"when": "When it can be entered",
+			"whenAlways": "Always",
+			"whenCond": "When the condition is met",
+			"whenHint": "Too early, the code is not used up and its actions and answer do not run. For a code leading to a closed screen, that screen's “Access” is enough.",
+			"lock": "If too early — lock passage",
+			"lockShared": "Shared: {{name}}",
+			"lockSharedNone": "Shared (not chosen) — answer “Wrong code”"
 		},
 		"events": {
 			"button": "Event",
@@ -1789,6 +1806,51 @@
 			"addTag": "Add the tag",
 			"remove": "Remove article",
 			"confirmRemove": "The passage stops being an article and leaves the lists. The text stays. Remove?"
+		},
+		"first": {
+			"button": "First visit",
+			"plain": "As usual",
+			"none": "No ways yet — create them in “Terminal appearance”",
+			"show": "Show first visit",
+			"intro": "How the elements of a screen appear when players enter it for the first time. A way is set only on the screens you choose: use the “First visit” button above the screen text. Later visits and a restore after a crash open the screen as usual. The “Show” button above the preview plays the selected way on the selected screen.",
+			"empty": "No ways yet. Press “Add”.",
+			"newName": "Appearance",
+			"copySuffix": "copy",
+			"name": "Name",
+			"mode": "How elements appear",
+			"modes": {
+				"fade": "Fade in",
+				"noise": "Out of white noise",
+				"wave": "Through interference",
+				"glitch": "Through glitch"
+			},
+			"partsTitle": "Parts of the screen",
+			"parts": {
+				"text": "Text",
+				"links": "Links and buttons",
+				"media": "Images and video",
+				"fields": "Input fields and timers"
+			},
+			"same": "Same as the whole way",
+			"now": "At once, no effect",
+			"timing": "Time and strength",
+			"time": "How long one element takes",
+			"timeHint": "Noise or interference fades to zero over this time.",
+			"step": "Pause between elements",
+			"stepHint": "Elements go from top to bottom; a line of text is one element. 0 — all together.",
+			"delay": "Pause before the first element",
+			"power": "Noise and interference strength",
+			"color": "Colour of noise and interference lines",
+			"skip": "A click shows everything at once",
+			"skipHint": "Links and buttons that have not appeared yet cannot be clicked.",
+			"howTo": "Glitch colours are the ones in “Text effects” on the “General” tab. The alarm screen is not affected.",
+			"list": {
+				"add": "Add",
+				"copy": "Copy",
+				"delete": "Delete",
+				"confirmDelete": "Delete way “{{name}}”?",
+				"confirmDeleteUsed": "Way “{{name}}” is used on {{count}} screen(s). They will open as usual. Delete?"
+			}
 		}
 	}
 }

@@ -105,6 +105,34 @@ describe('общая таблица кодов (шаг 3.4)', () => {
 		expect(writeAction({type: 'progress', amount: -1})).toBe('<<sg-progress -1>>');
 	});
 
+	it('метка «ДЕШИФРАТОР»: читается, пишется, не занимает место подписи', () => {
+		const [marked, plainCode, noLabel] = readCodes(
+			'<<sg-entry "1" "Блок" decoder goto "Экран" once all>><</sg-entry>>\n<<sg-entry "2" "Конверт">><</sg-entry>>\n<<sg-entry "3" decoder>><</sg-entry>>'
+		).codes;
+
+		expect(marked).toMatchObject({code: '1', label: 'Блок', decoder: true, goto: 'Экран', once: 'all', extra: []});
+		expect(plainCode.decoder).toBe(false);
+		expect(noLabel).toMatchObject({label: '', decoder: true});
+		expect(writeEntry({...newEntry(), code: '7', label: 'Блок', decoder: true, goto: 'Э', multiline: false})).toBe(
+			'<<sg-entry "7" "Блок" decoder goto "Э">><</sg-entry>>'
+		);
+	});
+
+	it('когда можно ввести: условие и пассаж блокировки', () => {
+		const [early] = readCodes(
+			'<<sg-entry "1" "Конверт" lock "Рано">><<set $x to 1>><<sg-answer>>Откройте<<sg-when>>setup.visits("Э") gt 0<</sg-entry>>'
+		).codes;
+
+		expect(early).toMatchObject({when: 'setup.visits("Э") gt 0', lock: 'Рано', answer: 'Откройте'});
+		expect(early.actions).toHaveLength(1);
+
+		const written = writeEntry({...early, raw: undefined, multiline: false});
+
+		expect(written).toBe('<<sg-entry "1" "Конверт" lock "Рано"><<set $x to 1>><<sg-answer>>Откройте<<sg-when>>setup.visits("Э") gt 0<</sg-entry>>'.replace('"Рано">', '"Рано">>'));
+		expect(readCodes(written).codes[0]).toMatchObject({when: 'setup.visits("Э") gt 0', lock: 'Рано', answer: 'Откройте'});
+		expect(readCodes('<<sg-entry "2" "Б">><<sg-when>>$a<</sg-entry>>').codes[0]).toMatchObject({when: '$a', answer: ''});
+	});
+
 	it('повторы и новые строки', () => {
 		expect(duplicates(['1', '2', ' 1', ''])).toEqual(['1']);
 		expect(newPerson([{id: '1', pin: '', variable: '', extra: []}])).toMatchObject({id: '2', variable: 'progress2'});
