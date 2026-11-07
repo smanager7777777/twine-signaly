@@ -137,7 +137,7 @@ await rw.getByRole('textbox', {name: 'Код цвета'}).first().fill('#ff0000
 await rw.getByRole('textbox', {name: 'Код цвета'}).first().press('Enter');
 await rw.getByLabel('Надпись на каркасе', {exact: true}).fill('ПРОБА');
 await rw.getByLabel('Звук искры', {exact: true}).selectOption('media/audio/radiovinyl.wav');
-check('типы: сломанное доступно, остальные — позже', (await rw.getByRole('radiogroup', {name: 'Тип радио'}).getByRole('radio').allTextContents()).join('|').includes('позже'));
+check('типы: все три доступны (шаг 7.4)', !(await rw.getByRole('radiogroup', {name: 'Тип радио'}).getByRole('radio').allTextContents()).join('|').includes('позже'));
 await win.waitForTimeout(2500);
 
 const frame = win.frameLocator('.signaly-ticker-preview iframe');
