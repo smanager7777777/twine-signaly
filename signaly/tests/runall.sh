@@ -43,6 +43,7 @@ game step25-play $T $M $PW ""
 game music-play $T $M $PW /tmp/run/shots
 game radio-play $T $M $PW /tmp/run/shots
 game air-play $T $M $PW /tmp/run/shots
+game reverse-play $T $M $PW /tmp/run/shots
 echo "--- программа" >> $S
 el() { local name=$1 tw=$2
   for try in 1 2; do
@@ -74,4 +75,5 @@ el electron-step25 $T
 el electron-music /tmp/run/t-4b9ae32.twee
 el electron-radio /tmp/run/t-4b9ae32.twee
 el electron-air $T
+el electron-reverse $T
 echo DONE >> $S

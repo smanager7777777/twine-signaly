@@ -171,7 +171,7 @@ let music = text('Музыка');
 check('записано: вложенная папка за своей', /<<sg-folder "Радио" section radio>>[^]*<<sg-folder "Радио\/Записи" section radio>>/.test(music), music.slice(-600));
 check('записано: громкость файла', music.includes('<<sg-track "Запись 1" "media/audio/radiovinyl.wav" gain 60>>'));
 check('записано: передача ведёт в переименованную папку', /section air>>\n<<sg-track "Перехват" "media\/audio\/radiovinyl.wav" to "Радио\/Записи" width 0.8 text "SOS">>/.test(music), music.slice(-400));
-check('движок 25', /Версия движка: 25/.test(storyFile()));
+check('движок 26', /Версия движка: 26/.test(storyFile()));
 await mw.getByRole('button', {name: 'Закрыть', exact: true}).click();
 await win.waitForTimeout(500);
 await toolbarBtn(/^Музыка$/).click();

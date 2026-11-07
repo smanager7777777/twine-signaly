@@ -2313,7 +2313,10 @@
 			"mhz": "MHz",
 			"text": "Own ticker message",
 			"textHint": "Shown in the radio ticker until caught. Empty — the radio view message.",
-			"whenAir": "When the transmission is on air"
+			"whenAir": "When the transmission is on air",
+			"reverse": "Reversed file",
+			"reverseHint": "What is heard while REVERSE is held. Empty — the program reverses the track on Save.",
+			"reverseAuto": "Reverse the track (by the program)"
 		},
 		"screenMusic": {
 			"button": "Screen music",
@@ -2357,7 +2360,7 @@
 			"name": "Look name",
 			"nameHint": "Radio blocks find the look by name.",
 			"type": "Radio type",
-			"typeHint": "Reverse comes in the next step.",
+			"typeHint": "Repaired has the air band; reverse adds REVERSE, track progress and reels.",
 			"later": "later",
 			"types": {
 				"broken": "Broken, frame {{frame}}",
@@ -2366,8 +2369,8 @@
 			},
 			"colors": "Colors",
 			"frame": "Frame",
-			"elements": "Controls",
-			"elementsHint": "",
+			"elements": "Elements: marquee, windows, digits",
+			"elementsHint": "Everything without its own colour below.",
 			"label": "Frame label",
 			"labelHint": "",
 			"sparksTitle": "Sparks",
@@ -2389,7 +2392,7 @@
 				"noiseRanges": "Noise ranges not understood: write 88-95, 101-108."
 			},
 			"airTitle": "On air",
-			"airHint": "Dial 88–108 MHz, drag the needle, −/+ move by 0.1 at most once a second. “SEARCH” pauses catalog music. Transmissions are in the Music window, On air section.",
+			"airHint": "Scale 88–108 MHz, drag the needle, −/+ move 0.1 at most once a second. Landing on a broadcast with the buttons lights the lamp. SEARCH pauses catalogue music. Broadcasts are in the Music window, Air section.",
 			"incoming": "Transmission message",
 			"incomingHint": "The ticker shows it while an uncaught transmission is on air. A transmission may have its own.",
 			"catch": "Hold exact tuning",
@@ -2410,7 +2413,27 @@
 			"addJam": "Add interference",
 			"jamsMin": "How many: from",
 			"jamsMax": "to",
-			"jamsMaxHint": "Files in the list: {{files}}. Each one is used at most once."
+			"jamsMaxHint": "Files in the list: {{files}}. Each one is used at most once.",
+			"parts": {
+				"buttons": "Buttons",
+				"power": "Power switch (exit)",
+				"scale": "Tuning scale, frequency, progress",
+				"catalog": "Catalogue",
+				"inner": "Inner frame"
+			},
+			"asElements": "Now the same as elements.",
+			"asFrame": "Now the same as the frame: partitions, grille, reels.",
+			"resetElements": "Same as elements",
+			"resetFrame": "Same as frame",
+			"reverseTitle": "Reverse",
+			"reverseHint": "While REVERSE is held the track plays backwards. The program makes reversed copies on Save (here and in Music), into media/audio/reverse."
+		},
+		"reverse": {
+			"working": "Reversing tracks: {{done}} of {{total}}…",
+			"done": "{{count}} reversed copy made.",
+			"done_plural": "{{count}} reversed copies made.",
+			"failed": "Could not reverse: {{files}}",
+			"noFolder": "No game folder — reversed copies not made."
 		}
 	}
 }

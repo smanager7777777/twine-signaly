@@ -15,8 +15,11 @@ import {openHtmlWithScratchFile} from './scratch-file';
 import {
 	chooseGameFolder,
 	listGameMedia,
+	readMediaFile,
+	reverseNeeded,
 	showGameFolder,
-	writeGameFile
+	writeGameFile,
+	writeReverseFile
 } from './signaly-game-folder';
 import {Story} from '../../store/stories/stories.types';
 
@@ -91,6 +94,21 @@ export function initIpc() {
 
 	ipcMain.handle('signaly-list-media', (event, folder: string, kind: string) =>
 		listGameMedia(folder, kind)
+	);
+
+	// Шаг 7.4: развёрнутые копии треков.
+	ipcMain.handle('signaly-reverse-needed', (event, folder: string, jobs) =>
+		reverseNeeded(folder, jobs)
+	);
+
+	ipcMain.handle('signaly-read-media', (event, folder: string, path: string) =>
+		readMediaFile(folder, path)
+	);
+
+	ipcMain.handle(
+		'signaly-write-reverse',
+		(event, folder: string, path: string, data: Uint8Array) =>
+			writeReverseFile(folder, path, data)
 	);
 
 	ipcMain.on(

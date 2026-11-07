@@ -78,12 +78,17 @@ export interface SignalyAppearancePreviewProps {
 	drag?: {locked: boolean} & Pick<DragOptions, 'onDrop'>;
 	/** Наборы звуков (шаг 2.2): меняются во фрейме сразу, без перезапуска. */
 	sounds?: SignalySounds;
+	/**
+	 * Показать крупно только этот элемент экрана (селектор), во всё место предпросмотра —
+	 * сессия 29: радио в окне «Радио» было мелким посреди экрана 1920×1080.
+	 */
+	zoom?: string;
 }
 
 export const SignalyAppearancePreview: React.FC<
 	SignalyAppearancePreviewProps
 > = props => {
-	const {baseUrl, cycleDemo, drag, firstDemo, firstWay, mode, passageId, refresh, sampleDialog, sounds, story, tipDemo} = props;
+	const {baseUrl, cycleDemo, drag, firstDemo, firstWay, mode, passageId, refresh, sampleDialog, sounds, story, tipDemo, zoom} = props;
 	const {dispatch, formats} = useStoryFormatsContext();
 	const {prefs} = usePrefsContext();
 	const muteRef = React.useRef(prefs.signalyPreviewMute);
@@ -93,7 +98,9 @@ export const SignalyAppearancePreview: React.FC<
 	const storyRef = React.useRef(story);
 	const [html, setHtml] = React.useState<string>();
 	const [error, setError] = React.useState<string>();
-	const [scale, setScale] = React.useState(0.4);
+	const [box, setBox] = React.useState({width: previewWidth * 0.4, height: previewHeight * 0.4});
+	// Где на экране элемент zoom (точки экрана 1920×1080).
+	const [spot, setSpot] = React.useState<{x: number; y: number; width: number; height: number}>();
 
 	storyRef.current = story;
 
@@ -231,11 +238,10 @@ export const SignalyAppearancePreview: React.FC<
 		}
 
 		const update = () =>
-			setScale(
-				Math.min(
-					box.clientWidth / previewWidth,
-					box.clientHeight / previewHeight
-				)
+			setBox(old =>
+				old.width === box.clientWidth && old.height === box.clientHeight
+					? old
+					: {width: box.clientWidth, height: box.clientHeight}
 			);
 		update();
 
@@ -248,6 +254,35 @@ export const SignalyAppearancePreview: React.FC<
 		observer.observe(box);
 		return () => observer.disconnect();
 	}, []);
+
+	// Крупно один элемент: следим, где он на экране (радио подстраивается под окно).
+	React.useEffect(() => {
+		if (!zoom) {
+			return;
+		}
+
+		const timer = setInterval(() => {
+			const found = frameRef.current?.contentDocument?.querySelector(zoom);
+
+			if (!found) {
+				return;
+			}
+
+			const r = found.getBoundingClientRect();
+			const next = {x: Math.round(r.left), y: Math.round(r.top), width: Math.round(r.width), height: Math.round(r.height)};
+
+			setSpot(old =>
+				next.width > 0 && (!old || old.x !== next.x || old.y !== next.y || old.width !== next.width || old.height !== next.height) ? next : old
+			);
+		}, 250);
+
+		return () => clearInterval(timer);
+	}, [zoom]);
+
+	const zoomed = zoom && spot ? spot : undefined;
+	const scale = zoomed
+		? Math.min(box.width / zoomed.width, box.height / zoomed.height)
+		: Math.max(0.05, Math.min(box.width / previewWidth, box.height / previewHeight));
 
 	function handleLoad() {
 		// SugarCube вставляет стили чуть позже загрузки — подстрахуемся.
@@ -276,8 +311,8 @@ export const SignalyAppearancePreview: React.FC<
 			<div
 				className="signaly-preview-frame"
 				style={{
-					height: previewHeight * scale,
-					width: previewWidth * scale
+					height: (zoomed ? zoomed.height : previewHeight) * scale,
+					width: (zoomed ? zoomed.width : previewWidth) * scale
 				}}
 			>
 				{html && (
@@ -287,7 +322,9 @@ export const SignalyAppearancePreview: React.FC<
 						srcDoc={html}
 						style={{
 							height: previewHeight,
-							transform: `scale(${scale})`,
+							transform: zoomed
+								? `translate(${-zoomed.x * scale}px, ${-zoomed.y * scale}px) scale(${scale})`
+								: `scale(${scale})`,
 							width: previewWidth
 						}}
 						title={t('signaly.appearance.preview.title')}

@@ -137,7 +137,7 @@ let t = text('Цель');
 
 check('первая строка — команда, текст остался', t === '<<sg-article>>\\\nТекст статьи', t);
 check('тег sg-article', /tags="[^"]*sg-article/.test(passageIn(storyFile(), 'Цель').tag), passageIn(storyFile(), 'Цель').tag);
-check('движок 25 поставлен', storyFile().includes('Версия движка: 25'));
+check('движок 26 поставлен', storyFile().includes('Версия движка: 26'));
 check('подсказка с именем экрана', (await panel().getByText('Пусто — как имя экрана («Цель»)').count()) === 1);
 
 await fill('Название в списке', 'Гибернация');

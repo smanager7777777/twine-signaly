@@ -12,6 +12,9 @@
 // из них при каждом входе на экран выпадает от jamsmin до jamsmax штук в случайных местах шкалы (ответ 6);
 // incoming — сообщение строки, пока в эфире есть непойманная передача (ответ 5А); catch — сколько секунд
 // держать точную настройку, чтобы поймать передачу (ответ 4А). Передачи — раздел «Эфир» окна «Музыка».
+// Сессия 29 (замечание к build-31): свои цвета частей — [buttons "#…"] [power "#…"] [scale "#…"]
+// [catalog "#…"] [inner "#…"]; нет — как у элементов (внутренний каркас — как у каркаса).
+// Шаг 7.4: type reverse — каркас В2: всё, что у отремонтированного, плюс РЕВЕРС, прогресс трека, катушки.
 
 import {arg} from './signaly-link-form';
 import {commentRanges} from './signaly-music';
@@ -23,7 +26,7 @@ export const radioPassageName = 'Радио';
 export type RadioType = 'broken' | 'fixed' | 'reverse';
 export const radioTypes: RadioType[] = ['broken', 'fixed', 'reverse'];
 /** Типы, которые уже рисует движок. */
-export const radioReady: RadioType[] = ['broken', 'fixed'];
+export const radioReady: RadioType[] = ['broken', 'fixed', 'reverse'];
 
 /** Шкала эфира: 88,0–108,0 МГц, шаг 0,1. */
 export const airMin = 88;
@@ -38,6 +41,10 @@ export interface RadioJam {
 }
 export const radioFrames: Record<RadioType, string> = {broken: 'С2', fixed: 'Р2', reverse: 'В2'};
 
+/** Части радио со своим цветом (сессия 29): по умолчанию — как у элементов (inner — как у каркаса). */
+export const radioPartColors = ['buttons', 'power', 'scale', 'catalog', 'inner'] as const;
+export type RadioPartColor = typeof radioPartColors[number];
+
 export interface RadioView {
 	name: string;
 	type: RadioType;
@@ -47,6 +54,12 @@ export interface RadioView {
 	elements: string;
 	/** Надпись на каркасе ('' — без надписи). */
 	label: string;
+	/** Свои цвета частей (сессия 29); '' — как у элементов, внутренний каркас — как у каркаса. */
+	buttons: string;
+	power: string;
+	scale: string;
+	catalog: string;
+	inner: string;
 	/** Искры сломанного радио: 0 — нет, 100 — часто. */
 	sparks: number;
 	sparkSound: string;
@@ -72,6 +85,11 @@ export const radioDefaults: Omit<RadioView, 'name'> = {
 	frame: '#c9a24a',
 	elements: '#39ff7a',
 	label: 'ОРБИТА-3',
+	buttons: '',
+	power: '',
+	scale: '',
+	catalog: '',
+	inner: '',
 	sparks: 30,
 	sparkSound: '',
 	sparkVolume: 80,
@@ -165,6 +183,11 @@ const keys = [
 	'frame',
 	'elements',
 	'label',
+	'buttons',
+	'power',
+	'scale',
+	'catalog',
+	'inner',
 	'sparks',
 	'sparksound',
 	'sparkvolume',
@@ -204,6 +227,13 @@ function readView(tokens: string[]): RadioView {
 				break;
 			case 'label':
 				view.label = value;
+				break;
+			case 'buttons':
+			case 'power':
+			case 'scale':
+			case 'catalog':
+			case 'inner':
+				view[key] = value;
 				break;
 			case 'sparks':
 				view.sparks = Math.max(0, Math.min(100, Math.round(num(value, radioDefaults.sparks))));
@@ -250,6 +280,12 @@ export function readRadios(text: string): RadioView[] {
 
 export function writeView(v: RadioView) {
 	const w = [arg(v.name), 'type', v.type, 'frame', arg(v.frame), 'elements', arg(v.elements), 'label', arg(v.label)];
+
+	for (const key of radioPartColors) {
+		if (v[key]) {
+			w.push(key, arg(v[key]));
+		}
+	}
 
 	if (v.type === 'broken') {
 		w.push('sparks', String(v.sparks));

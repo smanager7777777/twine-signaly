@@ -12,6 +12,8 @@
 //                                                          файла, % (ответ 2А); to, width, text — у передачи эфира (шаг 7.3):
 //                                                          куда попадает после поимки (нет — помеха, в каталог не попадает),
 //                                                          сколько МГц в каждую сторону её слышно, своё сообщение в строке
+//   … [reverse "media/audio/послание.wav"]               — шаг 7.4, ответ 2А: свой файл «что слышно задом наперёд»
+//                                                          (нет — программа делает копию сама, signaly-reverse.ts)
 // Условие пустое — трек есть всегда; иначе — как в <<if>>.
 //
 // Музыка экрана — первая строка экрана:
@@ -48,6 +50,8 @@ export interface MusicTrack {
 	width: number;
 	/** Передача эфира: своё сообщение в строке радио ('' — сообщение вида, ответ 5А). */
 	text: string;
+	/** Свой файл «что слышно задом наперёд» (шаг 7.4, ответ 2А); '' — копия программы. */
+	reverse: string;
 }
 
 export interface MusicFolder {
@@ -83,7 +87,8 @@ export const trackDefaults: Omit<MusicTrack, 'name' | 'src'> = {
 	gain: 100,
 	to: '',
 	width: 1.5,
-	text: ''
+	text: '',
+	reverse: ''
 };
 
 /* ----- Вложенные папки (шаг 7.3, ответ 1Б): имя папки — путь через «/» ----- */
@@ -263,7 +268,8 @@ export function readMusic(text: string): MusicCatalog {
 			gain: Math.max(1, Math.min(100, Math.round(num(w.values.gain, trackDefaults.gain)))),
 			to: w.values.to ?? '',
 			width: Math.max(0.1, Math.min(20, num(w.values.width, trackDefaults.width))),
-			text: w.values.text ?? ''
+			text: w.values.text ?? '',
+			reverse: w.values.reverse ?? ''
 		});
 	}
 	return {settings, folders: treeOrder(folders)};
@@ -284,6 +290,9 @@ export function writeTrack(t: MusicTrack, air = false) {
 	}
 	if (t.start !== undefined) {
 		parts.push('start', String(clampVolume(t.start)));
+	}
+	if (t.reverse) {
+		parts.push('reverse', arg(t.reverse));
 	}
 	if (air) {
 		if (t.to) {

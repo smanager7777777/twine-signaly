@@ -11,6 +11,29 @@
 	min-width: 0;
 }
 
+.signaly-ticker-preview > .signaly-preview-box {
+	/* Сессия 29: предпросмотр — во всё место под строкой (без этого высота бралась от
+	   самого фрейма, и масштаб «застревал» на 0,4, как в решении 51). */
+	flex: 1 1 0;
+}
+
+.signaly-radio-part {
+	align-items: end;
+	display: flex;
+	gap: var(--grid-size);
+}
+
+.signaly-radio-part > :first-child {
+	flex: 1 1 auto;
+}
+
+.signaly-reverse-status {
+	max-width: 40em;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .signaly-ticker-preview-bar {
 	align-items: center;
 	display: flex;

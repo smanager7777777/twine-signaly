@@ -185,7 +185,8 @@ export function moveTemplateMusic(passages: TemplateMusicPassage[], exclude?: st
 					gain: 100,
 					to: '',
 					width: 1.5,
-					text: ''
+					text: '',
+					reverse: ''
 				};
 			})
 		});

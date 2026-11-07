@@ -668,7 +668,7 @@ setup.signalySounds = {
 
 
 /* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */
-/* Версия движка: 25. Обновляется программой «Twine СИГНАЛЫ».
+/* Версия движка: 26. Обновляется программой «Twine СИГНАЛЫ».
    Настройки — в окне «Оформление терминала» (они лежат в таблице стилей).
    Свой код пишите ниже конца этого блока. */
 (function () {
@@ -713,7 +713,7 @@ setup.signalySounds = {
 	// Предпросмотр в программе: без стартового экрана, автокопии и защиты.
 	var preview = window.SIGNALY_PREVIEW;
 
-	setup.signaly = {engine: 25, preview: !!preview};
+	setup.signaly = {engine: 26, preview: !!preview};
 
 	// Русские служебные надписи SugarCube (этап 6, ответ 4А). Код автора стоит
 	// ниже движка, поэтому его надписи главнее.
@@ -1968,7 +1968,10 @@ setup.signalySounds = {
 	}
 
 	$(document).on('click', 'a, button', function () {
-		uiClick(this);
+		// Шаг 7.4: «РЕВЕРС» держат нажатым — звук нажатия звучит в начале, а не при отпускании.
+		if (!this.classList.contains('sg-r-revbtn')) {
+			uiClick(this);
+		}
 	});
 
 	/* ----- Порядок эффектов (сессия 7): «после эффектов выше» ----- */
@@ -3671,7 +3674,7 @@ setup.signalySounds = {
 	// старого вида его не трогают. После сбоя музыку включает мастер (решение 37).
 	var musCollect = null;
 	var musTable = null;
-	var mus = {audio: null, id: '', mult: 1, pre: null, timers: [], ramps: [], screen: [], fresh: true};
+	var mus = {audio: null, id: '', mult: 1, pre: null, rev: null, timers: [], ramps: [], screen: [], fresh: true};
 	var volItems = [];
 	var volTimer = null;
 
@@ -3715,7 +3718,7 @@ setup.signalySounds = {
 				return;
 			}
 
-			var a = blockArgs(this, ['name', 'src'], ['pre', 'wait', 'tail', 'prevolume', 'start', 'gain', 'to', 'width', 'text'], []);
+			var a = blockArgs(this, ['name', 'src'], ['pre', 'wait', 'tail', 'prevolume', 'start', 'gain', 'to', 'width', 'text', 'reverse'], []);
 
 			if (!musCollect.folders.length) {
 				musCollect.folders.push({name: 'Музыка', section: 'ambient', tracks: []});
@@ -3734,7 +3737,9 @@ setup.signalySounds = {
 				gain: Math.max(1, Math.min(100, musNum(a.gain, 100))),
 				to: a.to ? String(a.to) : '',
 				width: Math.max(0.1, Math.min(20, musNum(a.width, 1.5))),
-				text: a.text ? String(a.text) : ''
+				text: a.text ? String(a.text) : '',
+				// Шаг 7.4, ответ 2А: свой файл «что слышно задом наперёд»; нет — копия программы.
+				rev: a.reverse ? String(a.reverse) : ''
 			});
 		}
 	});
@@ -3887,6 +3892,153 @@ setup.signalySounds = {
 		ambDrawAll();
 	}
 
+	/* ----- Реверс (шаг 7.4) ----- */
+
+	// Длина треков, секунды: узнаётся при загрузке (для прогресса и реверса).
+	var musDur = {};
+
+	// Развёрнутый файл трека: свой (ответ 2А) или копия программы (ответ 1А) —
+	// media/audio/reverse/<путь внутри media/audio без расширения>.wav
+	// (то же правило — reversePath в signaly-reverse.ts).
+	function musRevSrc(t) {
+		if (t.rev) {
+			return t.rev;
+		}
+
+		var src = String(t.src).replace(/^\.\//, '');
+		var rel = src.indexOf('media/audio/') === 0 ? src.slice(12) : src.indexOf('media/') === 0 ? src.slice(6) : src;
+
+		return 'media/audio/reverse/' + rel.replace(/\.[^./]*$/, '') + '.wav';
+	}
+
+	// Длина трека; не знаем — узнать в фоне (вернётся 0).
+	function musLength(t) {
+		if (musDur[t.id]) {
+			return musDur[t.id];
+		}
+		if (mus.audio && mus.id === t.id && isFinite(mus.audio.duration) && mus.audio.duration > 0) {
+			musDur[t.id] = mus.audio.duration;
+			return musDur[t.id];
+		}
+		if (!preview && !musDur['?' + t.id]) {
+			musDur['?' + t.id] = 1;
+
+			var probe = new Audio();
+
+			probe.preload = 'metadata';
+			probe.addEventListener('loadedmetadata', function () {
+				if (isFinite(probe.duration) && probe.duration > 0) {
+					musDur[t.id] = probe.duration;
+				}
+			}, {once: true});
+			probe.src = t.src;
+		}
+		return 0;
+	}
+
+	// Где трек, пока звучит задом наперёд: место в развёрнутом файле → место в прямом
+	// (по доле длины: свой файл с посланием может быть другой длины).
+	function revPosition(rev) {
+		if (!rev.ok) {
+			return rev.at;
+		}
+
+		var q = rev.audio.ended ? rev.rdur : rev.audio.currentTime;
+
+		return Math.max(0, (rev.rdur - q) * rev.dur / rev.rdur);
+	}
+
+	// Ответ 4А: пока кнопка зажата — трек задом наперёд с обычной скоростью, место едет
+	// назад; дошли до начала — тишина, пока держат.
+	function revStart() {
+		var st = musState();
+		var t = music().byId[st.cur];
+
+		if (preview || !t || t.folder.section !== 'radio' || mus.rev) {
+			return;
+		}
+
+		var at = mus.audio && mus.id === t.id ? mus.audio.currentTime : Number(st.pos[t.id]) || 0;
+		var dur = musLength(t);
+
+		musHalt(true);
+		if (st.scan) {
+			st.scan = false;
+			airStop();
+		}
+
+		var audio = new Audio(musRevSrc(t));
+		var rev = {audio: audio, t: t, at: at, dur: dur, rdur: 0, ok: false};
+
+		audio.preload = 'auto';
+		audio.addEventListener('loadedmetadata', function () {
+			if (mus.rev !== rev || !isFinite(audio.duration) || audio.duration <= 0) {
+				return;
+			}
+			rev.rdur = audio.duration;
+			rev.dur = rev.dur || musLength(t) || audio.duration;
+			audio.currentTime = Math.max(0, Math.min(audio.duration, audio.duration - rev.at * audio.duration / rev.dur));
+			rev.ok = true;
+			audio.play().catch(function () {});
+		}, {once: true});
+		audio.addEventListener('error', function () {
+			console.warn('СИГНАЛЫ: нет развёрнутого файла «' + audio.getAttribute('src') + '» для трека «' + t.id + '»');
+		});
+		mus.rev = rev;
+		mus.id = t.id;
+		st.cur = t.id;
+		st.playing = true;
+		musApply();
+		musChanged();
+	}
+
+	// Отпустили — трек играет вперёд с нового места (без предзвука).
+	function revEnd() {
+		var rev = mus.rev;
+
+		if (preview || !rev) {
+			return;
+		}
+
+		var pos = revPosition(rev);
+
+		rev.audio.pause();
+		mus.rev = null;
+		musState().pos[rev.t.id] = pos;
+		musPlay(rev.t.id, 0, true);
+	}
+
+	// Текущий трек, где он и сколько длится — для полосы прогресса.
+	function musWhere() {
+		var st = radioState();
+		var t = music().byId[st.cur];
+
+		if (!t || preview) {
+			return null;
+		}
+
+		var pos = mus.rev && mus.rev.t === t ? revPosition(mus.rev) : mus.audio && mus.id === t.id ? mus.audio.currentTime : Number(st.pos[t.id]) || 0;
+
+		return {t: t, pos: pos, dur: musLength(t)};
+	}
+
+	// Перемотка полосой прогресса (ответ 5Б): и на паузе — место запоминается.
+	function musSeek(frac) {
+		var w = musWhere();
+
+		if (!w || !w.dur || mus.rev) {
+			return;
+		}
+
+		var pos = Math.max(0, Math.min(w.dur - 0.05, frac * w.dur));
+
+		if (mus.audio && mus.id === w.t.id) {
+			mus.audio.currentTime = pos;
+		}
+		musState().pos[w.t.id] = pos;
+		saveVars();
+	}
+
 	// Громкость файла трека (шаг 7.3, ответ 2А), 1–100 %.
 	function musGain(id) {
 		var t = music().byId[id];
@@ -3897,6 +4049,9 @@ setup.signalySounds = {
 	function musApply() {
 		if (mus.audio) {
 			mus.audio.volume = Math.max(0, Math.min(1, (musState().vol / 99) * mus.mult * musGain(mus.id)));
+		}
+		if (mus.rev) {
+			mus.rev.audio.volume = Math.max(0, Math.min(1, (musState().vol / 99) * musGain(mus.rev.t.id)));
 		}
 	}
 
@@ -3944,10 +4099,17 @@ setup.signalySounds = {
 			mus.audio.pause();
 			mus.audio = null;
 		}
+		if (mus.rev) {
+			// Шаг 7.4: реверс прервало другое действие — место там, куда доехали назад.
+			st.pos[mus.rev.t.id] = keepPlace ? revPosition(mus.rev) : 0;
+			mus.rev.audio.pause();
+			mus.rev = null;
+		}
 		mus.mult = 1;
 	}
 
-	function musPlay(id, rise) {
+	// quiet — без предзвука (шаг 7.4: трек играет дальше после реверса).
+	function musPlay(id, rise, quiet) {
 		var t = music().byId[id];
 		var st = musState();
 
@@ -3987,6 +4149,11 @@ setup.signalySounds = {
 				musEnded(id);
 			}
 		});
+		audio.addEventListener('loadedmetadata', function () {
+			if (isFinite(audio.duration) && audio.duration > 0) {
+				musDur[id] = audio.duration;
+			}
+		}, {once: true});
 		mus.audio = audio;
 		mus.id = id;
 		mus.mult = rise > 0 ? 0 : 1;
@@ -4009,7 +4176,7 @@ setup.signalySounds = {
 			}
 		};
 
-		if (t.pre) {
+		if (t.pre && !quiet) {
 			// Предзвук: сначала он, через wait секунд — трек, ещё tail секунд — оба.
 			var pre = new Audio(t.pre);
 
@@ -4443,7 +4610,8 @@ setup.signalySounds = {
 		handler: function () {
 			if (radioCollect) {
 				radioCollect.push(blockArgs(this, ['name'], ['type', 'frame', 'elements', 'label', 'sparks', 'sparksound', 'sparkvolume',
-					'noise', 'noisevolume', 'noiseranges', 'jam', 'jamsmin', 'jamsmax', 'incoming', 'catch'], []));
+					'noise', 'noisevolume', 'noiseranges', 'jam', 'jamsmin', 'jamsmax', 'incoming', 'catch',
+					'buttons', 'power', 'scale', 'catalog', 'inner'], []));
 			}
 		}
 	});
@@ -4476,6 +4644,12 @@ setup.signalySounds = {
 				frame: String(a.frame || '#c9a24a'),
 				elements: String(a.elements || '#39ff7a'),
 				label: a.label === undefined ? 'ОРБИТА-3' : String(a.label),
+				// Сессия 29: свои цвета частей; нет — как у элементов (внутренний каркас — как у каркаса).
+				buttons: a.buttons ? String(a.buttons) : '',
+				power: a.power ? String(a.power) : '',
+				scale: a.scale ? String(a.scale) : '',
+				catalog: a.catalog ? String(a.catalog) : '',
+				inner: a.inner ? String(a.inner) : '',
 				sparks: Math.max(0, Math.min(100, musNum(a.sparks, 30))),
 				sound: a.sparksound ? String(a.sparksound) : '',
 				volume: Math.max(0, Math.min(100, musNum(a.sparkvolume, 80))),
@@ -4604,6 +4778,46 @@ setup.signalySounds = {
 		return {svg: svg, segs: [], sparks: []};
 	}
 
+	// Каркас В2 (шаг 7.4) в квадрате 1000×1000: целая рама, под строкой — линия; слева
+	// сверху — окно с катушками (крутятся, пока трек играет, при реверсе — назад), под
+	// ним и шкалами — вторая линия; винты внизу по углам.
+	function radioFrameReverse(view) {
+		var svg = svgEl('svg', {viewBox: '0 0 1000 1000', 'class': 'sg-r-frame', 'aria-hidden': 'true'});
+		var reels = [];
+
+		svgEl('rect', {x: 14, y: 14, width: 972, height: 972, 'class': 'sg-r-fr'}, svg);
+		svgEl('line', {x1: 14, y1: 136, x2: 986, y2: 136, 'class': 'sg-r-thin'}, svg);
+		svgEl('line', {x1: 14, y1: 350, x2: 986, y2: 350, 'class': 'sg-r-thin'}, svg);
+		svgEl('rect', {x: 30, y: 152, width: 270, height: 184, rx: 14, 'class': 'sg-r-thin'}, svg);
+		[106, 224].forEach(function (cx) {
+			var cy = 236;
+
+			svgEl('circle', {cx: cx, cy: cy, r: 52, 'class': 'sg-r-reelrim'}, svg);
+
+			var g = svgEl('g', {'class': 'sg-r-reel'}, svg);
+
+			svgEl('circle', {cx: cx, cy: cy, r: 18, 'class': 'sg-r-thin'}, g);
+			for (var a = 0; a < 3; a++) {
+				var ang = a * 2.094 - 1.571;
+
+				svgEl('line', {x1: cx + Math.cos(ang) * 18, y1: cy + Math.sin(ang) * 18, x2: cx + Math.cos(ang) * 44, y2: cy + Math.sin(ang) * 44, 'class': 'sg-r-thin'}, g);
+			}
+			reels.push({g: g, cx: cx, cy: cy});
+		});
+		svgEl('line', {x1: 106, y1: 288, x2: 224, y2: 288, 'class': 'sg-r-thin'}, svg);
+		[[40, 962], [960, 962]].forEach(function (p) {
+			svgEl('circle', {cx: p[0], cy: p[1], r: 9, 'class': 'sg-r-fr'}, svg);
+			svgEl('line', {x1: p[0] - 5, y1: p[1] - 5, x2: p[0] + 5, y2: p[1] + 5, 'class': 'sg-r-thin'}, svg);
+			svgEl('line', {x1: p[0] - 5, y1: p[1] + 5, x2: p[0] + 5, y2: p[1] - 5, 'class': 'sg-r-thin'}, svg);
+		});
+		if (view.label) {
+			var text = svgEl('text', {x: 812, y: 90, 'class': 'sg-r-label'}, svg);
+
+			text.textContent = view.label;
+		}
+		return {svg: svg, segs: [], sparks: [], reels: reels};
+	}
+
 	// Места частей радио в долях 1000: [x, y, ширина, высота].
 	var radioPlaces = {
 		broken: {
@@ -4619,6 +4833,15 @@ setup.signalySounds = {
 			minus: [686, 400, 64, 84], digits: [762, 400, 124, 84], plus: [898, 400, 64, 84],
 			play: [686, 520, 84, 84], pause: [782, 520, 84, 84], stop: [878, 520, 84, 84],
 			auto: [686, 648, 190, 58], power: [686, 766, 276, 150]
+		},
+		reverse: {
+			mq: [36, 36, 760, 82], scan: [316, 152, 96, 110], scale: [424, 152, 360, 110],
+			freq: [796, 152, 168, 60], fminus: [796, 218, 78, 44], fplus: [886, 218, 78, 44],
+			prog: [316, 276, 648, 60],
+			cat: [36, 366, 560, 576], cap: [620, 372, 344, 30],
+			minus: [620, 406, 70, 80], digits: [702, 406, 180, 80], plus: [894, 406, 70, 80],
+			play: [620, 504, 102, 80], pause: [741, 504, 102, 80], stop: [862, 504, 102, 80],
+			rev: [620, 602, 344, 84], auto: [620, 706, 190, 58], power: [620, 784, 344, 150]
 		}
 	};
 
@@ -4666,7 +4889,7 @@ setup.signalySounds = {
 		if (ambient) {
 			return (st.playing ? 'Сейчас: ' : 'Пауза: ') + t.name + ' — ' + t.folder.name;
 		}
-		return (st.playing ? '▶ СЕЙЧАС ИГРАЕТ: ' : '❚❚ ПАУЗА: ') + t.name + '   ·   ПАПКА «' + t.folder.name + '»';
+		return (mus.rev ? '◀◀ РЕВЕРС: ' : st.playing ? '▶ СЕЙЧАС ИГРАЕТ: ' : '❚❚ ПАУЗА: ') + t.name + '   ·   ПАПКА «' + t.folder.name + '»';
 	}
 
 	// Каталог как файловая система старого терминала (ответ 3): папки → переход
@@ -4757,6 +4980,16 @@ setup.signalySounds = {
 			folders.forEach(dirLine);
 		} else {
 			line('', '— ПУСТО —', '', 'sg-r-empty', function () {});
+		}
+		// Поймали передачу (сессия 29): каталог в её папке, строка трека видна.
+		if (item.scrollCur) {
+			item.scrollCur = false;
+
+			var curLine = list.querySelector('.sg-r-cur');
+
+			if (curLine) {
+				list.scrollTop = Math.max(0, curLine.offsetTop - list.offsetTop - list.clientHeight / 3);
+			}
 		}
 	}
 
@@ -4995,6 +5228,9 @@ setup.signalySounds = {
 			(item.srcs || []).forEach(airMute);
 			airMute(item.noise || {});
 			item.hold = null;
+			if (item.lamp) {
+				item.lamp.classList.remove('sg-r-lamp-on');
+			}
 		});
 		if (airTimer) {
 			clearInterval(airTimer);
@@ -5086,6 +5322,9 @@ setup.signalySounds = {
 			// Точная настройка на передачу, которая попадёт в каталог (ответ 4А).
 			var aim = exact && exact.kind === 'tx' && !exact.t.only && f === exact.c ? exact : null;
 
+			// Сессия 29: лампочка — точно на передаче и встали кнопками (не иглой).
+			item.lamp.classList.toggle('sg-r-lamp-on', !!(aim && item.byButton));
+
 			if (!aim) {
 				item.hold = null;
 			} else if (!item.hold || item.hold.s !== aim) {
@@ -5123,7 +5362,9 @@ setup.signalySounds = {
 		st.last.radio = t.id;
 		st.lastIn[t.folder.name] = t.id;
 
-		var low = st.vol > 0 ? Math.max(0, st.vol - 10) / st.vol : 0;
+		// Сессия 29: на 10 тише, но не тише половины — при малой громкости (10 в шаблоне)
+		// «на 10 тише» было тишиной, и казалось, что после поимки радио замолкло.
+		var low = st.vol > 0 ? Math.max(st.vol - 10, st.vol / 2) / st.vol : 0;
 
 		mus.mult = low;
 		musApply();
@@ -5138,12 +5379,15 @@ setup.signalySounds = {
 			}
 		}, 10000));
 		item.dir = t.folder.name;
+		item.scrollCur = true;
 		musChanged();
 	}
 
-	function airTune(item, f10) {
+	// byButton — частоту поменяли кнопками −/+ (для лампочки), а не иглой.
+	function airTune(item, f10, byButton) {
 		var f = Math.max(airLo, Math.min(airHi, Math.round(f10)));
 
+		item.byButton = !!byButton;
 		if (preview) {
 			item.pfreq = f;
 		} else {
@@ -5241,13 +5485,15 @@ setup.signalySounds = {
 		item.needle = svgEl('g', {'class': 'sg-r-needle'}, svg);
 		svgEl('line', {x1: 0, y1: 8, x2: 0, y2: 158}, item.needle);
 		svgEl('polygon', {points: '-9,6 9,6 0,20'}, item.needle);
+		// Лампочка (сессия 29): горит на точной частоте передачи, если встали на неё кнопками.
+		item.lamp = svgEl('circle', {cx: 566, cy: 24, r: 10, 'class': 'sg-r-lamp'}, svg);
 
 		var dragging = false;
 		var at = function (ev) {
 			var r = svg.getBoundingClientRect();
 			var x = (ev.clientX - r.left) / r.width * 588;
 
-			airTune(item, airLo + (x - 18) / 552 * (airHi - airLo));
+			airTune(item, airLo + (x - 18) / 552 * (airHi - airLo), false);
 		};
 
 		$(item.scale).on('pointerdown', function (ev) {
@@ -5302,7 +5548,7 @@ setup.signalySounds = {
 						b.classList.remove('sg-r-wait');
 					});
 				}, 1000);
-				airTune(item, airFreq() + by);
+				airTune(item, (preview && item.pfreq ? item.pfreq : airFreq()) + by, true);
 			});
 		};
 
@@ -5312,6 +5558,148 @@ setup.signalySounds = {
 		step(item.fplus, 1);
 		airLayout(item);
 		airDraw(item);
+	}
+
+	/* ----- Радио с реверсом (шаг 7.4): РЕВЕРС, прогресс трека, катушки ----- */
+
+	var revItems = [];
+	var revFrame = null;
+	var revLast = 0;
+
+	// Полоса прогресса без цифр времени (ответ 5Б) и подсветка РЕВЕРСА.
+	function revDraw(item) {
+		var w = musWhere();
+		var frac = preview ? (item.pfrac === undefined ? 0.35 : item.pfrac) : w && w.dur ? Math.max(0, Math.min(1, w.pos / w.dur)) : 0;
+		var text = frac.toFixed(4);
+
+		if (text !== item.progShown) {
+			item.progShown = text;
+			item.progFill.style.width = (frac * 100).toFixed(2) + '%';
+			item.progThumb.style.left = 'calc(var(--u) * 14 + (100% - var(--u) * 28) * ' + text + ')';
+		}
+		item.prog.classList.toggle('sg-r-none', !preview && !w);
+		item.revBtn.classList.toggle('sg-r-lit', preview ? !!item.pback : !!mus.rev);
+	}
+
+	// Катушки крутятся, пока трек играет; при реверсе — в обратную сторону; на паузе
+	// стоят (ответ 6А). Покадрово, чтобы смена направления не дёргала рисунок.
+	function revLoop(now) {
+		revItems = revItems.filter(function (item) {
+			return item.el.isConnected || !item.placed;
+		});
+		if (!revItems.length) {
+			revFrame = null;
+			revLast = 0;
+			return;
+		}
+
+		var dt = revLast ? Math.min(0.1, (now - revLast) / 1000) : 0;
+		var dir = 0;
+
+		revLast = now;
+		if (!preview) {
+			if (mus.rev) {
+				dir = mus.rev.ok && !mus.rev.audio.paused && !mus.rev.audio.ended ? -1 : 0;
+			} else if (mus.audio && !mus.audio.paused) {
+				dir = 1;
+			}
+		}
+		revItems.forEach(function (item) {
+			if (!item.el.isConnected) {
+				return;
+			}
+
+			var d = preview ? (item.pback ? -1 : 0) : dir;
+
+			if (d) {
+				item.reelAngle = (item.reelAngle + d * 160 * dt + 360) % 360;
+				item.frame.reels.forEach(function (rl) {
+					rl.g.setAttribute('transform', 'rotate(' + item.reelAngle.toFixed(1) + ' ' + rl.cx + ' ' + rl.cy + ')');
+				});
+			}
+			item.el.classList.toggle('sg-r-spin', !!d);
+			revDraw(item);
+		});
+		revFrame = requestAnimationFrame(revLoop);
+	}
+
+	function revBuild(item, el, P) {
+		// РЕВЕРС — держать нажатой (ответ 4А): звук нажатия — в начале.
+		var btn = radioAt(el, 'button', 'sg-r-btn sg-r-revbtn', P.rev);
+		var down = false;
+
+		btn.innerHTML = '<span>◀◀ РЕВЕРС</span><small>держать нажатой</small>';
+		btn.setAttribute('aria-label', 'Реверс — держать нажатой');
+
+		var release = function () {
+			if (!down) {
+				return;
+			}
+			down = false;
+			btn.classList.remove('sg-r-held');
+			item.pback = false;
+			revEnd();
+		};
+
+		$(btn).on('pointerdown', function (ev) {
+			if (ev.originalEvent.button || down) {
+				return;
+			}
+			down = true;
+			btn.classList.add('sg-r-held');
+			try {
+				btn.setPointerCapture(ev.originalEvent.pointerId);
+			} catch (e) {}
+			uiClick(btn);
+			item.pback = preview;
+			revStart();
+			ev.preventDefault();
+		}).on('pointerup pointercancel lostpointercapture', release);
+		item.revBtn = btn;
+
+		// Прогресс трека: тянуть ползунок или щёлкнуть — туда; работает и на паузе.
+		var prog = radioAt(el, 'div', 'sg-r-prog', P.prog);
+		var dragging = false;
+
+		prog.innerHTML = '<span class="sg-r-prog-line"><span class="sg-r-prog-fill"></span></span><span class="sg-r-prog-thumb"></span>';
+		item.prog = prog;
+		item.progFill = prog.querySelector('.sg-r-prog-fill');
+		item.progThumb = prog.querySelector('.sg-r-prog-thumb');
+
+		var at = function (ev) {
+			var r = prog.querySelector('.sg-r-prog-line').getBoundingClientRect();
+			var frac = Math.max(0, Math.min(1, (ev.clientX - r.left) / Math.max(1, r.width)));
+
+			if (preview) {
+				item.pfrac = frac;
+			} else {
+				musSeek(frac);
+			}
+			item.progShown = null;
+			revDraw(item);
+		};
+
+		$(prog).on('pointerdown', function (ev) {
+			dragging = true;
+			try {
+				prog.setPointerCapture(ev.originalEvent.pointerId);
+			} catch (e) {}
+			at(ev.originalEvent);
+			ev.preventDefault();
+		}).on('pointermove', function (ev) {
+			if (dragging) {
+				at(ev.originalEvent);
+			}
+		}).on('pointerup pointercancel', function () {
+			dragging = false;
+		});
+
+		item.reelAngle = 0;
+		revItems.push(item);
+		if (!revFrame) {
+			revFrame = requestAnimationFrame(revLoop);
+		}
+		revDraw(item);
 	}
 
 	Macro.add('sg-radio', {
@@ -5324,8 +5712,9 @@ setup.signalySounds = {
 			};
 			var el = document.createElement('div');
 			var fixed = view.type !== 'broken';
-			var P = radioPlaces[fixed ? 'fixed' : 'broken'];
-			var frame = fixed ? radioFrameFixed(view) : radioFrame(view);
+			var reverse = view.type === 'reverse';
+			var P = radioPlaces[reverse ? 'reverse' : fixed ? 'fixed' : 'broken'];
+			var frame = reverse ? radioFrameReverse(view) : fixed ? radioFrameFixed(view) : radioFrame(view);
 			var item = {el: el, view: view, frame: frame, size: Math.max(0, musNum(a.size, 0)), side: 0, unit: 1, dir: '', catKey: null, mqText: null};
 			var st = radioState();
 			var here = State.passage;
@@ -5333,9 +5722,15 @@ setup.signalySounds = {
 			if (!views[name]) {
 				console.warn('СИГНАЛЫ: вида радио «' + name + '» нет в пассаже «Радио»');
 			}
-			el.className = 'sg-radio sg-radio-' + (fixed ? 'fixed' : 'broken');
+			el.className = 'sg-radio sg-radio-' + (fixed ? 'fixed' : 'broken') + (reverse ? ' sg-radio-reverse' : '');
 			el.style.setProperty('--sg-rf', view.frame);
 			el.style.setProperty('--sg-re', view.elements);
+			// Сессия 29: свои цвета кнопок, выключателя, шкалы, каталога, внутреннего каркаса.
+			el.style.setProperty('--sg-rb', view.buttons || view.elements);
+			el.style.setProperty('--sg-rp', view.power || view.elements);
+			el.style.setProperty('--sg-rs', view.scale || view.elements);
+			el.style.setProperty('--sg-rc', view.catalog || view.elements);
+			el.style.setProperty('--sg-ri', view.inner || view.frame);
 			el.style.setProperty('--u', '1px');
 			el.appendChild(frame.svg);
 
@@ -5467,6 +5862,10 @@ setup.signalySounds = {
 			if (fixed) {
 				airBuild(item, el, P);
 			}
+			// Радио с реверсом (шаг 7.4): РЕВЕРС, прогресс трека, катушки.
+			if (reverse) {
+				revBuild(item, el, P);
+			}
 
 			// Каталог открыт там, где играет радио.
 			var cur = music().byId[st.cur];
@@ -5508,6 +5907,7 @@ setup.signalySounds = {
 		ambItems = [];
 		airStop();
 		airItems = [];
+		revItems = [];
 	});
 	$(document).on(':passagedisplay', function () {
 		radioDrawAll();
@@ -5767,11 +6167,14 @@ setup.signalySounds = {
 		'.sg-radio { --sg-rf: #c9a24a; --sg-re: #39ff7a; color: var(--sg-re); display: block; margin: 0 auto; max-width: none; position: relative; ' +
 		'font-size: calc(var(--u) * 30); line-height: 1.25; text-align: left; user-select: none; }\n' +
 		'.sg-radio .sg-r-frame { height: 100%; left: 0; overflow: visible; position: absolute; top: 0; width: 100%; }\n' +
-		'.sg-r-frame .sg-r-fr, .sg-r-frame .sg-r-thin, .sg-r-frame .sg-r-crack { fill: none; stroke: var(--sg-rf); stroke-linejoin: round; }\n' +
+		'.sg-r-frame .sg-r-fr, .sg-r-frame .sg-r-thin, .sg-r-frame .sg-r-crack, .sg-r-frame .sg-r-reelrim { fill: none; stroke: var(--sg-rf); stroke-linejoin: round; }\n' +
+		// Сессия 29: внутренний каркас (перегородки, решётка, заплатка, катушки) — свой цвет.
+		'.sg-r-frame .sg-r-thin, .sg-r-frame .sg-r-reelrim { stroke: var(--sg-ri, var(--sg-rf)); }\n' +
+		'.sg-r-frame .sg-r-reelrim { stroke-width: 4; }\n' +
 		'.sg-r-frame .sg-r-fr { stroke-width: 4; }\n' +
 		'.sg-r-frame .sg-r-thin { opacity: 0.75; stroke-width: 2; }\n' +
 		'.sg-r-frame .sg-r-crack { stroke-width: 3; }\n' +
-		'.sg-r-frame .sg-r-grille circle { fill: var(--sg-rf); opacity: 0.55; }\n' +
+		'.sg-r-frame .sg-r-grille circle { fill: var(--sg-ri, var(--sg-rf)); opacity: 0.55; }\n' +
 		'.sg-r-frame .sg-r-label { fill: var(--sg-rf); font-family: inherit; font-size: 20px; letter-spacing: 0.18em; }\n' +
 		'.sg-r-frame .sg-r-spark { opacity: 0; }\n' +
 		'.sg-r-frame .sg-r-spark line { stroke: #fff7c2; stroke-width: 2.6; }\n' +
@@ -5833,7 +6236,7 @@ setup.signalySounds = {
 		'html body .sg-radio button.sg-r-fbtn { font-size: calc(var(--u) * 44); }\n' +
 		'.sg-radio .sg-r-fbtn.sg-r-wait { opacity: 0.45; }\n' +
 		'.sg-r-frame .sg-r-patch { stroke-dasharray: 8 5; }\n' +
-		'.sg-r-frame .sg-r-rivet { fill: var(--sg-rf); }\n' +
+		'.sg-r-frame .sg-r-rivet { fill: var(--sg-ri, var(--sg-rf)); }\n' +
 		'html body .sg-radio button.sg-r-power { align-items: center; display: flex; gap: calc(var(--u) * 24); }\n' +
 		'.sg-radio .sg-r-switch { border: calc(var(--u) * 3) solid var(--sg-re); border-radius: calc(var(--u) * 8); flex: none; height: calc(var(--u) * 140); position: relative; width: calc(var(--u) * 72); }\n' +
 		'.sg-radio .sg-r-lever { background: var(--sg-re); border-radius: calc(var(--u) * 6); height: calc(var(--u) * 64); left: calc(50% - var(--u) * 6); position: absolute; ' +
@@ -5843,6 +6246,27 @@ setup.signalySounds = {
 		'.sg-radio .sg-r-power:hover .sg-r-switch { box-shadow: 0 0 calc(var(--u) * 8) var(--sg-re); }\n' +
 		'.sg-radio .sg-r-off-text { display: flex; flex-direction: column; font-size: calc(var(--u) * 34); letter-spacing: 0.08em; }\n' +
 		'.sg-radio .sg-r-off-text small { font-size: calc(var(--u) * 20); opacity: 0.6; }\n' +
+		// Сессия 29: свои цвета частей — переменная элементов внутри части подменяется.
+		'html body .sg-radio button.sg-r-btn { --sg-re: var(--sg-rb, #39ff7a); }\n' +
+		'html body .sg-radio button.sg-r-power { --sg-re: var(--sg-rp, #39ff7a); }\n' +
+		'.sg-radio .sg-r-cat { --sg-re: var(--sg-rc, #39ff7a); color: var(--sg-re); }\n' +
+		'.sg-radio .sg-r-scale, .sg-radio .sg-r-freq, .sg-radio .sg-r-prog { --sg-re: var(--sg-rs, #39ff7a); color: var(--sg-re); }\n' +
+		// Лампочка точной настройки: круг на шкале, горит — залит и светится.
+		'.sg-radio .sg-r-dial .sg-r-lamp { fill: none; stroke: var(--sg-re); stroke-width: 2.4; opacity: 0.55; transition: fill 0.15s, opacity 0.15s; }\n' +
+		'.sg-radio .sg-r-dial .sg-r-lamp.sg-r-lamp-on { fill: var(--sg-re); filter: drop-shadow(0 0 6px var(--sg-re)); opacity: 1; }\n' +
+		// Шаг 7.4: радио с реверсом — меньше окно частоты, РЕВЕРС, прогресс трека.
+		'.sg-radio-reverse .sg-r-freq { font-size: calc(var(--u) * 40); }\n' +
+		'html body .sg-radio-reverse button.sg-r-fbtn { font-size: calc(var(--u) * 36); }\n' +
+		'html body .sg-radio button.sg-r-revbtn { flex-direction: column; font-size: calc(var(--u) * 34); gap: calc(var(--u) * 2); letter-spacing: 0.06em; touch-action: none; }\n' +
+		'.sg-radio .sg-r-revbtn small { font-size: calc(var(--u) * 18); letter-spacing: 0.1em; opacity: 0.6; }\n' +
+		'.sg-radio .sg-r-revbtn.sg-r-held { transform: translateY(calc(var(--u) * 2)); }\n' +
+		'.sg-radio .sg-r-prog { box-sizing: border-box; cursor: pointer; position: absolute; touch-action: none; }\n' +
+		'.sg-radio .sg-r-prog-line { background: color-mix(in srgb, var(--sg-re) 25%, transparent); height: calc(var(--u) * 6); left: calc(var(--u) * 14); ' +
+		'position: absolute; right: calc(var(--u) * 14); top: calc(50% - var(--u) * 3); }\n' +
+		'.sg-radio .sg-r-prog-fill { background: var(--sg-re); box-shadow: 0 0 calc(var(--u) * 6) var(--sg-re); display: block; height: 100%; width: 0; }\n' +
+		'.sg-radio .sg-r-prog-thumb { background: var(--sg-re); border-radius: calc(var(--u) * 3); height: calc(var(--u) * 40); position: absolute; ' +
+		'top: calc(50% - var(--u) * 20); transform: translateX(-50%); width: calc(var(--u) * 16); }\n' +
+		'.sg-radio .sg-r-prog.sg-r-none { opacity: 0.35; }\n' +
 		'.sg-amb-bar { align-items: baseline; display: flex; flex-wrap: wrap; gap: 0.6em 1.5em; margin-bottom: 1em; }\n' +
 		'.sg-amb-now { flex: 1 1 100%; }\n' +
 		'.sg-amb-grid { display: grid; gap: 0.8em; }\n' +
@@ -5874,8 +6298,26 @@ setup.signalySounds = {
 						return {kind: s.kind, name: s.kind === 'tx' ? s.t.id : s.src, c: s.c, w: s.w, vol: s.audio && !s.audio.paused ? s.audio.volume : 0};
 					}),
 					noise: item.noise && item.noise.audio && !item.noise.audio.paused ? item.noise.audio.volume : 0,
-					hold: item.hold ? {name: item.hold.s.t.id, ms: Date.now() - item.hold.since} : null
+					hold: item.hold ? {name: item.hold.s.t.id, ms: Date.now() - item.hold.since} : null,
+					lamp: !!(item.lamp && item.lamp.classList.contains('sg-r-lamp-on'))
 				};
+			})
+		};
+	};
+	// Реверс (шаг 7.4) — для проверок: звучит ли задом наперёд, где трек, катушки.
+	setup.signaly.rev = function () {
+		var w = musWhere();
+
+		return {
+			rev: !!mus.rev,
+			src: mus.rev ? mus.rev.audio.src : '',
+			ok: !!(mus.rev && mus.rev.ok),
+			revTime: mus.rev ? mus.rev.audio.currentTime : null,
+			revPlaying: !!(mus.rev && !mus.rev.audio.paused && !mus.rev.audio.ended),
+			pos: w ? w.pos : null,
+			dur: w ? w.dur : null,
+			reels: revItems.map(function (item) {
+				return item.reelAngle;
 			})
 		};
 	};

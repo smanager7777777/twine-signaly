@@ -17,6 +17,17 @@ export interface TwineElectronWindow extends Window {
 			kind: MediaKind
 		): Promise<string[]>;
 		signalyShowGameFolder(folder: string): void;
+		/** Шаг 7.4: какие развёрнутые копии нужно сделать (копии нет или она старше трека). */
+		signalyReverseNeeded(
+			folder: string,
+			jobs: Array<{src: string; out: string}>
+		): Promise<Array<{src: string; out: string}>>;
+		signalyReadMedia(folder: string, path: string): Promise<Uint8Array>;
+		signalyWriteReverse(
+			folder: string,
+			path: string,
+			data: Uint8Array
+		): Promise<string>;
 		signalyWriteGameFile(
 			folder: string,
 			filename: string,

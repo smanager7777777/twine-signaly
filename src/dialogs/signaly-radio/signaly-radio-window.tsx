@@ -4,6 +4,9 @@
 // справа — предпросмотр настоящим SugarCube. Ничего не пишется до «Сохранить».
 // Шаг 7.3: отремонтированное радио — эфир: белый шум и его диапазоны, помехи (файл,
 // ширина, громкость) и сколько их выпадает за раз, сообщение строки, время поимки.
+// Сессия 29: свои цвета кнопок, выключателя, шкалы, каталога, внутреннего каркаса; предпросмотр —
+// само радио во всё место справа. Шаг 7.4: тип «С реверсом» (каркас В2); «Сохранить» делает
+// развёрнутые копии треков, если есть радио с реверсом.
 
 import {IconTrash} from '@tabler/icons';
 import * as React from 'react';
@@ -15,10 +18,13 @@ import {defaultAppearance, engineVersionIn, readAppearance, withEngine} from '..
 import {signalyEngineVersion} from '../../util/signaly/signaly-engine';
 import {freeSpot} from '../../util/signaly/signaly-keys';
 import {folderToFileUrl} from '../../util/signaly/signaly-preview';
+import {musicTag, readMusic} from '../../util/signaly/signaly-music';
 import {
 	jamDefaults,
 	newRadioView,
 	radioFrames,
+	RadioPartColor,
+	radioPartColors,
 	radioPassageName,
 	radioProblems,
 	radioReady,
@@ -33,6 +39,7 @@ import {findBlocks} from '../../util/signaly/signaly-screen-blocks';
 import {useLists} from '../passage-edit/signaly-block-panel';
 import {SignalyAppearancePreview, SignalyPreviewMute} from '../signaly-appearance/signaly-appearance-preview';
 import {ButtonsField, ChoiceField, ColorField, RangeField, TextField} from '../signaly-appearance/signaly-appearance-fields';
+import {useReverseCopies} from '../signaly-reverse-copies';
 import {pendingTemplateMusic, saveStoryWithUpgrade} from '../signaly-upgrade';
 import '../signaly-appearance/signaly-appearance.css';
 import '../signaly-kinds/signaly-kinds.css';
@@ -67,6 +74,7 @@ export const SignalyRadioWindow: React.FC<{onClose: () => void; story: Story}> =
 	const row = rows[selected];
 	const savedColors = React.useMemo(() => (readAppearance(story.stylesheet) ?? defaultAppearance).savedColors, [story.stylesheet]);
 	const views = rows.map(r => r.view);
+	const copies = useReverseCopies(story);
 	const p = radioProblems(views);
 	const problems = (Object.keys(p) as Array<keyof typeof p>).filter(key => p[key]).map(key => l(`problems.${key}`));
 
@@ -139,6 +147,11 @@ export const SignalyRadioWindow: React.FC<{onClose: () => void; story: Story}> =
 		}
 		setRows(rows.map(r => ({...r, was: r.view.name})));
 		setSaved(true);
+
+		// Шаг 7.4: радио с реверсом — развёрнутые копии треков каталога.
+		const music = story.passages.find(ps => ps.tags.includes(musicTag));
+
+		copies.run(readMusic(music?.text ?? (pendingTemplateMusic(story)?.music || '')), views);
 	}
 
 	function close() {
@@ -190,6 +203,29 @@ export const SignalyRadioWindow: React.FC<{onClose: () => void; story: Story}> =
 		...[...new Set([value, ...media.audio])].filter(Boolean).map(f => ({label: f, value: f}))
 	];
 
+	// Свой цвет части (сессия 29): пусто — как у элементов (внутренний каркас — как у каркаса).
+	function partColor(v: RadioView, key: RadioPartColor) {
+		const base = key === 'inner' ? v.frame : v.elements;
+
+		return (
+			<div className="signaly-radio-part" key={key}>
+				<ColorField
+					hint={v[key] ? undefined : l(key === 'inner' ? 'asFrame' : 'asElements')}
+					label={l(`parts.${key}`)}
+					onChange={value => setView({[key]: value} as Partial<RadioView>)}
+					onSaveColor={() => {}}
+					savedColors={savedColors}
+					value={v[key] || base}
+				/>
+				{v[key] && (
+					<button className="signaly-small-button" onClick={() => setView({[key]: ''} as Partial<RadioView>)} type="button">
+						{l(key === 'inner' ? 'resetFrame' : 'resetElements')}
+					</button>
+				)}
+			</div>
+		);
+	}
+
 	function editor(v: RadioView) {
 		return (
 			<>
@@ -214,7 +250,14 @@ export const SignalyRadioWindow: React.FC<{onClose: () => void; story: Story}> =
 					savedColors={savedColors}
 					value={v.elements}
 				/>
+				{radioPartColors.map(key => partColor(v, key))}
 				<TextField hint={l('labelHint')} label={l('label')} onChange={label => setView({label})} value={v.label} />
+				{v.type === 'reverse' && (
+					<>
+						<h3>{l('reverseTitle')}</h3>
+						<p className="signaly-field-hint">{l('reverseHint')}</p>
+					</>
+				)}
 				{v.type !== 'broken' && (
 					<>
 						<h3>{l('airTitle')}</h3>
@@ -304,7 +347,7 @@ export const SignalyRadioWindow: React.FC<{onClose: () => void; story: Story}> =
 	}
 
 	return (
-		<div aria-label={l('title')} aria-modal="true" className="signaly-appearance-window signaly-ticker-window" role="dialog">
+		<div aria-label={l('title')} aria-modal="true" className="signaly-appearance-window signaly-ticker-window signaly-radio-window" role="dialog">
 			<header className="signaly-appearance-header">
 				<h2>
 					{l('title')} — {story.name}
@@ -312,6 +355,7 @@ export const SignalyRadioWindow: React.FC<{onClose: () => void; story: Story}> =
 				<span className="signaly-appearance-status">
 					{saved ? t('signaly.appearance.saved') : t('signaly.appearance.unsaved')}
 				</span>
+				{copies.status && <span className="signaly-appearance-status signaly-reverse-status">{copies.status}</span>}
 				<button className="signaly-button primary" disabled={saved || problems.length > 0} onClick={save} type="button">
 					{t('signaly.appearance.save')}
 				</button>
@@ -360,6 +404,7 @@ export const SignalyRadioWindow: React.FC<{onClose: () => void; story: Story}> =
 							passageId="signaly-radio-preview"
 							refresh={refresh}
 							story={previewStory}
+							zoom=".sg-radio"
 						/>
 					)}
 				</div>

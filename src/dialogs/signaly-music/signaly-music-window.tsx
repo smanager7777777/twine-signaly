@@ -5,6 +5,8 @@
 // (signaly-music.ts). Ничего не записывается в историю до «Сохранить».
 // Шаг 7.3: папки внутри папок (ответ 1Б), громкость файла (2А), раздел «Эфир» —
 // передачи отремонтированного радио: куда после поимки, ширина, своё сообщение (3А, 5А, 6).
+// Шаг 7.4: у треков радио и передач — «Файл задом наперёд» (свой, ответ 2А); «Сохранить» делает
+// развёрнутые копии остальных (ответ 1А), если в истории есть радио с реверсом.
 
 import {IconArrowDown, IconArrowUp, IconTrash} from '@tabler/icons';
 import * as React from 'react';
@@ -32,11 +34,14 @@ import {
 	treeOrder,
 	writeMusic
 } from '../../util/signaly/signaly-music';
+import {radioTag, readRadios} from '../../util/signaly/signaly-radio';
+import {needsReverse} from '../../util/signaly/signaly-reverse';
 import {newsConds} from '../../util/signaly/signaly-ticker';
 import {knownVariables} from '../../util/signaly/signaly-variables';
 import {CheckField, ChoiceField, RangeField, TextField} from '../signaly-appearance/signaly-appearance-fields';
 import {CondListsContext, CondRows, useCondLists} from '../passage-edit/signaly-logic-form';
 import {useLists} from '../passage-edit/signaly-block-panel';
+import {useReverseCopies} from '../signaly-reverse-copies';
 import {pendingTemplateMusic, saveStoryWithUpgrade} from '../signaly-upgrade';
 import '../signaly-appearance/signaly-appearance.css';
 import '../signaly-kinds/signaly-kinds.css';
@@ -106,6 +111,14 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 	const [saved, setSaved] = React.useState(true);
 	const folder = catalog.folders[selected];
 	const s = t('signaly.appearance.units.seconds');
+	// Виды радио истории: есть радио с реверсом — нужны развёрнутые копии (шаг 7.4).
+	const radioViews = React.useMemo(() => {
+		const radio = story.passages.find(p => p.tags.includes(radioTag));
+
+		return readRadios(radio?.text ?? (pendingTemplateMusic(story)?.radio || ''));
+	}, [story]);
+	const reversing = needsReverse(radioViews);
+	const copies = useReverseCopies(story);
 
 	function change(next: MusicCatalog) {
 		setCatalog(next);
@@ -183,6 +196,7 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 			});
 		}
 		setSaved(true);
+		copies.run(catalog, radioViews);
 	}
 
 	function close() {
@@ -302,6 +316,18 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 				) : (
 					<TextField label={t('signaly.logic.cond.expr')} onChange={when => setTrack(index, {when})} value={track.when} />
 				)}
+				{reversing && folder.section !== 'ambient' && (!air || track.to !== '') && (
+					<ChoiceField
+						hint={l('reverseHint')}
+						label={l('reverse')}
+						onChange={reverse => setTrack(index, {reverse})}
+						options={[
+							{label: l('reverseAuto'), value: ''},
+							...[...new Set([track.reverse, ...media.audio])].filter(Boolean).map(f => ({label: f, value: f}))
+						]}
+						value={track.reverse}
+					/>
+				)}
 				{!air && (
 					<CheckField
 						hint={l('preHint')}
@@ -342,6 +368,7 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 				<span className="signaly-appearance-status">
 					{saved ? t('signaly.appearance.saved') : t('signaly.appearance.unsaved')}
 				</span>
+				{copies.status && <span className="signaly-appearance-status signaly-reverse-status">{copies.status}</span>}
 				<button className="signaly-button primary" disabled={saved || problems.length > 0} onClick={save} type="button">
 					{t('signaly.appearance.save')}
 				</button>

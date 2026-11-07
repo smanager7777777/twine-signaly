@@ -35,6 +35,15 @@ contextBridge.exposeInMainWorld('twineElectron', {
 	signalyListMedia(folder: string, kind: string) {
 		return ipcRenderer.invoke('signaly-list-media', folder, kind);
 	},
+	signalyReverseNeeded(folder: string, jobs: Array<{src: string; out: string}>) {
+		return ipcRenderer.invoke('signaly-reverse-needed', folder, jobs);
+	},
+	signalyReadMedia(folder: string, path: string) {
+		return ipcRenderer.invoke('signaly-read-media', folder, path);
+	},
+	signalyWriteReverse(folder: string, path: string, data: Uint8Array) {
+		return ipcRenderer.invoke('signaly-write-reverse', folder, path, data);
+	},
 	signalyShowGameFolder(folder: string) {
 		ipcRenderer.send('signaly-show-game-folder', folder);
 	},
