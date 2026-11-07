@@ -345,7 +345,8 @@ async function airChecks(url, say) {
 	say('ушли с экрана — эфир молчит, поиск помнится', (await air(page)).items.length === 0 && (await m(page)).state.scan === true);
 	await go(page, 'ARadio', 700);
 	await tune(page, 980);
-	say('вернулись — эфир снова звучит', (await vols(page)).noise > 0.2);
+	// Точки встали заново (новый вход): слышно что-то из эфира — шум или ближняя точка.
+	say('вернулись — эфир снова звучит', Object.values(await vols(page)).some(x => x > 0.05), JSON.stringify(await vols(page)));
 	await line(page, '..').click();
 	await page.waitForTimeout(100);
 	await line(page, 'Запись 1').click();
