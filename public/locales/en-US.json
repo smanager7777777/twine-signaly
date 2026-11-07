@@ -744,7 +744,8 @@
 				"tiles": "State list: tiles (systems)",
 				"hack": "Hacking terminal",
 				"camera": "Camera",
-				"pick": "Cycling button"
+				"pick": "Cycling button",
+				"include": "Insert passage"
 			},
 			"image": {
 				"title": "Image",
@@ -1150,6 +1151,17 @@
 				"add": "Add value",
 				"newValue": "New",
 				"repeated": "Two values match: the button cannot move past the first of them."
+			},
+			"include": {
+				"title": "Insert passage",
+				"passage": "Passage to insert",
+				"none": "— choose a passage —",
+				"hint": "The chosen passage's text is shown here as if it were written in this passage. Handy for pieces shared by many screens.",
+				"missing": "No such passage: the game will show an error here.",
+				"self": "The passage inserts itself — the game will show an error.",
+				"users": "This passage is inserted in {{count}} passage.",
+				"users_plural": "This passage is inserted in {{count}} passages.",
+				"open": "Open inserted passage"
 			}
 		},
 		"drag": {
@@ -2116,6 +2128,27 @@
 			"width": "Tooltip width",
 			"widthHint": "0 means as in Terminal appearance. Short text takes only the room it needs.",
 			"remove": "Remove tooltip"
+		},
+		"check": {
+			"button": "Check story",
+			"title": "Story check",
+			"again": "Check again",
+			"intro": "Things that will show up as errors in the live game. The story is not changed; click a passage name to open it.",
+			"noFolder": "No game folder chosen — files were not checked.",
+			"running": "Checking…",
+			"ok": "No problems found.",
+			"kinds": {
+				"screen": "Link to a missing passage",
+				"media": "File missing from the game folder",
+				"variable": "Variable without a starting value",
+				"code": "Code does nothing"
+			},
+			"hints": {
+				"screen": "A link, button, dialog, insert or command leads to a passage that does not exist.",
+				"media": "The path is written in the story, but the file is not in the game folder.",
+				"variable": "The variable is used but has no starting value in the Variables window. Not always an error.",
+				"code": "The code has no actions, no answer and no destination."
+			}
 		}
 	}
 }

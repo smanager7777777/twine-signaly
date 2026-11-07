@@ -26,9 +26,15 @@ function tokenValue(token: string | undefined) {
 	return plain(token) ?? token;
 }
 
-/** Текст с новым именем экрана; без упоминаний — тот же текст. */
-export function renameScreen(text: string, oldName: string, newName: string) {
-	const edits: Array<{from: number; to: number; insert: string}> = [];
+/**
+ * Обходит все места, где в командах записано имя экрана (кроме [[…]]): visit
+ * получает имя, место слова в тексте и приставку (alarm:, chain:, hack: у
+ * правил «Доступа»; у setup.visits — «visits»).
+ */
+function walkScreens(
+	text: string,
+	visit: (name: string, from: number, to: number, prefix: string) => void
+) {
 	const command = /<<(sg-[a-z0-9-]+|link|button|goto|include)(?=[\s>])/g;
 	let match: RegExpExecArray | null;
 
@@ -52,28 +58,30 @@ export function renameScreen(text: string, oldName: string, newName: string) {
 			at += token.length;
 		});
 
-		const swap = (i: number) => {
-			if (tokenValue(tokens[i]) === oldName) {
-				edits.push({from: places[i], to: places[i] + tokens[i].length, insert: quote(newName)});
+		const take = (i: number) => {
+			const value = tokenValue(tokens[i]);
+
+			if (value !== undefined) {
+				visit(value, places[i], places[i] + tokens[i].length, '');
 			}
 		};
 
 		if (macro === 'link' || macro === 'button') {
-			swap(1);
+			take(1);
 		} else if (macro === 'goto' || macro === 'include') {
-			swap(0);
+			take(0);
 		} else {
 			tokens.forEach((token, i) => {
 				if (screenWords(macro).includes(token)) {
-					swap(i + 1);
+					take(i + 1);
 				}
 			});
 			if (macro === 'sg-rule' && tokens[0] === 'auto') {
 				const id = tokenValue(tokens[1]) ?? '';
 				const kind = /^(alarm|chain|hack):/.exec(id);
 
-				if (kind && id.slice(kind[0].length) === oldName) {
-					edits.push({from: places[1], to: places[1] + tokens[1].length, insert: quote(kind[0] + newName)});
+				if (kind) {
+					visit(id.slice(kind[0].length), places[1], places[1] + tokens[1].length, kind[0]);
 				}
 			}
 		}
@@ -82,10 +90,39 @@ export function renameScreen(text: string, oldName: string, newName: string) {
 	const visits = /setup\.visits\(\s*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')\s*\)/g;
 
 	while ((match = visits.exec(text))) {
-		if (tokenValue(match[1]) === oldName) {
-			edits.push({from: match.index, to: match.index + match[0].length, insert: `setup.visits(${quote(newName)})`});
+		const value = tokenValue(match[1]);
+
+		if (value !== undefined) {
+			visit(value, match.index, match.index + match[0].length, 'visits');
 		}
 	}
+}
+
+/** Имена экранов, записанные в командах текста (для проверки истории). */
+export function screenMentions(text: string) {
+	const names: string[] = [];
+
+	walkScreens(text, name => {
+		if (name !== '' && !names.includes(name)) {
+			names.push(name);
+		}
+	});
+	return names;
+}
+
+/** Текст с новым именем экрана; без упоминаний — тот же текст. */
+export function renameScreen(text: string, oldName: string, newName: string) {
+	const edits: Array<{from: number; to: number; insert: string}> = [];
+
+	walkScreens(text, (name, from, to, prefix) => {
+		if (name === oldName) {
+			edits.push({
+				from,
+				to,
+				insert: prefix === 'visits' ? `setup.visits(${quote(newName)})` : quote(prefix + newName)
+			});
+		}
+	});
 
 	return edits
 		.sort((a, b) => b.from - a.from)

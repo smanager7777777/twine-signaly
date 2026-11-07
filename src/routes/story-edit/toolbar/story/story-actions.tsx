@@ -1,6 +1,7 @@
 import * as React from 'react';
 import {ButtonBar} from '../../../../components/container/button-bar';
 import {RenameStoryButton} from '../../../../components/story/rename-story-button';
+import {SignalyCheckButton} from '../../../../dialogs/signaly-check';
 import {SignalyAppearanceButton} from '../../../../dialogs/signaly-appearance';
 import {SignalyCodesButton} from '../../../../dialogs/signaly-codes';
 import {SignalyKeysButton} from '../../../../dialogs/signaly-keys';
@@ -42,6 +43,7 @@ export const StoryActions: React.FC<StoryActionsProps> = props => {
 			<SignalyKeysButton story={story} />
 			<SignalyCodesButton story={story} />
 			<SignalyTickerButton story={story} />
+			<SignalyCheckButton story={story} />
 		</ButtonBar>
 	);
 };

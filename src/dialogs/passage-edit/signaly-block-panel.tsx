@@ -67,6 +67,7 @@ import {
 import {eventTag, findEvent, setEventHead} from '../../util/signaly/signaly-events';
 import {findTips} from '../../util/signaly/signaly-tip';
 import {TipForm} from './signaly-tip-form';
+import {addPassageEditors, useDialogsContext} from '../context';
 
 export type PanelTarget =
 	| {kind: 'block'; index: number}
@@ -216,6 +217,7 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 			value={value}
 		/>
 	);
+	const dialogs = useDialogsContext();
 	const passageChoice = (
 		label: string,
 		value: string,
@@ -754,6 +756,35 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 					/>
 				);
 				break;
+
+			case 'include': {
+				// Сессия 25, ответ 4А: <<include "Экран">> — обычный SugarCube.
+				const name = str('passage');
+				const target = story.passages.find(p => p.name === name);
+				const users = story.passages.filter(p =>
+					findBlocks(p.text).some(b => b.type === 'include' && b.values.passage === name)
+				).length;
+
+				title = l('include.title');
+				body = (
+					<>
+						{passageChoice(l('include.passage'), name, value => set('passage', value), l('include.none'))}
+						<p className="signaly-field-hint">{l('include.hint')}</p>
+						{name !== '' && !target && <div className="signaly-notice">{l('include.missing')}</div>}
+						{target && target.name === passage.name && <div className="signaly-notice">{l('include.self')}</div>}
+						{target && <p className="signaly-field-hint">{t('signaly.blocks.include.users', {count: users})}</p>}
+						<button
+							className="signaly-button"
+							disabled={!target}
+							onClick={() => target && dialogs.dispatch(addPassageEditors(story.id, [target.id]))}
+							type="button"
+						>
+							{l('include.open')}
+						</button>
+					</>
+				);
+				break;
+			}
 
 			case 'pick':
 				// Этап 6 (ответ 2А).

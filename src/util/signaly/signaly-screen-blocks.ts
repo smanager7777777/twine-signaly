@@ -54,7 +54,8 @@ export type BlockType =
 	| 'list'
 	| 'hack'
 	| 'camera'
-	| 'pick';
+	| 'pick'
+	| 'include';
 export type CaseKind = 'case' | 'wrong';
 type PartKind = CaseKind | 'step' | 'state' | 'row' | 'win' | 'fail' | 'miss' | 'opt';
 export type Value = string | number | boolean;
@@ -73,7 +74,9 @@ export const blockMacros: Record<BlockType, string> = {
 	list: 'sg-list',
 	hack: 'sg-hack',
 	camera: 'sg-camera',
-	pick: 'sg-pick'
+	pick: 'sg-pick',
+	// Сессия 25, ответ 4А: «Вставить экран» — обычная команда SugarCube.
+	include: 'include'
 };
 
 const partMacros: Record<PartKind, string> = {
@@ -277,6 +280,7 @@ const specs: Record<BlockType | PartKind, ArgSpec> = {
 	// Этап 6: кнопка-перебор. form: button — кнопкой, нет — ссылкой; значения —
 	// строки <<sg-opt "Надпись" значение>>.
 	pick: {pos: [], keys: {var: 'string', form: 'string', kind: 'string'}, flags: [], container: true},
+	include: {pos: ['passage'], keys: {}, flags: [], container: false},
 	opt: {pos: ['label', 'value'], keys: {}, flags: [], container: false},
 	// Шаг 5.2: терминал взлома. key — ключевое слово (нет — случайное из списка);
 	// hint, tries, missplace — место: top, bottom, left, right (missplace ещё over);
@@ -589,10 +593,10 @@ function writeArgs(values: Values, extra: string[], spec: ArgSpec) {
 
 /* ----- Поиск блоков в тексте ----- */
 
-const openRe = /<<sg-(image|video|alarm|dialog|code|place|timer|chain|articles|list|hack|camera|pick)(?=[\s>])/g;
+const openRe = /<<(sg-(?:image|video|alarm|dialog|code|place|timer|chain|articles|list|hack|camera|pick)|include)(?=[\s>])/g;
 
 function macroType(name: string): BlockType | undefined {
-	return blockTypes.find(type => blockMacros[type] === 'sg-' + name);
+	return blockTypes.find(type => blockMacros[type] === name);
 }
 
 /** Конец парной команды с учётом вложенных команд с тем же именем. */
@@ -867,6 +871,8 @@ export function newBlock(type: BlockType): Omit<ScreenBlock, 'from' | 'to'> {
 			return {type, values: {columns: 1, headings: true}, extra: []};
 		case 'list':
 			return newStateList(false);
+		case 'include':
+			return {type, values: {passage: ''}, extra: []};
 		case 'pick':
 			return {
 				type,

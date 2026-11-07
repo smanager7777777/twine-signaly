@@ -158,7 +158,8 @@ const addable: Array<BlockType | 'kr2' | 'states' | 'value' | 'tiles'> = [
 	'list',
 	'tiles',
 	'hack',
-	'pick'
+	'pick',
+	'include'
 ];
 
 /** Пункты «Эффект» (шаг 2.1, ответ 5А); lines — появление строк по очереди. */

@@ -60,7 +60,7 @@ import {tipBase} from './signaly-tip';
 const glitchBase = [...glitchRules(defaultGlitch, ':where(.glitchy)'), glitchKeyframes].join('\n');
 
 /** Версия движка. Увеличивать при каждом изменении кода ниже. */
-export const signalyEngineVersion = 21;
+export const signalyEngineVersion = 22;
 
 export const signalyEngineStart =
 	'/* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */';
@@ -2479,7 +2479,38 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		var kr2 = null;
 
 		function reset() {
-			kr2 = {image: '', vars: null, main: null, cols: null, rows: null};
+			kr2 = {image: '', vars: null, varsSrc: '', main: null, cols: null, rows: null};
+		}
+
+		// Статусы обновляются сами (ответ 1А, сессия 25): 4 раза в секунду текст
+		// зоны статусов выводится заново в скрытый блок и сравнивается с прошлым;
+		// изменился — зона заменяется. Печать и «через N секунд» внутри статусов
+		// так не обновляются: каждый новый вывод запускал бы их снова.
+		var kr2Live = null;
+		var kr2Timer;
+
+		function kr2Fresh(src) {
+			var tmp = $('<div style="display:none"></div>').appendTo(document.body);
+
+			tmp.wiki(src);
+			return tmp;
+		}
+
+		function kr2Tick() {
+			var box = document.getElementById('kr2-vars');
+
+			if (!kr2Live || !box || fvNow || !Engine.isIdle()) {
+				return;
+			}
+
+			var tmp = kr2Fresh(kr2Live.src);
+			var html = tmp.html();
+
+			if (html !== kr2Live.html) {
+				kr2Live.html = html;
+				$(box).empty().append(tmp.contents());
+			}
+			tmp.remove();
 		}
 
 		function render(contents) {
@@ -2511,6 +2542,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			tags: null,
 			handler: function () {
 				kr2.vars = render(this.payload[0].contents);
+				kr2.varsSrc = this.payload[0].contents;
 			}
 		});
 		Macro.add('kr2main', {
@@ -2522,6 +2554,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 
 		$(document).on(':passagestart', function () {
 			reset();
+			kr2Live = null;
 			$('#kr2-overlay').remove();
 		});
 
@@ -2548,6 +2581,15 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 
 			if (kr2.vars) {
 				$vars.append(kr2.vars);
+				if (!/<<(type|timed)[\s>]/.test(kr2.varsSrc)) {
+					var first = kr2Fresh(kr2.varsSrc);
+
+					kr2Live = {src: kr2.varsSrc, html: first.html()};
+					first.remove();
+					if (!kr2Timer) {
+						kr2Timer = setInterval(kr2Tick, 250);
+					}
+				}
 			}
 			$passageEl.find('a, button').each(function () {
 				$nav.append(this);

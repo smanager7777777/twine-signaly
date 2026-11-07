@@ -241,3 +241,22 @@ describe('кнопка на экране и вложенные блоки (се�
 		]);
 	});
 });
+
+describe('«Вставить экран» (сессия 25)', () => {
+	it('находит <<include>> и пишет его обратно', () => {
+		const text = 'А\n\\<<include "audiobuttons">>\nБ <<include "Шапка" "div">>';
+		const blocks = findBlocks(text);
+
+		expect(blocks.map(b => [b.type, b.values.passage])).toEqual([
+			['include', 'audiobuttons'],
+			['include', 'Шапка']
+		]);
+		expect(writeBlock({...blocks[0], values: {passage: 'Новый экран'}})).toBe('<<include "Новый экран">>');
+		expect(writeBlock(blocks[1])).toBe('<<include "Шапка" "div">>');
+		expect(writeBlock(newBlock('include'))).toBe('<<include "">>');
+	});
+
+	it('не путает <<include>> с похожими командами', () => {
+		expect(findBlocks('<<included "x">> <<includeX>>')).toEqual([]);
+	});
+});
