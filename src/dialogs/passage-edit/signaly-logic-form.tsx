@@ -3,6 +3,7 @@
 // команде в тексте; каждое изменение сразу переписывает команду. Сам текст под
 // условием правится в пассаже.
 
+import {musicTag, readMusic} from '../../util/signaly/signaly-music';
 import {IconArrowDown, IconArrowUp, IconTrash} from '@tabler/icons';
 import * as React from 'react';
 import {useTranslation} from 'react-i18next';
@@ -122,9 +123,21 @@ export interface CondLists {
 	passages: string[];
 	people: string[];
 	codes: Array<{code: string; label: string}>;
+	/** Каталог «Музыка» (шаг 7.1): треки «Папка/Трек» и папки — для действия «Музыка». */
+	tracks?: string[];
+	folders?: string[];
 }
 
 export const CondListsContext = React.createContext<CondLists>({passages: [], people: [], codes: []});
+
+function musicLists(story: Story) {
+	const folders = story.passages.filter(p => p.tags.includes(musicTag)).flatMap(p => readMusic(p.text).folders);
+
+	return {
+		tracks: folders.flatMap(f => f.tracks.map(t => `${f.name}/${t.name}`)),
+		folders: folders.map(f => f.name)
+	};
+}
 
 export function useCondLists(story: Story, table?: ReturnType<typeof readCodes>): CondLists {
 	return React.useMemo(() => {
@@ -138,7 +151,8 @@ export function useCondLists(story: Story, table?: ReturnType<typeof readCodes>)
 				.map(p => p.name)
 				.sort((a, b) => a.localeCompare(b, 'ru')),
 			people: tables.flatMap(t => t.people.map(p => p.id.trim())).filter(Boolean),
-			codes: tables.flatMap(t => t.codes.map(c => ({code: c.code.trim(), label: c.label}))).filter(c => c.code !== '')
+			codes: tables.flatMap(t => t.codes.map(c => ({code: c.code.trim(), label: c.label}))).filter(c => c.code !== ''),
+			...musicLists(story)
 		};
 	}, [story.passages, table]);
 }

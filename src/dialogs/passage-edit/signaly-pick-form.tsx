@@ -7,10 +7,19 @@ import {useTranslation} from 'react-i18next';
 import {IconButton} from '../../components/control/icon-button';
 import {PickOption, ScreenBlock, Value} from '../../util/signaly/signaly-screen-blocks';
 import {KnownVariable} from '../../util/signaly/signaly-variables';
-import {ChoiceField, TextField} from '../signaly-appearance/signaly-appearance-fields';
+import {ChoiceField, RangeField, TextField} from '../signaly-appearance/signaly-appearance-fields';
 
 export interface PickFormProps {
+	audio: string[];
 	block: ScreenBlock;
+	fileChoice: (
+		label: string,
+		value: string,
+		files: string[],
+		onChange: (value: string) => void,
+		none?: string
+	) => React.ReactNode;
+	images: string[];
 	kinds: Array<{cls: string; name: string}>;
 	variables: KnownVariable[];
 	write: (next: Omit<ScreenBlock, 'from' | 'to'>) => void;
@@ -32,7 +41,7 @@ function move<T>(list: T[], index: number, by: number) {
 }
 
 export const PickForm: React.FC<PickFormProps> = props => {
-	const {block, kinds, variables, write} = props;
+	const {audio, block, fileChoice, images, kinds, variables, write} = props;
 	const {t} = useTranslation();
 	const l = (key: string) => t(`signaly.blocks.pick.${key}`);
 	const options = block.options ?? [];
@@ -42,6 +51,9 @@ export const PickForm: React.FC<PickFormProps> = props => {
 		setOptions(options.map((o, i) => (i === index ? {...o, values: {...o.values, [key]: value}} : o)));
 	const values = options.map(o => String(o.values.value ?? ''));
 	const repeated = new Set(values).size !== values.length;
+	const form = block.values.form === 'button' || block.values.form === 'image' ? String(block.values.form) : 'link';
+	const setImage = (index: number, value: string) =>
+		setOptions(options.map((o, i) => (i === index ? {...o, values: {...o.values, img: value || undefined}} : o)));
 
 	return (
 		<>
@@ -64,16 +76,47 @@ export const PickForm: React.FC<PickFormProps> = props => {
 			</div>
 			<ChoiceField
 				label={l('form')}
-				onChange={value => set('form', value === 'button' ? 'button' : undefined)}
-				options={['button', 'link'].map(value => ({label: l(`forms.${value}`), value}))}
-				value={block.values.form === 'button' ? 'button' : 'link'}
+				onChange={value => set('form', value === 'link' ? undefined : value)}
+				options={['button', 'link', 'image'].map(value => ({label: l(`forms.${value}`), value}))}
+				value={form}
 			/>
-			<ChoiceField
-				label={l('kind')}
-				onChange={value => set('kind', value || undefined)}
-				options={kinds.map(k => ({label: k.name, value: k.cls}))}
-				value={String(block.values.kind ?? '')}
-			/>
+			{form === 'image' ? (
+				<>
+					<RangeField
+						hint={l('widthHint')}
+						label={l('width')}
+						max={1920}
+						min={0}
+						onChange={value => set('width', value || undefined)}
+						unit={t('signaly.appearance.units.px')}
+						value={Number(block.values.width ?? 0)}
+					/>
+					{fileChoice(
+						l('sound'),
+						String(block.values.sound ?? ''),
+						audio,
+						value => set('sound', value || undefined),
+						l('noSound')
+					)}
+					{block.values.sound !== undefined && (
+						<RangeField
+							label={l('volume')}
+							max={100}
+							min={0}
+							onChange={value => set('volume', value)}
+							unit="%"
+							value={Number(block.values.volume ?? 100)}
+						/>
+					)}
+				</>
+			) : (
+				<ChoiceField
+					label={l('kind')}
+					onChange={value => set('kind', value || undefined)}
+					options={kinds.map(k => ({label: k.name, value: k.cls}))}
+					value={String(block.values.kind ?? '')}
+				/>
+			)}
 			<h4 className="signaly-block-subtitle">{l('values')}</h4>
 			<div className="signaly-field-hint">{l('valuesHint')}</div>
 			{options.map((option, index) => (
@@ -112,6 +155,8 @@ export const PickForm: React.FC<PickFormProps> = props => {
 						onChange={value => setOption(index, 'value', pickValue(value))}
 						value={String(option.values.value ?? '')}
 					/>
+					{form === 'image' &&
+						fileChoice(l('image'), String(option.values.img ?? ''), images, value => setImage(index, value), l('noImage'))}
 				</fieldset>
 			))}
 			{repeated && <div className="signaly-field-hint">{l('repeated')}</div>}

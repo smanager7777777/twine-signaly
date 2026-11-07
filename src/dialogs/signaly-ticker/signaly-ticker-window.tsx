@@ -518,6 +518,18 @@ export const SignalyTickerWindow: React.FC<SignalyTickerWindowProps> = props => 
 								/>
 							</div>
 						))}
+						<ChoiceField
+							hint={l('cycle.fontHint')}
+							label={l('cycle.font')}
+							onChange={font => setCycle({font})}
+							options={[
+								{label: l('cycle.fontLine'), value: 'none'},
+								...[...new Set([cycle.font, ...media.fonts])]
+									.filter(f => f && f !== 'none')
+									.map(f => ({label: f, value: f}))
+							]}
+							value={cycle.font || 'none'}
+						/>
 						<h3>{l('cycle.soundTitle')}</h3>
 						<ChoiceField
 							hint={media.audio.length === 0 ? t('signaly.blocks.noFiles') : l('cycle.soundHint')}

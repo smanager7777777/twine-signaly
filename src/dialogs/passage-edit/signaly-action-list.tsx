@@ -19,7 +19,10 @@ import {
 	newAction,
 	SetAction,
 	SignalAction,
-	TimerAction
+	TimerAction,
+	MusicAction,
+	MusicOp,
+	musicOps
 } from '../../util/signaly/signaly-actions';
 import {parseExpr, writeExpr} from '../../util/signaly/signaly-logic';
 import {Value} from '../../util/signaly/signaly-screen-blocks';
@@ -32,9 +35,70 @@ import {
 	TextField
 } from '../signaly-appearance/signaly-appearance-fields';
 import {AreaField} from './signaly-block-panel';
-import {CondRows} from './signaly-logic-form';
+import {CondListsContext, CondRows} from './signaly-logic-form';
 
 type L = (key: string, options?: Record<string, unknown>) => string;
+
+/** Действие «Музыка» (шаг 7.1): что сделать с общим плеером каталога «Музыка». */
+const MusicActionFields: React.FC<{action: MusicAction; l: L; onChange: (patch: Partial<MusicAction>) => void}> = props => {
+	const {action, l, onChange} = props;
+	const lists = React.useContext(CondListsContext);
+	const names = action.op === 'track' ? lists.tracks ?? [] : action.op === 'folder' ? lists.folders ?? [] : [];
+
+	return (
+		<>
+			<ChoiceField
+				label={l('music.op')}
+				onChange={op =>
+					onChange({
+						op: op as MusicOp,
+						target: op === 'toggle' ? 'ambient' : op === 'track' || op === 'folder' ? '' : '',
+						amount: op === 'volume' ? 30 : op === 'louder' || op === 'quieter' ? 5 : op === 'auto' ? -1 : 0
+					})
+				}
+				options={musicOps.map(op => ({label: l(`music.ops.${op}`), value: op}))}
+				value={action.op}
+			/>
+			{(action.op === 'track' || action.op === 'folder') && (
+				<ChoiceField
+					hint={names.length ? undefined : l('music.noCatalog')}
+					label={l(action.op === 'track' ? 'music.track' : 'music.folder')}
+					onChange={target => onChange({target})}
+					options={[...new Set([action.target, ...names])].filter(Boolean).map(n => ({label: n, value: n}))}
+					value={action.target}
+				/>
+			)}
+			{action.op === 'toggle' && (
+				<ChoiceField
+					hint={l('music.toggleHint')}
+					label={l('music.section')}
+					onChange={target => onChange({target})}
+					options={['ambient', 'radio'].map(v => ({label: l(`music.sections.${v}`), value: v}))}
+					value={action.target === 'radio' ? 'radio' : 'ambient'}
+				/>
+			)}
+			{(action.op === 'volume' || action.op === 'louder' || action.op === 'quieter') && (
+				<RangeField
+					label={l(action.op === 'volume' ? 'music.volume' : 'music.step')}
+					max={99}
+					min={action.op === 'volume' ? 0 : 1}
+					onChange={amount => onChange({amount})}
+					unit=""
+					value={action.amount}
+				/>
+			)}
+			{action.op === 'auto' && (
+				<ChoiceField
+					label={l('music.auto')}
+					onChange={v => onChange({amount: Number(v)})}
+					options={['1', '0', '-1'].map(v => ({label: l(`music.autos.${v === '-1' ? 'toggle' : v === '1' ? 'on' : 'off'}`), value: v}))}
+					value={String(action.amount)}
+				/>
+			)}
+			<div className="signaly-field-hint">{l(`music.hints.${action.op}`)}</div>
+		</>
+	);
+};
 
 export const actionTypes: ActionType[] = [
 	'set',
@@ -47,6 +111,7 @@ export const actionTypes: ActionType[] = [
 	'if',
 	'delay',
 	'back',
+	'music',
 	'code'
 ];
 
@@ -560,6 +625,8 @@ export const ActionList: React.FC<ActionListProps> = props => {
 				);
 			case 'back':
 				return <div className="signaly-field-hint">{l('backHint')}</div>;
+			case 'music':
+				return <MusicActionFields action={a} l={l} onChange={patch => edit(index, a, patch)} />;
 			case 'stop':
 				return (
 					<TextField

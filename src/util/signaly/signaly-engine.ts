@@ -43,6 +43,8 @@
 // - шаг 5.2: терминал взлома <<sg-hack>> ($sgHack).
 // - шаг 5.3: камера <<sg-camera>>: веб-камера, захват окна, обрезка, «нет сигнала»;
 //   символы и слова поля взлома звучат наборами наведения и нажатия.
+// - шаг 7.1: каталог «Музыка» (<<sg-music>>, <<sg-folder>>, <<sg-track>>), действие <<sg-mus>>,
+//   громкость <<sg-volume>>, музыка экрана <<sg-screen-music>>; перебор картинками; цифры цикла DSEG7;
 // - этап 6: кнопка-перебор <<sg-pick>>; звук-сигнал приглушает группу на время
 //   файла (слова duck, to); все картинки из текста экранов загружаются при запуске.
 // - этап 6, порция 2: блок «Значение» обновляется сам; раскрытие <<sg-reveal>>
@@ -60,7 +62,7 @@ import {tipBase} from './signaly-tip';
 const glitchBase = [...glitchRules(defaultGlitch, ':where(.glitchy)'), glitchKeyframes].join('\n');
 
 /** Версия движка. Увеличивать при каждом изменении кода ниже. */
-export const signalyEngineVersion = 22;
+export const signalyEngineVersion = 23;
 
 export const signalyEngineStart =
 	'/* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */';
@@ -3061,10 +3063,663 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		}
 	});
 
+	/* ----- Музыка: каталог, общий плеер, громкость, музыка экрана (шаг 7.1) ----- */
+
+	// Каталог — пассажи с тегом sg-music: <<sg-music>>, <<sg-folder>>, <<sg-track>>.
+	// Звучит один трек (ответ 3А), громкость одна, 0–99 (ответ 4А). Состояние —
+	// $sgMusic = {vol, auto, cur, playing, pos: {трек: секунды}, seen: {трек: 1},
+	// last: {ambient, radio}}. Плеер — свой Audio, мимо SimpleAudio: кнопки A–E
+	// старого вида его не трогают. После сбоя музыку включает мастер (решение 37).
+	var musCollect = null;
+	var musTable = null;
+	var mus = {audio: null, id: '', mult: 1, pre: null, timers: [], ramps: [], screen: [], fresh: true};
+	var volItems = [];
+	var volTimer = null;
+
+	function musNum(value, fallback) {
+		var n = Number(String(value === undefined ? '' : value).replace(',', '.'));
+
+		return value !== undefined && value !== '' && isFinite(n) ? n : fallback;
+	}
+
+	function musClamp(n) {
+		return Math.max(0, Math.min(99, Math.round(Number(n) || 0)));
+	}
+
+	Macro.add('sg-music', {
+		handler: function () {
+			if (musCollect) {
+				musCollect.settings = blockArgs(this, [], ['volume', 'spin'], ['auto']);
+			}
+		}
+	});
+
+	Macro.add('sg-folder', {
+		handler: function () {
+			if (musCollect) {
+				var a = blockArgs(this, ['name'], ['section'], []);
+
+				musCollect.folders.push({name: String(a.name || ''), section: a.section === 'radio' ? 'radio' : 'ambient', tracks: []});
+			}
+		}
+	});
+
+	Macro.add('sg-track', {
+		tags: null,
+		handler: function () {
+			if (!musCollect) {
+				return;
+			}
+
+			var a = blockArgs(this, ['name', 'src'], ['pre', 'wait', 'tail', 'prevolume', 'start'], []);
+
+			if (!musCollect.folders.length) {
+				musCollect.folders.push({name: 'Музыка', section: 'ambient', tracks: []});
+			}
+			musCollect.folders[musCollect.folders.length - 1].tracks.push({
+				name: String(a.name || ''),
+				src: String(a.src || ''),
+				pre: a.pre ? String(a.pre) : '',
+				wait: Math.max(0, musNum(a.wait, 3)),
+				tail: Math.max(0, musNum(a.tail, 2)),
+				prevolume: Math.max(0, Math.min(100, musNum(a.prevolume, 100))),
+				start: a.start === undefined ? undefined : musClamp(a.start),
+				when: trimContent(this.payload[0].contents)
+			});
+		}
+	});
+
+	function music() {
+		if (musTable !== null) {
+			return musTable;
+		}
+
+		var c = {settings: {}, folders: []};
+
+		musCollect = c;
+		Story.filter(function (p) {
+			return p.tags.indexOf('sg-music') !== -1;
+		}).forEach(function (p) {
+			try {
+				new Wikifier(document.createDocumentFragment(), p.text);
+			} catch (e) {
+				console.error('СИГНАЛЫ: музыка', e);
+			}
+		});
+		musCollect = null;
+		musTable = {
+			volume: musClamp(musNum(c.settings.volume, 30)),
+			spin: Math.max(0, musNum(c.settings.spin, 0.8)),
+			auto: !!c.settings.auto,
+			folders: c.folders,
+			byId: {}
+		};
+		c.folders.forEach(function (f) {
+			f.tracks.forEach(function (t) {
+				t.id = f.name + '/' + t.name;
+				t.folder = f;
+				musTable.byId[t.id] = t;
+			});
+		});
+		return musTable;
+	}
+
+	function musState() {
+		var st = varObject('sgMusic');
+
+		if (st.vol === undefined) {
+			st.vol = music().volume;
+			st.auto = music().auto;
+		}
+		['pos', 'seen', 'last'].forEach(function (key) {
+			if (!st[key] || typeof st[key] !== 'object') {
+				st[key] = {};
+			}
+		});
+		// После сбоя страница новая: что играло, уже молчит (музыку включает мастер).
+		if (mus.fresh) {
+			mus.fresh = false;
+			st.playing = false;
+		}
+		return st;
+	}
+
+	function musVisible(t) {
+		if (!t.when) {
+			return true;
+		}
+		try {
+			return !!Scripting.evalTwineScript(t.when);
+		} catch (e) {
+			console.error('СИГНАЛЫ: условие трека «' + t.id + '»', e);
+			return false;
+		}
+	}
+
+	function musFolder(name) {
+		return music().folders.filter(function (f) {
+			return f.name === name;
+		})[0];
+	}
+
+	function musFirst(folders) {
+		for (var i = 0; i < folders.length; i++) {
+			var list = folders[i].tracks.filter(musVisible);
+
+			if (list.length) {
+				return list[0].id;
+			}
+		}
+		return '';
+	}
+
+	function musChanged() {
+		saveVars();
+		volDrawAll();
+	}
+
+	function musApply() {
+		if (mus.audio) {
+			mus.audio.volume = Math.max(0, Math.min(1, (musState().vol / 99) * mus.mult));
+		}
+	}
+
+	function musClear() {
+		mus.timers.forEach(clearTimeout);
+		mus.timers = [];
+		if (mus.pre) {
+			mus.pre.pause();
+			mus.pre = null;
+		}
+	}
+
+	// Плавно: from → to за seconds; step(значение) на каждом шаге, done в конце.
+	function musRamp(from, to, seconds, step, done) {
+		var start = Date.now();
+		var ramp = {};
+
+		ramp.timer = setInterval(function () {
+			var k = seconds > 0 ? Math.min(1, (Date.now() - start) / (seconds * 1000)) : 1;
+
+			step(from + (to - from) * k);
+			if (k >= 1) {
+				clearInterval(ramp.timer);
+				mus.ramps.splice(mus.ramps.indexOf(ramp), 1);
+				if (done) {
+					done();
+				}
+			}
+		}, 50);
+		mus.ramps.push(ramp);
+		return ramp;
+	}
+
+	// Остановить текущий трек (место запоминается); silent — не трогать «играет».
+	function musHalt(keepPlace) {
+		var st = musState();
+
+		musClear();
+		if (mus.rise) {
+			clearInterval(mus.rise.timer);
+			mus.rise = null;
+		}
+		if (mus.audio) {
+			st.pos[mus.id] = keepPlace && !mus.audio.ended ? mus.audio.currentTime : 0;
+			mus.audio.pause();
+			mus.audio = null;
+		}
+		mus.mult = 1;
+	}
+
+	function musPlay(id, rise) {
+		var t = music().byId[id];
+		var st = musState();
+
+		if (!t || preview) {
+			return;
+		}
+		musHalt(true);
+		st.cur = id;
+		st.playing = true;
+		st.last[t.folder.section] = id;
+		if (!st.seen[id]) {
+			st.seen[id] = 1;
+			if (t.start !== undefined) {
+				st.vol = musClamp(t.start);
+			}
+		}
+
+		var audio = new Audio(t.src);
+		var at = Number(st.pos[id]) || 0;
+
+		audio.preload = 'auto';
+		if (at > 0) {
+			audio.addEventListener('loadedmetadata', function () {
+				if (at < audio.duration) {
+					audio.currentTime = at;
+				}
+			}, {once: true});
+		}
+		audio.addEventListener('ended', function () {
+			if (mus.audio === audio) {
+				musEnded(id);
+			}
+		});
+		mus.audio = audio;
+		mus.id = id;
+		mus.mult = rise > 0 ? 0 : 1;
+		musApply();
+
+		var go = function () {
+			if (mus.audio !== audio) {
+				return;
+			}
+			audio.play().catch(function (e) {
+				console.warn('СИГНАЛЫ: трек «' + id + '»', e);
+			});
+			if (rise > 0) {
+				mus.rise = musRamp(0, 1, rise, function (k) {
+					mus.mult = k;
+					musApply();
+				}, function () {
+					mus.rise = null;
+				});
+			}
+		};
+
+		if (t.pre) {
+			// Предзвук: сначала он, через wait секунд — трек, ещё tail секунд — оба.
+			var pre = new Audio(t.pre);
+
+			pre.volume = Math.max(0, Math.min(1, (st.vol / 99) * (t.prevolume / 100)));
+			pre.play().catch(function () {});
+			mus.pre = pre;
+			mus.timers.push(setTimeout(go, t.wait * 1000));
+			mus.timers.push(setTimeout(function () {
+				if (mus.pre === pre) {
+					pre.pause();
+					mus.pre = null;
+				}
+			}, (t.wait + t.tail) * 1000));
+		} else {
+			go();
+		}
+		musChanged();
+	}
+
+	function musEnded(id) {
+		var st = musState();
+		var t = music().byId[id];
+
+		st.pos[id] = 0;
+		mus.audio = null;
+		if (st.auto && t) {
+			// «АВТО»: следующий трек той же папки, после последнего — первый.
+			var list = t.folder.tracks.filter(musVisible);
+			var index = list.indexOf(t);
+			var next = list[(index + 1) % list.length] || list[0];
+
+			if (next) {
+				st.pos[next.id] = 0;
+				musPlay(next.id);
+				return;
+			}
+		}
+		st.playing = false;
+		musChanged();
+	}
+
+	function musPause() {
+		musHalt(true);
+		musState().playing = false;
+		musChanged();
+	}
+
+	// Затухание за seconds, потом пауза (место запоминается).
+	function musFadeOut(seconds) {
+		var st = musState();
+		var audio = mus.audio;
+		var id = mus.id;
+		var from = mus.mult;
+
+		musClear();
+		if (!audio) {
+			st.playing = false;
+			return;
+		}
+		mus.audio = null;
+		st.playing = false;
+		musRamp(from, 0, seconds, function (k) {
+			audio.volume = Math.max(0, Math.min(1, (st.vol / 99) * k));
+		}, function () {
+			st.pos[id] = audio.ended ? 0 : audio.currentTime;
+			audio.pause();
+			saveVars();
+		});
+		mus.mult = 1;
+		musChanged();
+	}
+
+	function musToggle(section) {
+		var st = musState();
+		var t = music().byId[st.cur];
+
+		if (st.playing && t && t.folder.section === section) {
+			musPause();
+			return;
+		}
+
+		var id = st.last[section] && music().byId[st.last[section]] ? st.last[section] : musFirst(music().folders.filter(function (f) {
+			return f.section === section;
+		}));
+
+		if (id) {
+			musPlay(id);
+		}
+	}
+
+	function musNext() {
+		var st = musState();
+		var t = music().byId[st.cur];
+
+		if (!t) {
+			return;
+		}
+
+		var list = t.folder.tracks.filter(musVisible);
+		var next = list[(list.indexOf(t) + 1) % list.length];
+
+		if (next) {
+			musHalt(true);
+			st.pos[next.id] = 0;
+			musPlay(next.id);
+		}
+	}
+
+	function musSetVolume(n) {
+		var st = musState();
+
+		st.vol = musClamp(n);
+		musApply();
+		musChanged();
+	}
+
+	function musWords(raw) {
+		var re = /"((?:\\.|[^"\\])*)"|'([^']*)'|(\S+)/g;
+		var out = [];
+		var m;
+
+		while ((m = re.exec(raw))) {
+			out.push(m[1] !== undefined ? m[1].replace(/\\(.)/g, '$1') : m[2] !== undefined ? m[2] : m[3]);
+		}
+		return out;
+	}
+
+	// <<sg-mus …>> — действие ссылки, кнопки, клавиши, кода.
+	Macro.add('sg-mus', {
+		skipArgs: true,
+		handler: function () {
+			if (preview) {
+				return;
+			}
+
+			var w = musWords(this.args.raw || this.args.full || '');
+			var st = musState();
+
+			switch (w[0]) {
+				case 'play':
+					if (w[1] === 'track') {
+						musPlay(w[2]);
+					} else if (w[1] === 'folder') {
+						var f = musFolder(w[2]);
+						var id = f ? musFirst([f]) : '';
+
+						if (id) {
+							musPlay(id);
+						}
+					}
+					break;
+				case 'toggle':
+					musToggle(w[1] === 'radio' ? 'radio' : 'ambient');
+					break;
+				case 'pause':
+					musPause();
+					break;
+				case 'resume':
+					if (st.cur && !st.playing) {
+						musPlay(st.cur);
+					}
+					break;
+				case 'stop':
+					musHalt(false);
+					if (st.cur) {
+						st.pos[st.cur] = 0;
+					}
+					st.playing = false;
+					musChanged();
+					break;
+				case 'next':
+					musNext();
+					break;
+				case 'volume':
+					var v = String(w[1] || '');
+
+					musSetVolume(/^[+-]/.test(v) ? st.vol + Number(v) : Number(v));
+					break;
+				case 'auto':
+					st.auto = w[1] === 'on' ? true : w[1] === 'off' ? false : !st.auto;
+					musChanged();
+					break;
+			}
+		}
+	});
+
+	// Музыка экрана: <<sg-screen-music delay 5 now fade fade 3 play folder "Папка" after 1 rise 2>>.
+	// Отсчёт идёт, пока игроки на экране; ушли раньше — отменяется. Смена началась —
+	// доходит до конца, новая музыка играет дальше (ответ 5А).
+	function screenMusicRun(o) {
+		var st = musState();
+		var wasPlaying = st.playing;
+		var id = '';
+
+		if (o.play === 'track') {
+			id = music().byId[o.target] ? o.target : '';
+		} else if (o.play === 'folder') {
+			var f = musFolder(o.target);
+
+			id = f ? musFirst([f]) : '';
+		} else if (o.play === 'ambient' && !(wasPlaying && o.now === '')) {
+			id = st.last.ambient && music().byId[st.last.ambient] ? st.last.ambient : musFirst(music().folders.filter(function (x) {
+				return x.section === 'ambient';
+			}));
+		}
+		// Уже играет то же — ничего не трогать.
+		if (id && id === st.cur && wasPlaying) {
+			return;
+		}
+		if (o.now === 'stop') {
+			musPause();
+		} else if (o.now === 'fade') {
+			musFadeOut(o.fade);
+		}
+		if (!id) {
+			return;
+		}
+		if (o.now === 'fade' && o.after > 0 && wasPlaying) {
+			mus.screen.push(setTimeout(function () {
+				musPlay(id, o.rise);
+			}, o.after * 1000));
+		} else if (o.now === '' && wasPlaying) {
+			musPlay(id, o.rise);
+		} else {
+			musPlay(id, o.rise);
+		}
+	}
+
+	Macro.add('sg-screen-music', {
+		skipArgs: true,
+		handler: function () {
+			if (preview || restoring) {
+				return;
+			}
+
+			var w = musWords(this.args.raw || this.args.full || '');
+			var o = {delay: 0, now: '', fade: 3, play: '', target: '', after: 0, rise: 0};
+
+			for (var i = 0; i < w.length; i++) {
+				if (/^(delay|fade|after|rise)$/.test(w[i])) {
+					o[w[i]] = Math.max(0, musNum(w[i + 1], 0));
+					i++;
+				} else if (w[i] === 'now') {
+					o.now = w[i + 1] === 'stop' || w[i + 1] === 'fade' ? w[i + 1] : '';
+					i++;
+				} else if (w[i] === 'play') {
+					o.play = w[i + 1];
+					if (o.play === 'track' || o.play === 'folder') {
+						o.target = w[i + 2] || '';
+						i++;
+					}
+					i++;
+				}
+			}
+			mus.screen.push(setTimeout(function () {
+				screenMusicRun(o);
+			}, o.delay * 1000));
+		}
+	});
+
+	$(document).on(':passageinit', function () {
+		mus.screen.forEach(clearTimeout);
+		mus.screen = [];
+		volItems = [];
+	});
+
+	/* Громкость: «−», окошко 00–99 цифрами DSEG7, «+». На паузе — 00 (ТЗ, раздел 2). */
+
+	function volShown() {
+		var st = preview ? {vol: music().volume, playing: true} : musState();
+
+		return ('0' + (st.playing ? st.vol : 0)).slice(-2);
+	}
+
+	function volDraw(item, now) {
+		var target = volShown();
+
+		if (item.target === null) {
+			// Первый показ — сразу, без кручения.
+			item.target = target;
+			item.chars = target.split('');
+			item.cells[0].textContent = target[0];
+			item.cells[1].textContent = target[1];
+		} else if (target !== item.target) {
+			item.target = target;
+			for (var i = 0; i < 2; i++) {
+				if (target[i] !== item.chars[i]) {
+					var spin = preview ? 0 : music().spin * 1000;
+
+					// Цифры крутятся и останавливаются справа налево, как у цикла.
+					item.stop[i] = now + spin * (i === 0 ? 1 : 0.7);
+					item.start[i] = now;
+					item.next[i] = now;
+				}
+			}
+		}
+		for (var j = 0; j < 2; j++) {
+			if (item.stop[j] === 0) {
+				continue;
+			}
+			if (now >= item.stop[j]) {
+				item.stop[j] = 0;
+				item.chars[j] = target[j];
+				item.cells[j].textContent = target[j];
+			} else if (now >= item.next[j]) {
+				var k = (now - item.start[j]) / Math.max(1, item.stop[j] - item.start[j]);
+				var rate = 25 + (4 - 25) * k;
+
+				item.cells[j].textContent = String(Math.floor(Math.random() * 10));
+				item.next[j] = now + 1000 / rate;
+			}
+		}
+	}
+
+	function volDrawAll() {
+		var now = Date.now();
+
+		volItems.forEach(function (item) {
+			volDraw(item, now);
+		});
+	}
+
+	Macro.add('sg-volume', {
+		handler: function () {
+			var a = blockArgs(this, [], ['step', 'size', 'kind'].concat(placeKeys), []);
+			var step = Math.max(1, musNum(a.step, 5));
+			var box = document.createElement('span');
+			var inner = box;
+			var digits = document.createElement('span');
+			var item = {target: null, chars: ['', ''], cells: [], stop: [0, 0], start: [0, 0], next: [0, 0]};
+
+			box.className = 'sg-volume';
+			if (a.kind) {
+				inner = document.createElement('span');
+				inner.className = String(a.kind);
+				box.appendChild(inner);
+			}
+			$(inner).wiki('<<button "−">><</button>>');
+			digits.className = 'sg-vol-box';
+			digits.style.fontFamily = timerFont(timerDefaults.font);
+			digits.style.fontSize = Math.max(8, musNum(a.size, 40)) + 'px';
+			for (var i = 0; i < 2; i++) {
+				var cell = document.createElement('span');
+
+				cell.textContent = '0';
+				digits.appendChild(cell);
+				item.cells.push(cell);
+			}
+			inner.appendChild(digits);
+			$(inner).wiki('<<button "+">><</button>>');
+
+			var buttons = inner.querySelectorAll('button');
+
+			$(buttons[0]).on('click', function () {
+				if (!preview) {
+					musSetVolume(musState().vol - step);
+				}
+			});
+			$(buttons[buttons.length - 1]).on('click', function () {
+				if (!preview) {
+					musSetVolume(musState().vol + step);
+				}
+			});
+			placeStyle(box, a);
+			putPlaced(this, box, a, 'volume');
+			volItems.push(item);
+			volDraw(item, Date.now());
+			if (!volTimer) {
+				volTimer = setInterval(volDrawAll, 40);
+			}
+		}
+	});
+
+	engineStyle.textContent +=
+		'.sg-volume { display: inline-flex; align-items: center; gap: 0.4em; }\n' +
+		'.sg-volume > span { display: inline-flex; align-items: center; gap: 0.4em; }\n' +
+		'.sg-vol-box { display: inline-flex; padding: 0.1em 0.25em; line-height: 1; ' +
+		'border: var(--sg-border-width, 2px) solid var(--sg-border-color, currentColor); ' +
+		'box-shadow: 0 0 var(--sg-glow-size, 0) var(--sg-glow-color, transparent); background: var(--sg-win-bg, #000); }\n' +
+		'.sg-vol-box span { display: inline-block; width: 1ch; text-align: center; }\n';
+
+	// Для проверок и предпросмотра.
+	setup.signaly.music = function () {
+		var table = music();
+
+		return {table: {folders: table.folders.map(function (f) { return f.name; }), ids: Object.keys(table.byId)}, state: preview ? null : musState(), playing: !!(mus.audio && !mus.audio.paused), src: mus.audio ? mus.audio.src : '', volume: mus.audio ? mus.audio.volume : null, pre: mus.pre ? mus.pre.src : ''};
+	};
+
 	/* ----- Кнопка-перебор (этап 6, ответ 2А) ----- */
 
-	// <<sg-pick var "$mode" [form button] [kind amber]>> со строками
-	// <<sg-opt "Надпись" значение>>. Щелчок даёт следующее значение, значение лежит
+	// <<sg-pick var "$mode" [form button|image] [kind amber] [width N] [sound "x" volume N]>>
+	// со строками <<sg-opt "Надпись" значение [img "media/img/x.jpg"]>>. Щелчок даёт следующее значение, значение лежит
 	// в переменной. Его меняет и всё остальное в игре (код, клавиша мастера):
 	// надпись следит сама, 4 раза в секунду.
 	var pickItems = [];
@@ -3087,7 +3742,13 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 
 		if (index !== item.index) {
 			item.index = index;
-			item.el.textContent = String(item.options[index].label || '—');
+			if (item.image) {
+				// Порция 2, ответ 3А: у значения своя картинка; нет своей — первая найденная.
+				item.el.src = String(item.options[index].img || item.image);
+				item.el.alt = String(item.options[index].label || '');
+			} else {
+				item.el.textContent = String(item.options[index].label || '—');
+			}
 		}
 	}
 
@@ -3111,9 +3772,9 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	Macro.add('sg-pick', {
 		tags: ['sg-opt'],
 		handler: function () {
-			var a = blockArgs(this, [], ['var', 'form', 'kind'], []);
+			var a = blockArgs(this, [], ['var', 'form', 'kind', 'width', 'sound', 'volume'], []);
 			var options = this.payload.slice(1).map(function (part) {
-				return blockArgs({args: part.args}, ['label', 'value'], [], []);
+				return blockArgs({args: part.args}, ['label', 'value'], ['img'], []);
 			});
 			var name = String(a['var'] || '');
 
@@ -3136,10 +3797,24 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			if (State.getVar(item.name) === undefined) {
 				State.setVar(item.name, options[0].value);
 			}
-			$(inner).wiki('<<' + tag + ' "—">><</' + tag + '>>');
-			item.el = inner.querySelector('a, button');
+			if (a.form === 'image') {
+				// Картинками (порция 2, ответ 3А): щелчок по картинке, свой звук щелчка.
+				item.image = (options.filter(function (o) { return o.img; })[0] || {}).img || '';
+				item.el = document.createElement('img');
+				item.el.className = 'sg-toggle';
+				if (Number(a.width) > 0) {
+					item.el.width = Number(a.width);
+				}
+				inner.appendChild(item.el);
+			} else {
+				$(inner).wiki('<<' + tag + ' "—">><</' + tag + '>>');
+				item.el = inner.querySelector('a, button');
+			}
 			pickDraw(item);
 			$(item.el).on('click', function () {
+				if (item.image && a.sound) {
+					signalPlay(a.sound, a.volume);
+				}
 				pickNext(item);
 			});
 			pickItems.push(item);
@@ -4107,7 +4782,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	Macro.add('sg-cycle', {
 		handler: function () {
 			if (tickerCollect) {
-				tickerCollect.cycle = blockArgs(this, [], ['var', 'spin', 'gap', 'from', 'to', 'rate', 'sound', 'volume'], []);
+				tickerCollect.cycle = blockArgs(this, [], ['var', 'spin', 'gap', 'from', 'to', 'rate', 'sound', 'volume', 'font'], []);
 			}
 		}
 	});
@@ -4194,6 +4869,8 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			t.cycle.from = digitRates(t.cycle.from, firstRate);
 			t.cycle.to = digitRates(t.cycle.to, t.cycle.rate === undefined ? 2 : Math.max(1, Math.round(firstRate / 15)));
 			t.cycle.volume = number(t.cycle.volume, 100);
+			// Сессия 26: цифры цикла — шрифтом табло (DSEG7), 'none' — как у строки.
+			t.cycle.font = t.cycle.font === undefined ? timerDefaults.font : String(t.cycle.font);
 			if (!preview && t.cycle.sound) {
 				signalFor(String(t.cycle.sound));
 			}
@@ -4453,6 +5130,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			cycle.textContent = 'Цикл';
 			tickerNum = document.createElement('span');
 			tickerNum.className = 'sg-tk-num';
+			tickerNum.style.fontFamily = timerFont(t.cycle.font);
 			cycle.appendChild(tickerNum);
 			strip.appendChild(cycle);
 		}

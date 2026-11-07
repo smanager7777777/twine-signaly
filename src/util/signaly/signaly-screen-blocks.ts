@@ -55,7 +55,8 @@ export type BlockType =
 	| 'hack'
 	| 'camera'
 	| 'pick'
-	| 'include';
+	| 'include'
+	| 'volume';
 export type CaseKind = 'case' | 'wrong';
 type PartKind = CaseKind | 'step' | 'state' | 'row' | 'win' | 'fail' | 'miss' | 'opt';
 export type Value = string | number | boolean;
@@ -76,7 +77,8 @@ export const blockMacros: Record<BlockType, string> = {
 	camera: 'sg-camera',
 	pick: 'sg-pick',
 	// Сессия 25, ответ 4А: «Вставить экран» — обычная команда SugarCube.
-	include: 'include'
+	include: 'include',
+	volume: 'sg-volume'
 };
 
 const partMacros: Record<PartKind, string> = {
@@ -279,9 +281,16 @@ const specs: Record<BlockType | PartKind, ArgSpec> = {
 	},
 	// Этап 6: кнопка-перебор. form: button — кнопкой, нет — ссылкой; значения —
 	// строки <<sg-opt "Надпись" значение>>.
-	pick: {pos: [], keys: {var: 'string', form: 'string', kind: 'string'}, flags: [], container: true},
+	pick: {
+		pos: [],
+		keys: {var: 'string', form: 'string', kind: 'string', width: 'number', sound: 'string', volume: 'number'},
+		flags: [],
+		container: true
+	},
 	include: {pos: ['passage'], keys: {}, flags: [], container: false},
-	opt: {pos: ['label', 'value'], keys: {}, flags: [], container: false},
+	// Шаг 7.1: громкость музыки — «−», окошко 00–99, «+».
+	volume: {pos: [], keys: {step: 'number', size: 'number', kind: 'string', ...placeKeys}, flags: [], container: false},
+	opt: {pos: ['label', 'value'], keys: {img: 'string'}, flags: [], container: false},
 	// Шаг 5.2: терминал взлома. key — ключевое слово (нет — случайное из списка);
 	// hint, tries, missplace — место: top, bottom, left, right (missplace ещё over);
 	// triesshow: text, boxes, both; missfx: flicker, flash, ripple.
@@ -593,7 +602,7 @@ function writeArgs(values: Values, extra: string[], spec: ArgSpec) {
 
 /* ----- Поиск блоков в тексте ----- */
 
-const openRe = /<<(sg-(?:image|video|alarm|dialog|code|place|timer|chain|articles|list|hack|camera|pick)|include)(?=[\s>])/g;
+const openRe = /<<(sg-(?:image|video|alarm|dialog|code|place|timer|chain|articles|list|hack|camera|pick|volume)|include)(?=[\s>])/g;
 
 function macroType(name: string): BlockType | undefined {
 	return blockTypes.find(type => blockMacros[type] === name);
@@ -873,6 +882,8 @@ export function newBlock(type: BlockType): Omit<ScreenBlock, 'from' | 'to'> {
 			return newStateList(false);
 		case 'include':
 			return {type, values: {passage: ''}, extra: []};
+		case 'volume':
+			return {type, values: {step: 5, size: 40}, extra: []};
 		case 'pick':
 			return {
 				type,

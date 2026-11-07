@@ -13,7 +13,7 @@
 
 import {arg} from './signaly-link-form';
 import {Cond, parseExpr} from './signaly-logic';
-import {findClose, scanArgs} from './signaly-screen-blocks';
+import {findClose, scanArgs, timerDefaults} from './signaly-screen-blocks';
 
 export const tickerTag = 'sg-ticker';
 export const tickerPassageName = 'Строка событий';
@@ -63,6 +63,8 @@ export interface TickerCycle {
 	to: number[];
 	sound: string;
 	volume: number;
+	/** Шрифт цифр: файл из media/fonts; 'none' — как у строки (сессия 26: по умолчанию DSEG7). */
+	font: string;
 	rows: CycleRow[];
 }
 
@@ -113,6 +115,7 @@ export const defaultCycle: TickerCycle = {
 	to: [2, 2, 2, 2, 2],
 	sound: '',
 	volume: 100,
+	font: timerDefaults.font,
 	rows: []
 };
 
@@ -269,7 +272,7 @@ export function readTicker(text: string, startScreen: string): TickerData {
 		line.order = readOrder(values.order);
 	}
 	if (cycleHead) {
-		const {values} = readWords(cycleHead.tokens, ['var', 'spin', 'gap', 'from', 'to', 'rate', 'sound', 'volume']);
+		const {values} = readWords(cycleHead.tokens, ['var', 'spin', 'gap', 'from', 'to', 'rate', 'sound', 'volume', 'font']);
 		// rate — запись сборок до сессии 15: одна скорость на все цифры,
 		// к концу в 15 раз меньше.
 		const rate = num(values.rate, 0);
@@ -281,6 +284,7 @@ export function readTicker(text: string, startScreen: string): TickerData {
 		cycle.to = readRates(values.to, rate > 0 ? cycle.to.map(() => Math.max(1, Math.round(rate / 15))) : cycle.to);
 		cycle.sound = values.sound ?? '';
 		cycle.volume = num(values.volume, cycle.volume);
+		cycle.font = values.font ?? cycle.font;
 	}
 	cycle.rows = findAll(text, 'sg-cycle-at', false).map(f => ({
 		progress: num(unquote(f.tokens[0]), 0),
@@ -365,7 +369,8 @@ function writeCycle(c: TickerCycle) {
 		`gap ${c.gap}`,
 		`from "${c.from.join(',')}"`,
 		`to "${c.to.join(',')}"`,
-		...(c.sound ? [`sound ${arg(c.sound)}`, `volume ${c.volume}`] : [])
+		...(c.sound ? [`sound ${arg(c.sound)}`, `volume ${c.volume}`] : []),
+		...(c.font !== timerDefaults.font ? [`font ${arg(c.font || 'none')}`] : [])
 	];
 
 	return [

@@ -745,7 +745,8 @@
 				"hack": "Hacking terminal",
 				"camera": "Camera",
 				"pick": "Cycling button",
-				"include": "Insert passage"
+				"include": "Insert passage",
+				"volume": "Volume"
 			},
 			"image": {
 				"title": "Image",
@@ -868,7 +869,8 @@
 				},
 				"whenVar": "Variable",
 				"whenVarOther": "…or type a name",
-				"whenValue": "Value"
+				"whenValue": "Value",
+				"statusText": "Lines at the bottom right are ordinary screen text between <<kr2vars>> and <</kr2vars>>. Edit them with the toolbar like any text: Condition, Variable value, Action → Open window. They update by themselves."
 			},
 			"corners": {
 				"tl": "Top left",
@@ -1138,7 +1140,8 @@
 				"form": "Show as",
 				"forms": {
 					"button": "Button",
-					"link": "Link"
+					"link": "Link",
+					"image": "Images"
 				},
 				"kind": "Style",
 				"values": "Values",
@@ -1150,7 +1153,14 @@
 				"remove": "Remove value",
 				"add": "Add value",
 				"newValue": "New",
-				"repeated": "Two values match: the button cannot move past the first of them."
+				"repeated": "Two values match: the button cannot move past the first of them.",
+				"width": "Image width",
+				"widthHint": "0 — as in the file.",
+				"sound": "Click sound",
+				"noSound": "— no sound —",
+				"volume": "Click volume",
+				"image": "Image",
+				"noImage": "— as the first value —"
 			},
 			"include": {
 				"title": "Insert passage",
@@ -1162,6 +1172,13 @@
 				"users": "This passage is inserted in {{count}} passage.",
 				"users_plural": "This passage is inserted in {{count}} passages.",
 				"open": "Open inserted passage"
+			},
+			"volume": {
+				"title": "Volume",
+				"hint": "−, 00–99 window, +.",
+				"step": "Button step",
+				"size": "Digit size",
+				"kind": "Button kind"
 			}
 		},
 		"drag": {
@@ -1485,7 +1502,8 @@
 				"if": "If … then … else",
 				"delay": "After N seconds",
 				"progress": "Progress of the person +N",
-				"back": "Return to the previous screen"
+				"back": "Return to the previous screen",
+				"music": "Music"
 			},
 			"add": "Add action",
 			"addChoose": "Choose…",
@@ -1583,7 +1601,53 @@
 			},
 			"progress": "How much to add to the progress of whoever entered the code",
 			"progressHint": "The progress variable comes from the person's row (People tab). Can be negative: −1.",
-			"backHint": "The terminal returns to the screen it left for the event (or the previous screen if there was no event). Runs after the other actions."
+			"backHint": "The terminal returns to the screen it left for the event (or the previous screen if there was no event). Runs after the other actions.",
+			"music": {
+				"op": "What to do",
+				"ops": {
+					"track": "Play track",
+					"folder": "Play folder",
+					"toggle": "Play or pause section",
+					"pause": "Pause",
+					"resume": "Resume",
+					"stop": "Stop",
+					"next": "Next track",
+					"volume": "Set volume",
+					"louder": "Louder",
+					"quieter": "Quieter",
+					"auto": "AUTO"
+				},
+				"noCatalog": "No catalogue yet.",
+				"track": "Track",
+				"folder": "Folder",
+				"section": "Section",
+				"sections": {
+					"ambient": "Atmosphere",
+					"radio": "Radio"
+				},
+				"toggleHint": "Like RAD/ATM buttons.",
+				"volume": "Volume",
+				"step": "By",
+				"auto": "AUTO",
+				"autos": {
+					"on": "On",
+					"off": "Off",
+					"toggle": "Toggle"
+				},
+				"hints": {
+					"track": "Plays from the paused place.",
+					"folder": "First available track of the folder.",
+					"toggle": "One thing plays at a time.",
+					"pause": "The place is remembered.",
+					"resume": "Same track, same place.",
+					"stop": "Next time from the start.",
+					"next": "Next track of the folder.",
+					"volume": "Shared volume 00–99.",
+					"louder": "Up to 99.",
+					"quieter": "Down to 00.",
+					"auto": "Next track when one ends."
+				}
+			}
 		},
 		"keys": {
 			"button": "Hotkeys",
@@ -1855,7 +1919,10 @@
 				"rateFrom": "At start",
 				"rateTo": "Before stop",
 				"rateFromOf": "Digit {{n}} speed at start",
-				"rateToOf": "Digit {{n}} speed before stop"
+				"rateToOf": "Digit {{n}} speed before stop",
+				"font": "Digit font",
+				"fontHint": "Default is DSEG7, as on the timer display.",
+				"fontLine": "Same as the line"
 			},
 			"problems": {
 				"emptyName": "A message has no name.",
@@ -2149,6 +2216,92 @@
 				"variable": "The variable is used but has no starting value in the Variables window. Not always an error.",
 				"code": "The code has no actions, no answer and no destination."
 			}
+		},
+		"music": {
+			"button": "Music",
+			"title": "Music",
+			"intro": "The shared player catalogue: Atmosphere and Radio sections with folders and tracks. One track plays at a time; one volume (00–99).",
+			"general": "General",
+			"volume": "Volume at game start",
+			"volumeHint": "00–99, shared by all music.",
+			"spin": "Volume digits spin",
+			"spinHint": "Digits spin and stop right to left. 0 — at once.",
+			"auto": "AUTO on at game start",
+			"autoHint": "When a track ends, the next one of the folder plays.",
+			"sections": {
+				"ambient": "Atmosphere",
+				"radio": "Radio"
+			},
+			"noName": "(no name)",
+			"count_0": "{{count}} track",
+			"count": "{{count}} track",
+			"count_plural": "{{count}} tracks",
+			"addFolder": "Add folder",
+			"where": "Stored in passage “{{name}}” (tag sg-music).",
+			"empty": "No folders yet.",
+			"folderName": "Folder name",
+			"folderHint": "Without “/”.",
+			"section": "Section",
+			"up": "Up",
+			"down": "Down",
+			"deleteFolder": "Delete folder",
+			"confirmDelete": "Delete folder “{{name}}”?",
+			"newFolder": "Folder {{n}}",
+			"tracks": "Tracks",
+			"newTrack": "Track {{n}}",
+			"addTrack": "Add track",
+			"removeTrack": "Remove track",
+			"tracksHint": "Track order is the AUTO order.",
+			"trackName": "Track name",
+			"file": "File",
+			"chooseFile": "— choose a file —",
+			"when": "When the track is in the catalogue",
+			"whenHint": "No conditions — always.",
+			"pre": "Pre-sound",
+			"preHint": "Another sound plays first.",
+			"preFile": "Pre-sound file",
+			"wait": "Track starts after",
+			"tail": "Pre-sound continues for",
+			"preVolume": "Pre-sound volume",
+			"start": "Start volume",
+			"startHint": "On first play the shared volume becomes this.",
+			"startVolume": "Volume on first play",
+			"problems": {
+				"emptyFolder": "A folder has no name.",
+				"repeatedFolder": "Two folders share a name.",
+				"emptyTrack": "A track has no name or file.",
+				"repeatedTrack": "Two tracks share a name.",
+				"slash": "“/” in a name."
+			}
+		},
+		"screenMusic": {
+			"button": "Screen music",
+			"title": "Screen music",
+			"intro": "Change music some seconds after entering.",
+			"delay": "Seconds after entering",
+			"now": "Current music",
+			"nows": {
+				"keep": "Keep",
+				"stop": "Stop at once",
+				"fade": "Fade out, then pause"
+			},
+			"fade": "Fade length",
+			"play": "What to play",
+			"plays": {
+				"none": "Nothing",
+				"track": "Track",
+				"folder": "Folder",
+				"ambient": "Atmosphere if silent"
+			},
+			"track": "Track",
+			"folder": "Folder",
+			"choose": "— choose —",
+			"after": "New music starts after",
+			"afterHint": "From the start of the fade.",
+			"rise": "Fade in",
+			"riseHint": "0 — at full volume.",
+			"leaveHint": "Like the template main screen.",
+			"remove": "Remove screen music"
 		}
 	}
 }

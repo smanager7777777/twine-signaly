@@ -8,6 +8,7 @@ import {
 	IconAlignCenter,
 	IconArrowFork,
 	IconArticle,
+	IconMusic,
 	IconBolt,
 	IconLock,
 	IconMessage2,
@@ -117,6 +118,7 @@ import {
 } from '../../util/signaly/signaly-access';
 import {freeSpot} from '../../util/signaly/signaly-keys';
 import {articleTag, findArticle, newArticle, setArticle} from '../../util/signaly/signaly-articles';
+import {findScreenMusic, screenMusicDefaults, setScreenMusic} from '../../util/signaly/signaly-music';
 import {eventTag, findEvent, setEventHead} from '../../util/signaly/signaly-events';
 import {findTips, wrapTip} from '../../util/signaly/signaly-tip';
 import './signaly-format-toolbar.css';
@@ -143,7 +145,6 @@ const sizes = ['50%', '75%', '125%', '150%', '200%', '300%'];
 /** Порядок пунктов «Добавить блок» (решение 52). */
 const addable: Array<BlockType | 'kr2' | 'states' | 'value' | 'tiles'> = [
 	'alarm',
-	'dialog',
 	'code',
 	'image',
 	'video',
@@ -159,7 +160,8 @@ const addable: Array<BlockType | 'kr2' | 'states' | 'value' | 'tiles'> = [
 	'tiles',
 	'hack',
 	'pick',
-	'include'
+	'include',
+	'volume'
 ];
 
 /** Пункты «Эффект» (шаг 2.1, ответ 5А); lines — появление строк по очереди. */
@@ -177,15 +179,21 @@ function clickTargets(value: string) {
 	const revealLinks = new Set(effects.filter(e => e.type === 'reveal').map(e => e.linkFrom));
 
 	// Шаг 3.2: ссылка или кнопка целиком — форма с действиями.
-	findLinks(value).forEach((link, index) => {
+	// Порция 2, ответ 1А: старый блок «Окно-сообщение» — тоже ссылка.
+	const links = findLinks(value);
+	const dialogs = new Set(links.filter(link => link.source?.dialog).map(link => link.from));
+
+	links.forEach((link, index) => {
 		if (!revealLinks.has(link.from)) {
 			targets.push({from: link.from, to: link.to, target: {kind: 'link', index}});
 		}
 	});
 
-	findBlocks(value).forEach((b, index) =>
-		targets.push({from: b.from, to: b.to, target: {kind: 'block', index}})
-	);
+	findBlocks(value).forEach((b, index) => {
+		if (!(b.type === 'dialog' && dialogs.has(b.from))) {
+			targets.push({from: b.from, to: b.to, target: {kind: 'block', index}});
+		}
+	});
 	effects.forEach((e, index) => {
 		const target: PanelTarget = {kind: 'effect', index};
 
@@ -230,6 +238,12 @@ function clickTargets(value: string) {
 		targets.push({from: access.from, to: access.to, target: {kind: 'access'}});
 	}
 	// Шаг 4.4: команда статьи.
+	const music = findScreenMusic(value);
+
+	if (music) {
+		targets.push({from: music.from, to: music.to, target: {kind: 'music'}});
+	}
+
 	const article = findArticle(value);
 
 	if (article) {
@@ -526,6 +540,20 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 		const tags = passage.tags.filter(tag => tag !== articleTag);
 
 		dispatch(updatePassage(story, passage, {tags: on ? [...tags, articleTag] : tags}));
+	}
+
+	// «Музыка экрана» (шаг 7.1): первой строкой <<sg-screen-music>>; есть — открыть форму.
+	function addScreenMusic() {
+		if (!editor) {
+			return;
+		}
+
+		const value = editor.getDoc().getValue();
+
+		if (!findScreenMusic(value)) {
+			writeText(setScreenMusic(value, screenMusicDefaults));
+		}
+		setPanel({kind: 'music'});
 	}
 
 	// «Статья» (шаг 4.4, ответ 1А): первой строкой <<sg-article>>, тег sg-article;
@@ -1003,6 +1031,7 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 				<IconButton disabled={off} icon={<IconBolt />} label={t('signaly.events.button')} onClick={addEvent} />
 				<IconButton disabled={off} icon={<IconLock />} label={accessLabel} onClick={addAccess} />
 				<IconButton disabled={off} icon={<IconArticle />} label={t('signaly.articles.button')} onClick={addArticle} />
+				<IconButton disabled={off} icon={<IconMusic />} label={t('signaly.screenMusic.button')} onClick={addScreenMusic} />
 				<IconButton disabled={off} icon={<IconMessage2 />} label={t('signaly.tips.button')} onClick={addTip} />
 				<MenuButton
 					disabled={off}

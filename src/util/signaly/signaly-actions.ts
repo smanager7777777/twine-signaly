@@ -137,6 +137,24 @@ export interface BackAction {
 	raw?: string;
 }
 
+/**
+ * Музыка (шаг 7.1) — <<sg-mus …>>: общий плеер каталога «Музыка».
+ * play track "Папка/Трек" | play folder "Папка" | toggle ambient|radio | pause | resume |
+ * stop | next | volume 30 | volume +5 | volume -5 | auto on|off|toggle.
+ */
+export type MusicOp = 'track' | 'folder' | 'toggle' | 'pause' | 'resume' | 'stop' | 'next' | 'volume' | 'louder' | 'quieter' | 'auto';
+export const musicOps: MusicOp[] = ['track', 'folder', 'toggle', 'pause', 'resume', 'stop', 'next', 'volume', 'louder', 'quieter', 'auto'];
+
+export interface MusicAction {
+	type: 'music';
+	op: MusicOp;
+	/** Трек «Папка/Трек», папка или раздел (ambient, radio). */
+	target: string;
+	/** Громкость или шаг; у auto: 1 — вкл, 0 — выкл, -1 — переключить. */
+	amount: number;
+	raw?: string;
+}
+
 /** «Через N секунд» (шаг 3.3, ответ 7А) — <<timed>>. */
 export interface DelayAction {
 	type: 'delay';
@@ -157,6 +175,7 @@ export type Action =
 	| DelayAction
 	| ProgressAction
 	| BackAction
+	| MusicAction
 	| CodeAction;
 export type ActionType = Action['type'];
 
@@ -506,6 +525,40 @@ function parseProgress(piece: string): ProgressAction | undefined {
 	return m ? {type: 'progress', amount: m[1] === undefined ? 1 : Number(m[1]), raw: piece} : undefined;
 }
 
+function parseMusic(piece: string): MusicAction | undefined {
+	if (!/^<<sg-mus\s/.test(piece)) {
+		return undefined;
+	}
+
+	const head = scanArgs(piece, '<<sg-mus'.length);
+
+	if (!head || head.end !== piece.length) {
+		return undefined;
+	}
+
+	const [a, b, c] = head.tokens.map(t => plain(t) ?? t);
+	const base = {type: 'music' as const, target: '', amount: 0, raw: piece};
+
+	if (a === 'play' && (b === 'track' || b === 'folder') && c !== undefined && head.tokens.length === 3) {
+		return {...base, op: b, target: c};
+	}
+	if (a === 'toggle' && (b === 'ambient' || b === 'radio') && head.tokens.length === 2) {
+		return {...base, op: 'toggle', target: b};
+	}
+	if ((a === 'pause' || a === 'resume' || a === 'stop' || a === 'next') && head.tokens.length === 1) {
+		return {...base, op: a};
+	}
+	if (a === 'volume' && head.tokens.length === 2 && /^[+-]?\d+$/.test(b)) {
+		const n = Number(b);
+
+		return {...base, op: b.startsWith('+') ? 'louder' : b.startsWith('-') ? 'quieter' : 'volume', amount: Math.abs(n)};
+	}
+	if (a === 'auto' && head.tokens.length === 2 && (b === 'on' || b === 'off' || b === 'toggle')) {
+		return {...base, op: 'auto', amount: b === 'on' ? 1 : b === 'off' ? 0 : -1};
+	}
+	return undefined;
+}
+
 /** Одна команда (или кусок кода) внутри ссылки → действие. */
 export function parseAction(piece: string): Action {
 	return (
@@ -517,6 +570,7 @@ export function parseAction(piece: string): Action {
 		parseIf(piece) ??
 		parseDelay(piece) ??
 		parseProgress(piece) ??
+		parseMusic(piece) ??
 		(/^<<sg-back\s*>>$/.test(piece) ? {type: 'back', raw: piece} : undefined) ?? {type: 'code', code: piece, raw: piece}
 	);
 }
@@ -664,8 +718,32 @@ export function writeAction(action: Action): string {
 			return `<<sg-progress ${Number(action.amount) || 0}>>`;
 		case 'back':
 			return '<<sg-back>>';
+		case 'music':
+			return writeMusicAction(action);
 		default:
 			return action.code;
+	}
+}
+
+export function writeMusicAction(action: MusicAction) {
+	const n = Math.max(0, Math.min(99, Math.round(Number(action.amount) || 0)));
+
+	switch (action.op) {
+		case 'track':
+		case 'folder':
+			return `<<sg-mus play ${action.op} ${arg(action.target)}>>`;
+		case 'toggle':
+			return `<<sg-mus toggle ${action.target === 'radio' ? 'radio' : 'ambient'}>>`;
+		case 'volume':
+			return `<<sg-mus volume ${n}>>`;
+		case 'louder':
+			return `<<sg-mus volume +${n}>>`;
+		case 'quieter':
+			return `<<sg-mus volume -${n}>>`;
+		case 'auto':
+			return `<<sg-mus auto ${action.amount === 1 ? 'on' : action.amount === 0 ? 'off' : 'toggle'}>>`;
+		default:
+			return `<<sg-mus ${action.op}>>`;
 	}
 }
 
@@ -713,6 +791,8 @@ export interface LinkItem {
 		form: 'link' | 'button';
 		label?: string;
 		passage: string;
+		/** Старый блок «Окно-сообщение» <<sg-dialog>> (порция 2, ответ 1А). */
+		dialog?: boolean;
 	};
 }
 
@@ -790,6 +870,48 @@ export function findLinks(text: string): LinkItem[] {
 		}
 	}
 
+	// Старый блок «Окно-сообщение» (<<sg-dialog>>) — та же ссылка или кнопка
+	// с действием «Открыть окно» (порция 2, ответ 1А). Без правок пишется как был.
+	for (const block of findBlocks(text)) {
+		if (block.type !== 'dialog' || block.extra.length > 0 || items.some(i => block.from >= i.from && block.to <= i.to)) {
+			continue;
+		}
+
+		const v = block.values;
+		const close = v.close === 'ok' || v.close === 'time' ? v.close : '';
+		const open: DialogAction = {
+			type: 'dialog',
+			title: String(v.title ?? ''),
+			passage: String(v.passage ?? ''),
+			text: v.passage ? '' : (block.content ?? '').trim(),
+			close
+		};
+
+		if (close === 'ok' && typeof v.ok === 'string') {
+			open.ok = v.ok;
+		}
+		if (close === 'time' && typeof v.seconds === 'number') {
+			open.seconds = v.seconds;
+		}
+
+		const form = v.button === true ? 'button' : 'link';
+		const raw = text.slice(block.from, block.to);
+		const label = String(v.label ?? '');
+
+		items.push({
+			from: block.from,
+			to: block.to,
+			markup: false,
+			form,
+			label,
+			passage: '',
+			actions: [open],
+			multiline: false,
+			bodyFrom: block.from + raw.indexOf('>>') + 2,
+			source: {raw, head: raw, body: '', pieces: [writeAction(open)], form, label, passage: '', dialog: true}
+		});
+	}
+
 	const markupRe = /\[\[/g;
 
 	while ((match = markupRe.exec(text))) {
@@ -859,7 +981,7 @@ export function writeLink(item: Omit<LinkItem, 'from' | 'to'>) {
 		src !== undefined && src.form === item.form && src.label === item.label && src.passage === item.passage;
 	const sameBody = src !== undefined && actions.length === src.pieces.length && actions.every((a, i) => a === src.pieces[i]);
 
-	if (item.markup && sameHead && sameBody) {
+	if ((item.markup || src?.dialog) && sameHead && sameBody) {
 		return src!.raw;
 	}
 	if (item.markup && fitsMarkup(item)) {
@@ -871,14 +993,14 @@ export function writeLink(item: Omit<LinkItem, 'from' | 'to'>) {
 	}
 
 	const head =
-		sameHead && !item.markup
+		sameHead && !item.markup && !src!.dialog
 			? src!.head
 			: item.headCode !== undefined
 			? `<<${item.form}${item.headCode.replace(/^<<(?:link|button)/, '')}`
 			: `<<${item.form} ${arg(item.label ?? '')}${item.passage ? ` ${arg(item.passage)}` : ''}>>`;
 	const multiline = item.multiline || actions.length > 1;
 	const body =
-		sameBody && !item.markup
+		sameBody && !item.markup && !src!.dialog
 			? src!.body
 			: actions.length === 0
 			? ''
@@ -920,6 +1042,8 @@ export function newAction(type: ActionType, variable?: {name: string; type?: str
 			return {type: 'progress', amount: 1};
 		case 'back':
 			return {type: 'back'};
+		case 'music':
+			return {type: 'music', op: 'toggle', target: 'ambient', amount: 0};
 		default:
 			return {type: 'code', code: ''};
 	}

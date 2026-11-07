@@ -24,12 +24,10 @@ import {
 	Kr2,
 	kr2DefaultCols,
 	kr2DefaultRows,
-	Kr2Row,
 	readKr2,
 	ScreenBlock,
 	timerDefaults,
 	Value,
-	variablesIn,
 	writeBlock,
 	writeKr2
 } from '../../util/signaly/signaly-screen-blocks';
@@ -52,6 +50,8 @@ import {CondListsContext, useCondLists} from './signaly-logic-form';
 import {AccessForm} from './signaly-access-form';
 import {EventForm} from './signaly-event-form';
 import {ArticleForm} from './signaly-article-form';
+import {ScreenMusicForm} from './signaly-screen-music-form';
+import {findScreenMusic, setScreenMusic} from '../../util/signaly/signaly-music';
 import {HackForm} from './signaly-hack-form';
 import {ListForm} from './signaly-list-form';
 import {accessTag, findAccess, setAccess} from '../../util/signaly/signaly-access';
@@ -79,6 +79,7 @@ export type PanelTarget =
 	| {kind: 'event'}
 	| {kind: 'access'}
 	| {kind: 'article'}
+	| {kind: 'music'}
 	| {kind: 'tip'; index: number}
 	| {kind: 'kr2'};
 
@@ -261,6 +262,25 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 				variables={knownVariables(story.passages)}
 			/>
 		);
+	} else if (target.kind === 'music') {
+		// Шаг 7.1: музыка экрана.
+		const head = findScreenMusic(text);
+
+		if (!head) {
+			return null;
+		}
+		title = t('signaly.screenMusic.title');
+		body = (
+			<ScreenMusicForm
+				head={head}
+				onRemove={() => {
+					onText(setScreenMusic(text, undefined));
+					onClose();
+				}}
+				onText={onText}
+				text={text}
+			/>
+		);
 	} else if (target.kind === 'article') {
 		// Шаг 4.4: экран-статья.
 		const head = findArticle(text);
@@ -385,8 +405,6 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 				onKr2Tag={onKr2Tag}
 				onText={onText}
 				passage={passage}
-				passageChoice={passageChoice}
-				story={story}
 				text={text}
 			/>
 		);
@@ -757,6 +775,25 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 				);
 				break;
 
+			case 'volume':
+				// Шаг 7.1: «−», окошко громкости 00–99 цифрами DSEG7, «+».
+				title = l('volume.title');
+				body = (
+					<>
+						<p className="signaly-field-hint">{l('volume.hint')}</p>
+						{range('step', l('volume.step'), 1, 50, 5, '')}
+						{range('size', l('volume.size'), 12, 200, 40, px)}
+						<ChoiceField
+							label={l('volume.kind')}
+							onChange={value => set('kind', value || undefined)}
+							options={kinds.map(k => ({label: k.name, value: k.cls}))}
+							value={str('kind')}
+						/>
+						{place()}
+					</>
+				);
+				break;
+
 			case 'include': {
 				// Сессия 25, ответ 4А: <<include "Экран">> — обычный SugarCube.
 				const name = str('passage');
@@ -791,7 +828,10 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 				title = l('pick.title');
 				body = (
 					<PickForm
+						audio={media.audio}
 						block={block}
+						fileChoice={fileChoice}
+						images={media.img}
 						kinds={kinds}
 						variables={knownVariables(story.passages)}
 						write={write}
@@ -1299,32 +1339,15 @@ interface Kr2FormProps {
 	onKr2Tag: (on: boolean) => void;
 	onText: (text: string) => void;
 	passage: Passage;
-	passageChoice: CodeFormProps['passageChoice'];
-	story: Story;
 	text: string;
 }
 
 const Kr2Form: React.FC<Kr2FormProps> = props => {
-	const {fileChoice, images, l, onKr2Tag, onText, passage, passageChoice, story, text} = props;
+	const {fileChoice, images, l, onKr2Tag, onText, passage, text} = props;
 	const {t} = useTranslation();
 	const kr2 = readKr2(text);
 	const tagged = passage.tags.includes('kr2');
-	const variables = React.useMemo(
-		() => variablesIn(story.passages.map(p => p.text)),
-		[story.passages]
-	);
 	const save = (changes: Partial<Kr2>) => onText(writeKr2(text, {...kr2, ...changes}));
-	const rows = kr2.status;
-	const setRows = (next: Kr2Row[]) => save({status: next});
-	const changeRow = (index: number, row: Kr2Row) =>
-		setRows(rows.map((r, i) => (i === index ? row : r)));
-	const move = (index: number, by: number) => {
-		const next = [...rows];
-		const [row] = next.splice(index, 1);
-
-		next.splice(Math.max(0, Math.min(next.length, index + by)), 0, row);
-		setRows(next);
-	};
 
 	return (
 		<>
@@ -1362,105 +1385,7 @@ const Kr2Form: React.FC<Kr2FormProps> = props => {
 			)}
 
 			<h4 className="signaly-block-subtitle">{l('kr2.status')}</h4>
-			<div className="signaly-field-hint">{l('kr2.statusHint')}</div>
-			{rows.map((row, index) => (
-				<fieldset className="signaly-block-row" key={index}>
-					<legend>
-						{row.kind === 'text' ? l('kr2.textRow') : l('kr2.windowRow')}
-						<IconButton disabled={index === 0} icon={<IconArrowUp />} iconOnly label={l('up')} onClick={() => move(index, -1)} />
-						<IconButton disabled={index === rows.length - 1} icon={<IconArrowDown />} iconOnly label={l('down')} onClick={() => move(index, 1)} />
-						<IconButton icon={<IconTrash />} iconOnly label={l('remove')} onClick={() => setRows(rows.filter((_, i) => i !== index))} />
-					</legend>
-					{row.kind === 'text' ? (
-						<>
-							<TextField label={l('kr2.line')} onChange={value => changeRow(index, {...row, text: value})} value={row.text} />
-							<ChoiceField
-								label={l('kr2.insertVar')}
-								onChange={value =>
-									value && changeRow(index, {...row, text: `${row.text}${row.text && !row.text.endsWith(' ') ? ' ' : ''}${value}`})
-								}
-								options={[{label: '—', value: ''}, ...variables.map(name => ({label: name, value: name}))]}
-								value=""
-							/>
-						</>
-					) : (
-						<>
-							<TextField label={l('dialog.label')} onChange={value => changeRow(index, {...row, label: value})} value={row.label} />
-							<ChoiceField
-								label={l('dialog.opener')}
-								onChange={value => changeRow(index, {...row, button: value === 'button'})}
-								options={[
-									{label: l('dialog.link'), value: 'link'},
-									{label: l('dialog.button'), value: 'button'}
-								]}
-								value={row.button ? 'button' : 'link'}
-							/>
-							<TextField label={l('dialog.heading')} onChange={value => changeRow(index, {...row, title: value})} value={row.title} />
-							{passageChoice(l('kr2.windowPassage'), row.passage, value => changeRow(index, {...row, passage: value}), l('code.choosePassage'))}
-						</>
-					)}
-					<ChoiceField
-						label={l('kr2.show')}
-						onChange={value =>
-							changeRow(index, {
-								...row,
-								when:
-									value === 'always'
-										? undefined
-										: {
-												name: row.when?.name ?? variables[0] ?? '$found',
-												value: value === 'equals' ? row.when?.value ?? '1' : undefined
-										  }
-							})
-						}
-						options={['always', 'on', 'equals'].map(value => ({
-							label: l(`kr2.shows.${value}`),
-							value
-						}))}
-						value={!row.when ? 'always' : row.when.value === undefined ? 'on' : 'equals'}
-					/>
-					{row.when && (
-						<>
-							<ChoiceField
-								label={l('kr2.whenVar')}
-								onChange={value => changeRow(index, {...row, when: {...row.when!, name: value}})}
-								options={[...new Set([row.when.name, ...variables])].map(name => ({label: name, value: name}))}
-								value={row.when.name}
-							/>
-							<TextField
-								label={l('kr2.whenVarOther')}
-								onChange={value => {
-									const name = value.trim().replace(/^\$?/, '$');
-
-									changeRow(index, {...row, when: {...row.when!, name}});
-								}}
-								value={row.when.name}
-							/>
-							{row.when.value !== undefined && (
-								<TextField
-									label={l('kr2.whenValue')}
-									onChange={value => changeRow(index, {...row, when: {...row.when!, value}})}
-									value={row.when.value}
-								/>
-							)}
-						</>
-					)}
-				</fieldset>
-			))}
-			<div className="signaly-block-buttons">
-				<button className="signaly-button" onClick={() => setRows([...rows, {kind: 'text', text: ''}])} type="button">
-					{l('kr2.addText')}
-				</button>
-				<button
-					className="signaly-button"
-					onClick={() =>
-						setRows([...rows, {kind: 'window', label: l('kr2.windowLabel'), title: '', passage: '', button: false}])
-					}
-					type="button"
-				>
-					{l('kr2.addWindow')}
-				</button>
-			</div>
+			<div className="signaly-field-hint">{l('kr2.statusText')}</div>
 			<div className="signaly-field-hint">{t('signaly.blocks.kr2.mainHint')}</div>
 		</>
 	);
