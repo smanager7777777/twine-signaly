@@ -3529,9 +3529,9 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 
 			id = f ? musFirst([f]) : '';
 		} else if (o.play === 'ambient' && !(wasPlaying && o.now === '')) {
-			id = st.last.ambient && music().byId[st.last.ambient] ? st.last.ambient : musFirst(music().folders.filter(function (x) {
-				return x.section === 'ambient';
-			}));
+			// Как на главном экране шаблона: Атмосфера продолжает, только если её
+			// уже включали; в начале игры здесь тишина.
+			id = st.last.ambient && music().byId[st.last.ambient] ? st.last.ambient : '';
 		}
 		// Уже играет то же — ничего не трогать.
 		if (id && id === st.cur && wasPlaying) {

@@ -164,10 +164,17 @@ const file = s => (s.src || '').split('/').pop();
 
 async function playerChecks(url, say) {
 	const page = await start(await open(url));
+
+	// Игра из обычного Twine начинается с Start шаблона.
+	await go(page, 'MHome');
+
 	let s = await m(page);
 
 	say('в каталоге 2 папки, 4 трека', s.table.folders.length === 2 && s.table.ids.length === 4);
 	say('ничего не играет — окошко 00', (await shown(page)) === '00', await shown(page));
+	await go(page, 'MAmb', 400);
+	say('«Атмосферу дальше»: в начале игры Атмосферу ещё не включали — тишина', !(await m(page)).state.playing);
+	await go(page, 'MHome', 300);
 	say('окошко — шрифт DSEG7', /sg-timer-font/.test(await page.locator('.sg-vol-box').evaluate(el => el.style.fontFamily)));
 	await link(page, 'АТМ', 0);
 	const seen = await page.evaluate(() => new Promise(res => {

@@ -6,7 +6,7 @@ import * as React from 'react';
 import {useTranslation} from 'react-i18next';
 import {firstModes, FirstPart, firstParts, FirstPartMode, FirstWay, newFirstWay} from '../../util/signaly/signaly-first';
 import {copyNamed} from '../../util/signaly/signaly-screens';
-import {CheckField, ChoiceField, ColorField, RangeField, TextField} from './signaly-appearance-fields';
+import {ButtonsField, CheckField, ChoiceField, ColorField, RangeField, TextField} from './signaly-appearance-fields';
 import {NamedList} from './signaly-screens-tabs';
 
 export interface FirstWaysTabProps {
@@ -60,10 +60,10 @@ export const FirstWaysTab: React.FC<FirstWaysTabProps> = props => {
 			{way && (
 				<>
 					<TextField label={l('name')} onChange={name => set({name})} value={way.name} />
-					<ChoiceField label={l('mode')} onChange={mode => set({mode: mode as FirstWay['mode']})} options={modes} value={way.mode} />
+					<ButtonsField label={l('mode')} onChange={mode => set({mode: mode as FirstWay['mode']})} options={modes} value={way.mode} />
 					<h3>{l('partsTitle')}</h3>
 					{firstParts.map((part: FirstPart) => (
-						<ChoiceField
+						<ButtonsField
 							key={part}
 							label={l(`parts.${part}`)}
 							onChange={value => set({[part]: value as FirstPartMode})}

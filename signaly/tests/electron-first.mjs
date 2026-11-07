@@ -126,9 +126,12 @@ check('вкладка: способов нет', (await dlg.getByText('Спос�
 await dlg.getByRole('button', {name: 'Добавить', exact: true}).click();
 await win.waitForTimeout(400);
 await dlg.getByLabel('Название', {exact: true}).fill('Шум');
-check('новый способ — из белого шума', (await dlg.getByLabel('Как возникают элементы', {exact: true}).inputValue()) === 'noise');
-await dlg.getByLabel('Ссылки и кнопки', {exact: true}).selectOption('now');
-await dlg.getByLabel('Картинки и видео', {exact: true}).selectOption('glitch');
+const group = name => dlg.getByRole('radiogroup', {name, exact: true});
+const choose = (name, label) => group(name).getByRole('radio', {name: label, exact: true}).click();
+
+check('новый способ — из белого шума', (await group('Как возникают элементы').getByRole('radio', {checked: true}).innerText()) === 'Из белого шума');
+await choose('Ссылки и кнопки', 'Сразу, без эффекта');
+await choose('Картинки и видео', 'Через глитч');
 const time = dlg.getByRole('textbox', {name: /^Сколько возникает один элемент/});
 
 await time.fill('2');
@@ -138,9 +141,9 @@ check('сила и цвет видны для шума', (await dlg.getByRole('t
 await dlg.getByRole('button', {name: 'Копировать', exact: true}).click();
 await win.waitForTimeout(400);
 await dlg.getByLabel('Название', {exact: true}).fill('Плавно');
-await dlg.getByLabel('Как возникают элементы', {exact: true}).selectOption('fade');
-await dlg.getByLabel('Ссылки и кнопки', {exact: true}).selectOption('');
-await dlg.getByLabel('Картинки и видео', {exact: true}).selectOption('');
+await choose('Как возникают элементы', 'Плавно проявляются');
+await choose('Ссылки и кнопки', 'Как у всего способа');
+await choose('Картинки и видео', 'Как у всего способа');
 await win.waitForTimeout(300);
 check('для плавного появления силы и цвета нет', (await dlg.getByRole('textbox', {name: /^Сила шума и помех/}).count()) === 0);
 await dlg.locator('.signaly-kinds-item', {hasText: 'Шум'}).click();
@@ -166,7 +169,7 @@ await win.waitForTimeout(800);
 let file = storyFile();
 
 check('способы в таблице стилей', file.includes('--sg-first-poyavlenie-1: noise 2 0.25 0 80 #ffffff 1 - now glitch -;') && file.includes('fade 2 0.25'), /--sg-first-[^\n]*/.exec(file)?.[0]);
-check('движок 22', file.includes('Версия движка: 22'));
+check('движок 23', file.includes('Версия движка: 23'));
 
 /* Кнопка над текстом */
 await openPassage('Цель');

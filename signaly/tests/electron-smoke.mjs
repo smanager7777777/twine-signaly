@@ -436,10 +436,13 @@ if (twee) {
 	await win.waitForTimeout(300);
 	check('экран тревоги: вставлен, закрытие мастером', (await cmValue()).includes('<<sg-alarm bg "#cc0000" color "#000000" size 70 close master>>ТРЕВОГА<</sg-alarm>>'));
 	await toEnd();
-	await addBlock('Окно-сообщение');
-	await panel().getByLabel('Как закрывается').selectOption('ok');
+	// Сессия 26 (решение 126, ответ 1А): «Окно-сообщение» убрано из «Добавить блок» —
+	// окно открывает ссылка с действием «Открыть окно».
+	await toolbar().getByRole('button', {name: /Добавить блок/}).click();
 	await win.waitForTimeout(300);
-	check('окно-сообщение: вставлено, закрытие кнопкой', (await cmValue()).includes('<<sg-dialog "Открыть сообщение" title "Сообщение" close ok>>Текст сообщения<</sg-dialog>>'));
+	check('«Окно-сообщение» больше нет в «Добавить блок»', (await win.locator('.menu-button-menu').getByText('Окно-сообщение', {exact: true}).count()) === 0);
+	await win.keyboard.press('Escape');
+	await win.waitForTimeout(300);
 	await toEnd();
 	await addBlock('Видео');
 	check('видео: вставлено', (await cmValue()).includes('<<sg-video "" width 1000 autoplay loop muted>>') && (await panel().locator('strong').textContent()) === 'Видео');
@@ -554,19 +557,20 @@ if (twee) {
 	await win.waitForTimeout(800);
 	await addBlock('Окно KR2 (этот экран)');
 	check('KR2: форма, тег стоит', (await panel().locator('strong').textContent()) === 'Окно KR2' && (await panel().getByLabel('Этот экран — окно KR2').isChecked()));
-	check('KR2: картинка и статус из текста', (await panel().getByLabel('Картинка', {exact: true}).inputValue()) === 'media/img/radio.jpg' && (await panel().getByLabel('Текст строки').inputValue()) === 'Здоровье: $health');
-	await panel().getByRole('button', {name: 'Добавить ссылку на окно'}).click();
-	await win.waitForTimeout(300);
-	await panel().getByLabel('Что показать (пассаж)').selectOption('showPSGinfo');
+	// Сессия 26 (решение 126, ответ 2А): строки статусов — обычный текст, в форме их нет.
+	check('KR2: картинка из текста, строк статусов в форме нет', (await panel().getByLabel('Картинка', {exact: true}).inputValue()) === 'media/img/radio.jpg' && (await panel().getByLabel('Текст строки').count()) === 0);
 	const colsNum = panel().getByLabel('Ширина левой части (текст и навигация), %');
 	await colsNum.fill('50');
 	await colsNum.press('Enter');
 	await win.waitForTimeout(300);
+	await win.evaluate(() => {
+		const cm = document.querySelector('.CodeMirror').CodeMirror;
+
+		cm.setValue(cm.getValue().replace('<<kr2vars>>Здоровье: $health', '<<kr2vars>>Здоровье: $health\n<<link "Подробно">><<sg-open "" passage "showPSGinfo">><</sg-open>><</link>>'));
+	});
+	await win.waitForTimeout(1500);
 	const kr2Text = await cmValue();
-	check('KR2: статус-ссылка и доли записаны', kr2Text.includes('<<kr2layout 50 65>>') && kr2Text.includes('<<kr2vars>>Здоровье: $health\n<<sg-dialog "Подробно" title "" passage "showPSGinfo">><</sg-dialog>><</kr2vars>>'.replace('title "" ', '')), kr2Text.slice(0, 220));
-	await panel().getByLabel('Показывать').first().selectOption('on');
-	await win.waitForTimeout(300);
-	check('KR2: условие у строки статуса', /<<kr2vars>><<if \$\w+>>Здоровье: \$health<br><<\/if>>\\\n<<sg-dialog/.test(await cmValue()), (await cmValue()).slice(0, 200));
+	check('KR2: доли записаны, статус-ссылка — обычный текст', kr2Text.includes('<<kr2layout 50 65>>') && kr2Text.includes('<<link "Подробно">>'), kr2Text.slice(0, 220));
 	await btn(/^Предпросмотр$/).click();
 	await win.waitForTimeout(6000);
 	const kr2Shown = await pframe(() => ({

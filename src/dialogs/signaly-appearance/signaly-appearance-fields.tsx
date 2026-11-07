@@ -228,6 +228,35 @@ export const ChoiceField: React.FC<ChoiceFieldProps> = props => {
 	);
 };
 
+/**
+ * Выбор кнопками (сессия 26): для коротких списков, где выпадающий список
+ * у автора на Windows не раскрывался («Первое посещение»).
+ */
+export const ButtonsField: React.FC<ChoiceFieldProps> = props => {
+	const {hint, label, onChange, options, value} = props;
+
+	return (
+		<div className="signaly-field">
+			<div className="signaly-field-label">{label}</div>
+			<div aria-label={label} className="signaly-field-control signaly-buttons-field" role="radiogroup">
+				{options.map(option => (
+					<button
+						aria-checked={option.value === value}
+						className="signaly-button"
+						key={option.value}
+						onClick={() => onChange(option.value)}
+						role="radio"
+						type="button"
+					>
+						{option.label}
+					</button>
+				))}
+			</div>
+			{hint && <div className="signaly-field-hint">{hint}</div>}
+		</div>
+	);
+};
+
 export interface TextFieldProps {
 	hint?: string;
 	label: string;

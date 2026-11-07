@@ -295,3 +295,16 @@
 	background: var(--blue);
 	border-color: var(--blue);
 }
+
+/* Выбор кнопками (сессия 26). */
+.signaly-buttons-field {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+
+.signaly-buttons-field .signaly-button[aria-checked='true'] {
+	background: var(--blue);
+	border-color: var(--blue);
+	color: var(--white);
+}
