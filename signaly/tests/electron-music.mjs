@@ -227,7 +227,7 @@ await win.screenshot({path: shot('dialog')});
 
 /* Форма KR2 без строк статусов */
 await openPassage('Космические рейнджеры');
-await win.locator('.CodeMirror-line', {hasText: 'kr2layout'}).first().click({position: {x: 30, y: 8}});
+await win.locator('.CodeMirror-line', {hasText: 'kr2image'}).first().click({position: {x: 30, y: 8}});
 await win.waitForTimeout(800);
 form = await panel().innerText();
 check('форма KR2: картинка и доли зон есть, строк статусов нет', form.includes('Картинка') && !form.includes('Добавить строку') && form.includes('кнопками над текстом'), form.slice(0, 600));

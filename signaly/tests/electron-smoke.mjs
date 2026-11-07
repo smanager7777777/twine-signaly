@@ -438,13 +438,12 @@ if (twee) {
 	await toEnd();
 	// Сессия 26 (решение 126, ответ 1А): «Окно-сообщение» убрано из «Добавить блок» —
 	// окно открывает ссылка с действием «Открыть окно».
-	await toolbar().getByRole('button', {name: /Добавить блок/}).click();
+	await toEnd();
+	await btn(/^Добавить блок$/).click();
 	await win.waitForTimeout(300);
 	check('«Окно-сообщение» больше нет в «Добавить блок»', (await win.locator('.menu-button-menu').getByText('Окно-сообщение', {exact: true}).count()) === 0);
-	await win.keyboard.press('Escape');
-	await win.waitForTimeout(300);
-	await toEnd();
-	await addBlock('Видео');
+	await win.locator('.menu-button-menu').getByText('Видео', {exact: true}).click();
+	await win.waitForTimeout(400);
 	check('видео: вставлено', (await cmValue()).includes('<<sg-video "" width 1000 autoplay loop muted>>') && (await panel().locator('strong').textContent()) === 'Видео');
 	// Шаг 2.3: таймер и цепочка видео.
 	await toEnd();
