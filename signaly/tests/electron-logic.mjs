@@ -88,7 +88,7 @@ await btn(/^Переменные$/).click();
 await win.waitForSelector('.signaly-sounds-window');
 const varWin = win.locator('.signaly-sounds-window');
 const listed = await varWin.locator('.signaly-kinds-item').allTextContents();
-check('переменные шаблона в списке', listed.some(t => t.startsWith('$buttoner')) && listed.some(t => t.startsWith('$playingtrack')), listed.join(' | '));
+check('переменные шаблона в списке', listed.some(t => t.startsWith('$buttoner')) && listed.some(t => t.startsWith('$visitCount')), listed.join(' | '));
 check('найденные в тексте без значения предлагаются', (await varWin.getByRole('button', {name: '+ $PRCD'}).count()) === 1);
 await varWin.getByRole('button', {name: 'Добавить переменную'}).click();
 await varWin.getByLabel('Имя (латиницей)').fill('chapter');

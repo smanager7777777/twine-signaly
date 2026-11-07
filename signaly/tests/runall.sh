@@ -20,7 +20,8 @@ node signaly/tests/publish-twee.mjs $T $M/game.html > /dev/null
 game() { local name=$1; shift; timeout 900 node signaly/tests/$name.mjs "$@" > /tmp/run/logs/$name.log 2>&1; res $name /tmp/run/logs/$name.log; }
 game template-play $M/game.html $PW /tmp/run/shots
 game blocks-play $T $M $PW
-game sounds-play /tmp/run/t-c6bc328.twee $T $M $PW
+# Шаг 7.2: музыка шаблона ушла из StoryInit — «стало» для звуков наборов — шаблон сессии 26.
+game sounds-play /tmp/run/t-c6bc328.twee /tmp/run/t-4b9ae32.twee $M $PW
 game timers-play $T $M $PW
 game logic-play $T $M $PW
 game actions-play /tmp/run/t-64321cf.twee $T $M $PW

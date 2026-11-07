@@ -61,7 +61,12 @@ check('запись вне папки игры запрещена', rejected && 
 
 // Полный путь автора в программе: импорт шаблона, папка игры, «Играть»,
 // «Опубликовать в папку игры».
-const twee = process.env.TWEE;
+// Шаг 7.2: экран radio изменён — перенос музыки шаблона не срабатывает, окно «Звуки» видит StoryInit шаблона.
+const twee = process.env.TWEE && path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'signaly-smoke-twee-')), path.basename(process.env.TWEE));
+
+if (twee) {
+	fs.writeFileSync(twee, fs.readFileSync(process.env.TWEE, 'utf8').replace(/(\n:: radio [^\n]*\n)/, '$1Своё радио\n'));
+}
 if (twee) {
 	const opened = [];
 	await app.evaluate(({shell}) => {

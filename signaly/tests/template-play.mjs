@@ -147,6 +147,8 @@ await go('TERRAFORM');
 check('TERRAFORM: отметка ремонта сохраняется', await page.evaluate(() => SugarCube.State.variables.terraformrepaired === 1));
 
 // 9. Таймер идёт в фоне и по окончании ведёт на Start.
+// Скрытый таймер TERRAFORM_FAIL из обхода всех экранов (30 с) мог бы увести на TERRAFORM посреди проверки.
+await page.evaluate(() => (SugarCube.State.variables.sgTimers = {}));
 await go('Clocktest5', 1000);
 const shown = await page.evaluate(() => (document.querySelector('.sg-timer') || document.querySelector('#countdown'))?.textContent);
 check('таймер: табло мм:сс', /^\d\d:\d\d$/.test(shown || ''), shown);

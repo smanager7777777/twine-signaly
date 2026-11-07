@@ -42,7 +42,11 @@ const btn = re => win.getByRole('button', {name: re});
 await btn(/^Пропустить$/).click();
 await win.getByRole('tab', {name: 'Библиотека'}).click();
 await btn(/^Импорт$/).click();
-await win.locator('input[type=file]').setInputFiles(process.env.TWEE);
+// Шаг 7.2: экран radio изменён — перенос музыки шаблона не срабатывает, РАД остаётся «Если … то … иначе».
+const tweeCopy = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'signaly-keys-twee-')), path.basename(process.env.TWEE));
+
+fs.writeFileSync(tweeCopy, fs.readFileSync(process.env.TWEE, 'utf8').replace(/(\n:: radio [^\n]*\n)/, '$1Своё радио\n'));
+await win.locator('input[type=file]').setInputFiles(tweeCopy);
 await win.waitForTimeout(1000);
 if (await btn(/Импортировать/).count()) await btn(/Импортировать/).last().click();
 await win.waitForTimeout(1000);
