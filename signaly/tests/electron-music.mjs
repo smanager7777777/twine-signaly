@@ -140,7 +140,8 @@ await mw.getByLabel('Файл', {exact: true}).selectOption('media/audio/musics/
 await mw.getByLabel('Предзвук', {exact: true}).check();
 await mw.getByLabel('Файл предзвука', {exact: true}).selectOption('media/audio/radiovinyl.wav');
 await mw.getByLabel('Начальная громкость', {exact: true}).check();
-await mw.getByRole('button', {name: 'Добавить папку'}).last().click();
+// Сессия 28: кнопки «Добавить папку» — у «Атмосферы», «Радио» и «Эфира»; вторая — «Радио».
+await mw.getByRole('button', {name: 'Добавить папку'}).nth(1).click();
 await mw.getByLabel('Название папки', {exact: true}).fill('Эфир');
 check('папка радио в своём разделе', (await mw.getByLabel('Раздел', {exact: true}).inputValue()) === 'radio');
 await win.screenshot({path: shot('window')});
