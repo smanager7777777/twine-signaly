@@ -1,5 +1,6 @@
+import {execSync} from 'child_process';
 import {readFileSync} from 'fs';
-import {join} from 'path';
+import {join, resolve} from 'path';
 import {
 	Action,
 	findLinks,
@@ -13,14 +14,27 @@ import {
 	writeLink
 } from '../signaly-actions';
 
-const template = readFileSync(join(__dirname, '../../../../signaly/template/27_03_2025.twee'), 'utf8');
+const current = readFileSync(join(__dirname, '../../../../signaly/template/27_03_2025.twee'), 'utf8');
+// Шаг 7.2: музыка шаблона переведена на общий плеер. Разбор старых ссылок (РАД, АТМ, A–E,
+// треки радио на <<audio>>) проверяется на шаблоне сессии 26 — так он выглядит у тех, кто не перевёл.
+let template = current;
 
-function passage(name: string) {
-	const at = template.indexOf(`:: ${name} {`);
-	const from = template.indexOf('\n', at) + 1;
-	const next = template.indexOf('\n:: ', from);
+try {
+	template = execSync('git show 4b9ae32:signaly/template/27_03_2025.twee', {
+		cwd: resolve(__dirname, '../../../..'),
+		encoding: 'utf8',
+		stdio: ['ignore', 'pipe', 'ignore']
+	});
+} catch {
+	template = current;
+}
 
-	return template.slice(from, next === -1 ? undefined : next);
+function passage(name: string, source = template) {
+	const at = source.indexOf(`:: ${name} {`);
+	const from = source.indexOf('\n', at) + 1;
+	const next = source.indexOf('\n:: ', from);
+
+	return source.slice(from, next === -1 ? undefined : next);
 }
 
 describe('действия ссылок и кнопок', () => {
@@ -109,6 +123,20 @@ describe('действия ссылок и кнопок', () => {
 
 			expect(links.length).toBeGreaterThan(0);
 			for (const link of links) {
+				expect(writeLink(link)).toBe(text.slice(link.from, link.to));
+			}
+		}
+	});
+
+	it('шаг 7.2: кнопки шаблона — действие «Музыка», без правок записываются дословно', () => {
+		const buttons = findLinks(passage('audiobuttons', current));
+
+		expect(buttons.map(b => b.label)).toEqual(['РАД', 'АТМ', 'A', 'B', 'C', 'D', 'E']);
+		expect(buttons.every(b => b.actions.length === 1 && b.actions[0].type === 'music')).toBe(true);
+		for (const name of ['audiobuttons', 'Атмосфера']) {
+			const text = passage(name, current);
+
+			for (const link of findLinks(text)) {
 				expect(writeLink(link)).toBe(text.slice(link.from, link.to));
 			}
 		}

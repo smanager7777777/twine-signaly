@@ -30,6 +30,7 @@ import {
 	IconWaveSine
 } from '@tabler/icons';
 import CodeMirror from 'codemirror';
+import {radioTag, readRadios} from '../../util/signaly/signaly-radio';
 import * as React from 'react';
 import {useTranslation} from 'react-i18next';
 import {ButtonBar} from '../../components/container/button-bar';
@@ -161,7 +162,9 @@ const addable: Array<BlockType | 'kr2' | 'states' | 'value' | 'tiles'> = [
 	'hack',
 	'pick',
 	'include',
-	'volume'
+	'volume',
+	'radio',
+	'ambient'
 ];
 
 /** Пункты «Эффект» (шаг 2.1, ответ 5А); lines — появление строк по очереди. */
@@ -644,6 +647,10 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 		// Этап 6: свободное имя переменной, чтобы не задеть чужую.
 		if (type === 'pick') {
 			block.values.var = newSwitch(knownVariables(story.passages).map(item => item.name));
+		}
+		// Шаг 7.2, ответ 1: радио — один из видов окна «Радио».
+		if (type === 'radio') {
+			block.values.view = story.passages.flatMap(p => (p.tags.includes(radioTag) ? readRadios(p.text) : []))[0]?.name ?? '';
 		}
 
 		// Выделенный текст становится текстом тревоги или окна, а выделенная

@@ -47,7 +47,11 @@ wav(path.join(audioDir, 'mt3.wav'), 40, 550);
 wav(path.join(audioDir, 'mt4.wav'), 40, 660);
 wav(path.join(audioDir, 'needle.wav'), 6, 880);
 
-const story = fs.readFileSync(storyPath, 'utf8').replace(/\r\n/g, '\n');
+// Шаг 7.2: в шаблоне свой пассаж «Музыка» — у проверки свой каталог.
+const story = fs
+	.readFileSync(storyPath, 'utf8')
+	.replace(/\r\n/g, '\n')
+	.replace(/^:: Музыка \[sg-music\][^]*?(?=^:: )/m, '');
 const test =
 	story.replace(/(:: StoryInit[^\n]*\n)/, `$1<<set $prog to 0>>\n`).replace(/\s*$/, '\n') +
 	`

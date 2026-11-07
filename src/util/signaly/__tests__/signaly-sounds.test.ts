@@ -94,7 +94,20 @@ describe('signaly-sounds', () => {
 	});
 
 	it('StoryInit шаблона: файлы, группы, плейлисты — те же, что были', () => {
-		const init = findAudioInit(passage(twee, 'StoryInit')).init;
+		// Шаг 7.2: музыка шаблона ушла в каталог «Музыка»; здесь — StoryInit шаблона до перевода.
+		const before = (() => {
+			try {
+				return execSync('git show 4b9ae32:signaly/template/27_03_2025.twee', {cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore']});
+			} catch {
+				return '';
+			}
+		})();
+
+		if (!before) {
+			return;
+		}
+
+		const init = findAudioInit(passage(before, 'StoryInit')).init;
 
 		expect(init.tracks).toHaveLength(17);
 		expect(init.tracks[0]).toEqual({id: 'msgsoundA', sources: ['media/audio/msgsoundA.wav']});

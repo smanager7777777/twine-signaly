@@ -30,7 +30,7 @@ import {knownVariables} from '../../util/signaly/signaly-variables';
 import {CheckField, ChoiceField, RangeField, TextField} from '../signaly-appearance/signaly-appearance-fields';
 import {CondListsContext, CondRows, useCondLists} from '../passage-edit/signaly-logic-form';
 import {useLists} from '../passage-edit/signaly-block-panel';
-import {saveStoryWithUpgrade} from '../signaly-upgrade';
+import {pendingTemplateMusic, saveStoryWithUpgrade} from '../signaly-upgrade';
 import '../signaly-appearance/signaly-appearance.css';
 import '../signaly-kinds/signaly-kinds.css';
 import '../signaly-sounds/signaly-sounds.css';
@@ -53,7 +53,10 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 	const variables = React.useMemo(() => knownVariables(story.passages), [story.passages]);
 	const musicPassage =
 		story.passages.find(p => p.tags.includes(musicTag)) ?? story.passages.find(p => p.name === musicPassageName);
-	const [catalog, setCatalog] = React.useState<MusicCatalog>(() => readMusic(musicPassage?.text ?? ''));
+	// Шаг 7.2: шаблон ещё на старой музыке — начать с каталога, который даст перенос.
+	const [catalog, setCatalog] = React.useState<MusicCatalog>(() =>
+		readMusic(musicPassage?.text ?? (pendingTemplateMusic(story)?.music || ''))
+	);
 	const [selected, setSelected] = React.useState(0);
 	const [saved, setSaved] = React.useState(true);
 	const folder = catalog.folders[selected];
@@ -77,10 +80,14 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 	function save() {
 		const text = writeMusic(musicPassage?.text ?? '', catalog);
 
+		const pending = !musicPassage && pendingTemplateMusic(story);
+
 		if (engineVersionIn(story.script) < signalyEngineVersion) {
-			saveStoryWithUpgrade(dispatch, stories, story, {script: withEngine(story.script)});
+			saveStoryWithUpgrade(dispatch, stories, story, {script: withEngine(story.script)}, undefined, {music: text});
 		}
-		if (musicPassage) {
+		if (pending) {
+			// Пассаж «Музыка» создал перенос музыки шаблона — с текстом окна.
+		} else if (musicPassage) {
 			const tags = musicPassage.tags.includes(musicTag) ? musicPassage.tags : [...musicPassage.tags, musicTag];
 
 			if (text !== musicPassage.text || tags !== musicPassage.tags) {
@@ -108,7 +115,7 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 		while (catalog.folders.some(f => f.name === l('newFolder', {n}))) {
 			n++;
 		}
-		change({...catalog, folders: [...catalog.folders, {name: l('newFolder', {n}), section, tracks: []}]});
+		change({...catalog, folders: [...catalog.folders, {name: l('newFolder', {n}), section, tip: '', tracks: []}]});
 		setSelected(catalog.folders.length);
 	}
 
@@ -293,6 +300,9 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 								options={musicSections.map(v => ({label: l(`sections.${v}`), value: v}))}
 								value={folder.section}
 							/>
+							{folder.section === 'ambient' && (
+								<TextField hint={l('tipHint')} label={l('tip')} onChange={tip => setFolder({tip})} value={folder.tip} />
+							)}
 							<div className="signaly-sound-actions">
 								<button
 									className="signaly-button"

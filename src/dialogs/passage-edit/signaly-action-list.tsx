@@ -52,7 +52,7 @@ const MusicActionFields: React.FC<{action: MusicAction; l: L; onChange: (patch: 
 				onChange={op =>
 					onChange({
 						op: op as MusicOp,
-						target: op === 'toggle' ? 'ambient' : op === 'track' || op === 'folder' ? '' : '',
+						target: op === 'toggle' || op === 'section' ? 'ambient' : op === 'track' || op === 'folder' ? '' : '',
 						amount: op === 'volume' ? 30 : op === 'louder' || op === 'quieter' ? 5 : op === 'auto' ? -1 : 0
 					})
 				}
@@ -68,9 +68,9 @@ const MusicActionFields: React.FC<{action: MusicAction; l: L; onChange: (patch: 
 					value={action.target}
 				/>
 			)}
-			{action.op === 'toggle' && (
+			{(action.op === 'toggle' || action.op === 'section') && (
 				<ChoiceField
-					hint={l('music.toggleHint')}
+					hint={action.op === 'toggle' ? l('music.toggleHint') : undefined}
 					label={l('music.section')}
 					onChange={target => onChange({target})}
 					options={['ambient', 'radio'].map(v => ({label: l(`music.sections.${v}`), value: v}))}

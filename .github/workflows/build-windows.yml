@@ -88,7 +88,6 @@ jobs:
           cp dist/electron/*.zip release/
           cp signaly/template/27_03_2025.twee release/
           cp signaly/template/MEDIA.md release/
-          cp signaly/demo/*.twee release/ 2>/dev/null || true
           ls -la release
       - name: Сохранить как артефакт
         uses: actions/upload-artifact@v4
@@ -104,7 +103,7 @@ jobs:
           body: |
             Программа «Twine СИГНАЛЫ» для Windows (основа — Twine 2.12.1).
             Скачайте архив Twine-SIGNALY-…-Windows.zip, распакуйте и запустите «Twine СИГНАЛЫ.exe».
-            Исправленный шаблон — 27_03_2025.twee, список медиафайлов — MEDIA.md, пробная история музыки — music-demo.twee.
+            Исправленный шаблон — 27_03_2025.twee (в нём радио, «Атмосфера» и музыка на общем плеере), список медиафайлов — MEDIA.md.
             Коммит: ${{ github.sha }}
           files: release/*
           make_latest: true

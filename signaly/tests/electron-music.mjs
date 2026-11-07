@@ -1,7 +1,7 @@
 // Проверка программы (Electron), сессия 26: окно «Музыка», действие «Музыка»,
 // «Музыка экрана», блок «Громкость»; порция 2 — старое «Окно-сообщение» открывается
 // формой ссылки, форма KR2 без строк статусов, перебор картинками; шрифт цифр цикла.
-// TWEE=signaly/template/27_03_2025.twee MEDIA=… SHOT=… xvfb-run … node signaly/tests/electron-music.mjs <playwright>
+// TWEE=<шаблон сессии 26: git show 4b9ae32:…> MEDIA=… SHOT=… xvfb-run … node signaly/tests/electron-music.mjs <playwright>
 import {createRequire} from 'module';
 import fs from 'fs';
 import os from 'os';
@@ -21,7 +21,8 @@ const twee = path.join(home, '27_03_2025.twee');
 
 fs.writeFileSync(
 	twee,
-	fs.readFileSync(process.env.TWEE, 'utf8').replace(/\s*$/, '\n') +
+	// Шаг 7.2: экран radio изменён — перенос музыки шаблона не срабатывает, каталог пустой.
+	fs.readFileSync(process.env.TWEE, 'utf8').replace(/(\n:: radio [^\n]*\n)/, '$1Своё радио\n').replace(/\s*$/, '\n') +
 		`
 :: Пустой {"position":"400,1500","size":"100,100"}
 Экран
@@ -158,7 +159,7 @@ check(
 		music.text.includes('<<sg-folder "Эфир" section radio>>'),
 	music.text
 );
-check('движок 23', file.includes('Версия движка: 23'));
+check('движок 24', file.includes('Версия движка: 24'));
 await mw.getByRole('button', {name: 'Закрыть', exact: true}).click();
 await win.waitForTimeout(500);
 

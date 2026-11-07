@@ -52,6 +52,7 @@ import {EventForm} from './signaly-event-form';
 import {ArticleForm} from './signaly-article-form';
 import {ScreenMusicForm} from './signaly-screen-music-form';
 import {findScreenMusic, setScreenMusic} from '../../util/signaly/signaly-music';
+import {radioTag, readRadios} from '../../util/signaly/signaly-radio';
 import {HackForm} from './signaly-hack-form';
 import {ListForm} from './signaly-list-form';
 import {accessTag, findAccess, setAccess} from '../../util/signaly/signaly-access';
@@ -790,6 +791,49 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 							value={str('kind')}
 						/>
 						{place()}
+					</>
+				);
+				break;
+
+			case 'radio': {
+				// Шаг 7.2, ответ 1: вид радио — из окна «Радио»; квадрат под поле игры или своя сторона.
+				const views = story.passages.flatMap(p => (p.tags.includes(radioTag) ? readRadios(p.text) : []));
+				const view = str('view');
+				const fit = v.size === undefined;
+
+				title = l('radio.title');
+				body = (
+					<>
+						<ChoiceField
+							label={l('radio.view')}
+							onChange={value => set('view', value)}
+							options={[...new Set([view, ...views.map(item => item.name)])].map(name => ({label: name || l('radio.noView'), value: name}))}
+							value={view}
+						/>
+						<p className="signaly-field-hint">{l('radio.hint')}</p>
+						{views.length === 0 && <div className="signaly-notice">{l('radio.noViews')}</div>}
+						{views.length > 0 && !views.some(item => item.name === view) && <div className="signaly-notice">{l('radio.missing')}</div>}
+						<CheckField hint={l('radio.fitHint')} label={l('radio.fit')} onChange={on => set('size', on ? undefined : 1000)} value={fit} />
+						{!fit && range('size', l('radio.size'), 300, 2000, 1000)}
+					</>
+				);
+				break;
+			}
+
+			case 'ambient':
+				// Шаг 7.2, ответ 6А: альбомы — папки раздела «Атмосфера» окна «Музыка».
+				title = l('ambient.title');
+				body = (
+					<>
+						<p className="signaly-field-hint">{l('ambient.hint')}</p>
+						{range('columns', l('ambient.columns'), 1, 6, 3, '')}
+						<ChoiceField
+							label={l('ambient.kind')}
+							onChange={value => set('kind', value || undefined)}
+							options={kinds.map(k => ({label: k.name, value: k.cls}))}
+							value={str('kind')}
+						/>
+						{check('buttons', l('ambient.buttons'))}
 					</>
 				);
 				break;

@@ -139,11 +139,11 @@ export interface BackAction {
 
 /**
  * Музыка (шаг 7.1) — <<sg-mus …>>: общий плеер каталога «Музыка».
- * play track "Папка/Трек" | play folder "Папка" | toggle ambient|radio | pause | resume |
+ * play track "Папка/Трек" | play folder "Папка" | play section ambient|radio | toggle ambient|radio | pause | resume |
  * stop | next | volume 30 | volume +5 | volume -5 | auto on|off|toggle.
  */
-export type MusicOp = 'track' | 'folder' | 'toggle' | 'pause' | 'resume' | 'stop' | 'next' | 'volume' | 'louder' | 'quieter' | 'auto';
-export const musicOps: MusicOp[] = ['track', 'folder', 'toggle', 'pause', 'resume', 'stop', 'next', 'volume', 'louder', 'quieter', 'auto'];
+export type MusicOp = 'track' | 'folder' | 'section' | 'toggle' | 'pause' | 'resume' | 'stop' | 'next' | 'volume' | 'louder' | 'quieter' | 'auto';
+export const musicOps: MusicOp[] = ['track', 'folder', 'section', 'toggle', 'pause', 'resume', 'stop', 'next', 'volume', 'louder', 'quieter', 'auto'];
 
 export interface MusicAction {
 	type: 'music';
@@ -542,6 +542,9 @@ function parseMusic(piece: string): MusicAction | undefined {
 	if (a === 'play' && (b === 'track' || b === 'folder') && c !== undefined && head.tokens.length === 3) {
 		return {...base, op: b, target: c};
 	}
+	if (a === 'play' && b === 'section' && (c === 'ambient' || c === 'radio') && head.tokens.length === 3) {
+		return {...base, op: 'section', target: c};
+	}
 	if (a === 'toggle' && (b === 'ambient' || b === 'radio') && head.tokens.length === 2) {
 		return {...base, op: 'toggle', target: b};
 	}
@@ -734,6 +737,8 @@ export function writeMusicAction(action: MusicAction) {
 			return `<<sg-mus play ${action.op} ${arg(action.target)}>>`;
 		case 'toggle':
 			return `<<sg-mus toggle ${action.target === 'radio' ? 'radio' : 'ambient'}>>`;
+		case 'section':
+			return `<<sg-mus play section ${action.target === 'radio' ? 'radio' : 'ambient'}>>`;
 		case 'volume':
 			return `<<sg-mus volume ${n}>>`;
 		case 'louder':

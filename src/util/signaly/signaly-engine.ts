@@ -45,6 +45,9 @@
 //   символы и слова поля взлома звучат наборами наведения и нажатия.
 // - шаг 7.1: каталог «Музыка» (<<sg-music>>, <<sg-folder>>, <<sg-track>>), действие <<sg-mus>>,
 //   громкость <<sg-volume>>, музыка экрана <<sg-screen-music>>; перебор картинками; цифры цикла DSEG7;
+// - шаг 7.2: радио <<sg-radio "Вид">> (виды — пассаж sg-radio, <<sg-radio-view>>): каркас С2, искры,
+//   каталог-файловая система, ▶ ❚❚ ■, громкость, «АВТО», выключатель; «Каталог Атмосферы» <<sg-ambient>>
+//   (прослушано N из M, «Случайно», сброс); <<sg-mus play section …>>; $sgMusic.done, shuffle, lastIn, from;
 // - этап 6: кнопка-перебор <<sg-pick>>; звук-сигнал приглушает группу на время
 //   файла (слова duck, to); все картинки из текста экранов загружаются при запуске.
 // - этап 6, порция 2: блок «Значение» обновляется сам; раскрытие <<sg-reveal>>
@@ -62,7 +65,7 @@ import {tipBase} from './signaly-tip';
 const glitchBase = [...glitchRules(defaultGlitch, ':where(.glitchy)'), glitchKeyframes].join('\n');
 
 /** Версия движка. Увеличивать при каждом изменении кода ниже. */
-export const signalyEngineVersion = 23;
+export const signalyEngineVersion = 24;
 
 export const signalyEngineStart =
 	'/* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */';
@@ -3097,9 +3100,9 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	Macro.add('sg-folder', {
 		handler: function () {
 			if (musCollect) {
-				var a = blockArgs(this, ['name'], ['section'], []);
+				var a = blockArgs(this, ['name'], ['section', 'tip'], []);
 
-				musCollect.folders.push({name: String(a.name || ''), section: a.section === 'radio' ? 'radio' : 'ambient', tracks: []});
+				musCollect.folders.push({name: String(a.name || ''), section: a.section === 'radio' ? 'radio' : 'ambient', tip: a.tip ? String(a.tip) : '', tracks: []});
 			}
 		}
 	});
@@ -3171,7 +3174,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			st.vol = music().volume;
 			st.auto = music().auto;
 		}
-		['pos', 'seen', 'last'].forEach(function (key) {
+		['pos', 'seen', 'last', 'lastIn', 'done', 'from'].forEach(function (key) {
 			if (!st[key] || typeof st[key] !== 'object') {
 				st[key] = {};
 			}
@@ -3216,6 +3219,8 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	function musChanged() {
 		saveVars();
 		volDrawAll();
+		radioDrawAll();
+		ambDrawAll();
 	}
 
 	function musApply() {
@@ -3282,6 +3287,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		st.cur = id;
 		st.playing = true;
 		st.last[t.folder.section] = id;
+		st.lastIn[t.folder.name] = id;
 		if (!st.seen[id]) {
 			st.seen[id] = 1;
 			if (t.start !== undefined) {
@@ -3352,18 +3358,53 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		var t = music().byId[id];
 
 		st.pos[id] = 0;
+		// Шаг 7.2, ответ 7А: прослушан — доигран до конца хотя бы раз.
+		st.done[id] = 1;
 		mus.audio = null;
 		if (st.auto && t) {
 			// «АВТО»: следующий трек той же папки, после последнего — первый.
-			var list = t.folder.tracks.filter(musVisible);
-			var index = list.indexOf(t);
-			var next = list[(index + 1) % list.length] || list[0];
+			var next = musAfter(t);
 
 			if (next) {
 				st.pos[next.id] = 0;
 				musPlay(next.id);
 				return;
 			}
+		}
+		st.playing = false;
+		musChanged();
+	}
+
+	// Следующий трек папки: по порядку (после последнего — первый) или, при
+	// «Случайно» (шаг 7.2, ответ 6А), случайный, кроме текущего.
+	function musAfter(t) {
+		var list = t.folder.tracks.filter(musVisible);
+
+		if (musState().shuffle && list.length > 1) {
+			var others = list.filter(function (x) {
+				return x !== t;
+			});
+
+			return others[Math.floor(Math.random() * others.length)];
+		}
+		return list[(list.indexOf(t) + 1) % list.length] || list[0];
+	}
+
+	// Раздел: последний трек раздела, иначе первый, который есть в каталоге.
+	function musSection(section) {
+		var st = musState();
+
+		return st.last[section] && music().byId[st.last[section]] ? st.last[section] : musFirst(music().folders.filter(function (f) {
+			return f.section === section;
+		}));
+	}
+
+	function musStop() {
+		var st = musState();
+
+		musHalt(false);
+		if (st.cur) {
+			st.pos[st.cur] = 0;
 		}
 		st.playing = false;
 		musChanged();
@@ -3409,9 +3450,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			return;
 		}
 
-		var id = st.last[section] && music().byId[st.last[section]] ? st.last[section] : musFirst(music().folders.filter(function (f) {
-			return f.section === section;
-		}));
+		var id = musSection(section);
 
 		if (id) {
 			musPlay(id);
@@ -3426,8 +3465,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			return;
 		}
 
-		var list = t.folder.tracks.filter(musVisible);
-		var next = list[(list.indexOf(t) + 1) % list.length];
+		var next = musAfter(t);
 
 		if (next) {
 			musHalt(true);
@@ -3470,6 +3508,12 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 				case 'play':
 					if (w[1] === 'track') {
 						musPlay(w[2]);
+					} else if (w[1] === 'section') {
+						var sid = musSection(w[2] === 'radio' ? 'radio' : 'ambient');
+
+						if (sid && !(st.cur === sid && st.playing)) {
+							musPlay(sid);
+						}
 					} else if (w[1] === 'folder') {
 						var f = musFolder(w[2]);
 						var id = f ? musFirst([f]) : '';
@@ -3491,12 +3535,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 					}
 					break;
 				case 'stop':
-					musHalt(false);
-					if (st.cur) {
-						st.pos[st.cur] = 0;
-					}
-					st.playing = false;
-					musChanged();
+					musStop();
 					break;
 				case 'next':
 					musNext();
@@ -3708,6 +3747,866 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		'border: var(--sg-border-width, 2px) solid var(--sg-border-color, currentColor); ' +
 		'box-shadow: 0 0 var(--sg-glow-size, 0) var(--sg-glow-color, transparent); background: var(--sg-win-bg, #000); }\n' +
 		'.sg-vol-box span { display: inline-block; width: 1ch; text-align: center; }\n';
+
+	/* ----- Радио и «Каталог Атмосферы» (шаг 7.2) ----- */
+
+	// Виды радио — пассажи с тегом sg-radio: <<sg-radio-view "Имя" type broken frame "#…"
+	// elements "#…" label "…" sparks 30 [sparksound "…" sparkvolume 80]>> (окно «Радио», ответ 1).
+	// На экране — <<sg-radio "Имя" [size N]>>: каркас С2 линиями (SVG), кнопки и окна поверх.
+	// Звучит общий плеер «Музыки»: радио — его пульт.
+	var radioCollect = null;
+	var radioTable = null;
+	var radioItems = [];
+	var radioTimer = null;
+	var ambItems = [];
+	var ambTipCount = 5000;
+	var svgNS = 'http://www.w3.org/2000/svg';
+
+	Macro.add('sg-radio-view', {
+		handler: function () {
+			if (radioCollect) {
+				radioCollect.push(blockArgs(this, ['name'], ['type', 'frame', 'elements', 'label', 'sparks', 'sparksound', 'sparkvolume'], []));
+			}
+		}
+	});
+
+	function radioViews() {
+		if (radioTable !== null) {
+			return radioTable;
+		}
+
+		var list = [];
+
+		radioCollect = list;
+		Story.filter(function (p) {
+			return p.tags.indexOf('sg-radio') !== -1;
+		}).forEach(function (p) {
+			try {
+				new Wikifier(document.createDocumentFragment(), p.text);
+			} catch (e) {
+				console.error('СИГНАЛЫ: радио', e);
+			}
+		});
+		radioCollect = null;
+		radioTable = {};
+		list.forEach(function (a) {
+			var name = String(a.name === undefined ? '' : a.name);
+
+			radioTable[name] = {
+				name: name,
+				type: a.type === 'fixed' || a.type === 'reverse' ? a.type : 'broken',
+				frame: String(a.frame || '#c9a24a'),
+				elements: String(a.elements || '#39ff7a'),
+				label: a.label === undefined ? 'ОРБИТА-3' : String(a.label),
+				sparks: Math.max(0, Math.min(100, musNum(a.sparks, 30))),
+				sound: a.sparksound ? String(a.sparksound) : '',
+				volume: Math.max(0, Math.min(100, musNum(a.sparkvolume, 80)))
+			};
+		});
+		return radioTable;
+	}
+
+	function svgEl(tag, attrs, parent) {
+		var node = document.createElementNS(svgNS, tag);
+
+		Object.keys(attrs).forEach(function (key) {
+			node.setAttribute(key, attrs[key]);
+		});
+		if (parent) {
+			parent.appendChild(node);
+		}
+		return node;
+	}
+
+	// Каркас С2 в квадрате 1000×1000: рама с разошедшимся углом и щелью сверху,
+	// трещина справа, перегородка с изломом, динамик справа сверху. Искры — в щели,
+	// на конце трещины и на изломе перегородки.
+	function radioFrame(view) {
+		var svg = svgEl('svg', {viewBox: '0 0 1000 1000', 'class': 'sg-r-frame', 'aria-hidden': 'true'});
+		var segs = [];
+		var sparks = [];
+
+		function seg(tag, attrs) {
+			attrs['class'] = (attrs['class'] || 'sg-r-fr') + ' sg-r-seg';
+			segs.push(svgEl(tag, attrs, svg));
+		}
+
+		seg('polyline', {points: '292,14 14,14 14,986 986,986 986,66'});
+		seg('polyline', {points: '322,24 974,24 974,48'});
+		seg('line', {x1: 292, y1: 14, x2: 306, y2: 27});
+		seg('polyline', {points: '660,132 660,560 672,576 664,986', 'class': 'sg-r-thin'});
+		seg('polyline', {points: '986,688 956,708 972,730 940,752', 'class': 'sg-r-crack'});
+
+		var grille = svgEl('g', {'class': 'sg-r-grille'}, svg);
+
+		svgEl('rect', {x: 686, y: 140, width: 276, height: 140, 'class': 'sg-r-thin'}, grille);
+		for (var y = 156; y < 272; y += 15) {
+			for (var x = 702; x < 952; x += 15) {
+				svgEl('circle', {cx: x, cy: y, r: 2.6}, grille);
+			}
+		}
+		if (view.label) {
+			var text = svgEl('text', {x: 690, y: 968, 'class': 'sg-r-label'}, svg);
+
+			text.textContent = view.label;
+		}
+		[[304, 20], [940, 752], [668, 568]].forEach(function (p) {
+			var g = svgEl('g', {'class': 'sg-r-spark'}, svg);
+
+			for (var a = 0; a < 6; a++) {
+				var ang = a * 1.047 + 0.3;
+				var len = 12 + (a % 2) * 12;
+
+				svgEl('line', {x1: p[0], y1: p[1], x2: p[0] + Math.cos(ang) * len, y2: p[1] + Math.sin(ang) * len}, g);
+			}
+			svgEl('circle', {cx: p[0], cy: p[1], r: 4.5}, g);
+			sparks.push(g);
+		});
+		return {svg: svg, segs: segs, sparks: sparks};
+	}
+
+	// Элемент поверх каркаса: место и размер — в долях 1000 (var(--u) = сторона / 1000).
+	function radioBox(parent, tag, cls, x, y, w, h) {
+		var el = document.createElement(tag);
+
+		el.className = cls;
+		el.style.left = 'calc(var(--u) * ' + x + ')';
+		el.style.top = 'calc(var(--u) * ' + y + ')';
+		el.style.width = 'calc(var(--u) * ' + w + ')';
+		if (h) {
+			el.style.height = 'calc(var(--u) * ' + h + ')';
+		}
+		if (tag === 'button') {
+			el.type = 'button';
+		}
+		parent.appendChild(el);
+		return el;
+	}
+
+	function radioState() {
+		return preview ? {playing: false, cur: '', auto: music().auto, vol: music().volume, pos: {}, last: {}, from: {}} : musState();
+	}
+
+	function radioFolders() {
+		return music().folders.filter(function (f) {
+			return f.section === 'radio' && f.tracks.some(musVisible);
+		});
+	}
+
+	// Что играет — для бегущей строки радио и строки Атмосферы.
+	function musNowText(ambient) {
+		var st = radioState();
+		var t = music().byId[st.cur];
+
+		if (!t) {
+			return ambient ? 'Тишина' : '■ ТИШИНА';
+		}
+		if (ambient) {
+			return (st.playing ? 'Сейчас: ' : 'Пауза: ') + t.name + ' — ' + t.folder.name;
+		}
+		return (st.playing ? '▶ СЕЙЧАС ИГРАЕТ: ' : '❚❚ ПАУЗА: ') + t.name + '   ·   ПАПКА «' + t.folder.name + '»';
+	}
+
+	// Каталог как файловая система старого терминала (ответ 3): папки → переход
+	// внутрь, первая строка — «◄ ..» на уровень выше; всё прокручивается в своей
+	// рамке и не выходит поверх других частей радио.
+	function radioCatalog(item) {
+		var st = radioState();
+		var folders = radioFolders();
+		var folder = item.dir ? musFolder(item.dir) : null;
+		var tracks = folder ? folder.tracks.filter(musVisible) : [];
+		var key = [item.dir, st.cur, st.playing].concat(folders.map(function (f) { return f.name; }), tracks.map(function (t) { return t.id; })).join('|');
+
+		if (folder && !folders.length) {
+			item.dir = '';
+		}
+		if (key === item.catKey) {
+			return;
+		}
+		item.catKey = key;
+		item.path.textContent = 'КАТАЛОГ  /' + (item.dir ? item.dir + '/' : '');
+
+		var list = item.list;
+
+		$(list).empty();
+
+		function line(mark, name, side, cls, action) {
+			var b = document.createElement('button');
+			var m = document.createElement('span');
+			var n = document.createElement('span');
+			var s = document.createElement('span');
+
+			b.type = 'button';
+			b.className = 'sg-r-line' + (cls ? ' ' + cls : '');
+			m.className = 'sg-r-mark';
+			m.textContent = mark;
+			n.className = 'sg-r-name';
+			n.textContent = name;
+			s.className = 'sg-r-side';
+			s.textContent = side;
+			b.appendChild(m);
+			b.appendChild(n);
+			b.appendChild(s);
+			$(b).on('click', action);
+			list.appendChild(b);
+			return b;
+		}
+
+		if (item.dir) {
+			line('◄', '..', '', 'sg-r-up', function () {
+				item.dir = '';
+				radioCatalog(item);
+				list.scrollTop = 0;
+			});
+			tracks.forEach(function (t) {
+				var cur = t.id === st.cur;
+
+				line(cur ? (st.playing ? '▶' : '❚❚') : '', t.name, '', cur ? 'sg-r-cur' : '', function () {
+					if (preview) {
+						return;
+					}
+
+					var now = radioState();
+
+					if (now.cur !== t.id || !now.playing) {
+						musPlay(t.id);
+					}
+				});
+			});
+		} else if (folders.length) {
+			folders.forEach(function (f) {
+				var here = music().byId[st.cur] && music().byId[st.cur].folder === f;
+
+				line(here ? (st.playing ? '▶' : '❚❚') : '▸', f.name, '<DIR>', 'sg-r-dir', function () {
+					item.dir = f.name;
+					radioCatalog(item);
+					list.scrollTop = 0;
+				});
+			});
+		} else {
+			line('', '— ПУСТО —', '', 'sg-r-empty', function () {});
+		}
+	}
+
+	function radioMarquee(item) {
+		var text = musNowText(false);
+
+		if (text === item.mqText && item.mqWidth === item.mq.clientWidth) {
+			return;
+		}
+		item.mqText = text;
+		item.mqWidth = item.mq.clientWidth;
+		item.mqLine.textContent = text;
+		item.mqLine.style.animation = 'none';
+		item.mqLine.classList.remove('sg-r-run');
+
+		var width = item.mqLine.scrollWidth;
+
+		if (width > item.mq.clientWidth) {
+			// Не помещается — бежит по кругу, как строка новостей.
+			var gap = '\u00a0\u00a0\u00a0\u00a0✦\u00a0\u00a0\u00a0\u00a0';
+
+			item.mqLine.textContent = text + gap + text + gap;
+			item.mqLine.classList.add('sg-r-run');
+			item.mqLine.style.animation = 'sg-r-run ' + Math.max(4, (item.mqLine.scrollWidth / 2) / (90 * item.unit)) + 's linear infinite';
+		}
+	}
+
+	function radioDraw(item) {
+		var st = radioState();
+		var cur = music().byId[st.cur];
+		var radioCur = cur && cur.folder.section === 'radio';
+
+		radioCatalog(item);
+		radioMarquee(item);
+		item.play.classList.toggle('sg-r-lit', !!(st.playing && cur));
+		item.pause.classList.toggle('sg-r-lit', !!(!st.playing && cur && radioCur));
+		item.auto.classList.toggle('sg-r-lit', !!st.auto);
+	}
+
+	function radioDrawAll() {
+		radioItems = radioItems.filter(function (item) {
+			return item.el.isConnected || !item.placed;
+		});
+		radioItems.forEach(function (item) {
+			if (item.el.isConnected) {
+				item.placed = true;
+				radioFit(item);
+				radioDraw(item);
+			}
+		});
+	}
+
+	// Квадрат под поле игры (решение 125): сторона — меньшее из ширины и высоты
+	// поля без отступов; size — своя сторона.
+	function radioFit(item) {
+		var side = item.size;
+
+		if (!side) {
+			var box = document.getElementById('passages');
+
+			if (!box) {
+				return;
+			}
+
+			var cs = getComputedStyle(box);
+			var w = box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+			var h = box.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+
+			side = Math.max(300, Math.floor(Math.min(w, h)) - 4);
+		}
+		if (side !== item.side) {
+			item.side = side;
+			item.unit = side / 1000;
+			item.el.style.width = side + 'px';
+			item.el.style.height = side + 'px';
+			item.el.style.setProperty('--u', side / 1000 + 'px');
+			item.mqText = null;
+		}
+	}
+
+	// Искры (ответ 2А): в случайный момент вспыхивает одна из искр, дрожит линия каркаса,
+	// звучит звук искры. Частота — ползунок вида: 0 — нет, 100 — часто.
+	function radioSpark(item) {
+		if (!item.view.sparks || !item.el.isConnected && item.placed) {
+			return;
+		}
+
+		var mean = 12000 / (1 + item.view.sparks / 8);
+
+		item.sparkTimer = setTimeout(function () {
+			if (!item.el.isConnected) {
+				if (item.placed) {
+					return;
+				}
+				radioSpark(item);
+				return;
+			}
+
+			var spark = item.frame.sparks[Math.floor(Math.random() * item.frame.sparks.length)];
+			var seg = item.frame.segs[Math.floor(Math.random() * item.frame.segs.length)];
+
+			[spark, seg].forEach(function (node, i) {
+				var cls = i ? 'sg-r-jit' : 'sg-r-on';
+
+				node.classList.remove(cls);
+				void node.getBoundingClientRect();
+				node.classList.add(cls);
+			});
+			if (item.view.sound && !preview) {
+				signalPlay(item.view.sound, item.view.volume);
+			}
+			radioSpark(item);
+		}, mean * (0.4 + Math.random() * 1.2));
+	}
+
+	Macro.add('sg-radio', {
+		handler: function () {
+			var a = blockArgs(this, ['view'], ['size'], []);
+			var views = radioViews();
+			var name = a.view === undefined ? '' : String(a.view);
+			var view = views[name] || views[Object.keys(views)[0]] || {
+				name: '', type: 'broken', frame: '#c9a24a', elements: '#39ff7a', label: 'ОРБИТА-3', sparks: 30, sound: '', volume: 80
+			};
+			var el = document.createElement('div');
+			var frame = radioFrame(view);
+			var item = {el: el, view: view, frame: frame, size: Math.max(0, musNum(a.size, 0)), side: 0, unit: 1, dir: '', catKey: null, mqText: null};
+			var st = radioState();
+			var here = State.passage;
+
+			if (!views[name]) {
+				console.warn('СИГНАЛЫ: вида радио «' + name + '» нет в пассаже «Радио»');
+			}
+			el.className = 'sg-radio sg-radio-' + view.type;
+			el.style.setProperty('--sg-rf', view.frame);
+			el.style.setProperty('--sg-re', view.elements);
+			el.style.setProperty('--u', '1px');
+			el.appendChild(frame.svg);
+
+			// Бегущая строка — во всю ширину сверху.
+			item.mq = radioBox(el, 'div', 'sg-r-box sg-r-mq', 36, 40, 928, 82);
+			item.mqLine = document.createElement('span');
+			item.mqLine.className = 'sg-r-mq-text';
+			item.mq.appendChild(item.mqLine);
+
+			// Каталог — крупно слева.
+			var cat = radioBox(el, 'div', 'sg-r-box sg-r-cat', 36, 136, 600, 828);
+
+			item.path = document.createElement('div');
+			item.path.className = 'sg-r-path';
+			item.list = document.createElement('div');
+			item.list.className = 'sg-r-list';
+			cat.appendChild(item.path);
+			cat.appendChild(item.list);
+
+			// Громкость: «−», окошко 00–99, «+».
+			radioBox(el, 'div', 'sg-r-cap', 686, 300, 276, 30).textContent = 'ГРОМКОСТЬ';
+
+			var minus = radioBox(el, 'button', 'sg-r-btn', 686, 340, 64, 84);
+			var digits = radioBox(el, 'div', 'sg-r-box sg-r-digits', 762, 340, 124, 84);
+			var plus = radioBox(el, 'button', 'sg-r-btn', 898, 340, 64, 84);
+			var vol = {target: null, chars: ['', ''], cells: [], stop: [0, 0], start: [0, 0], next: [0, 0]};
+
+			minus.textContent = '−';
+			plus.textContent = '+';
+			digits.style.fontFamily = timerFont(timerDefaults.font);
+			for (var i = 0; i < 2; i++) {
+				var cell = document.createElement('span');
+
+				cell.textContent = '0';
+				digits.appendChild(cell);
+				vol.cells.push(cell);
+			}
+			$(minus).on('click', function () {
+				if (!preview) {
+					musSetVolume(musState().vol - 5);
+				}
+			});
+			$(plus).on('click', function () {
+				if (!preview) {
+					musSetVolume(musState().vol + 5);
+				}
+			});
+
+			// ▶ ❚❚ ■ — играть, пауза (место запоминается), стоп (с начала).
+			item.play = radioBox(el, 'button', 'sg-r-btn sg-r-play', 686, 470, 84, 84);
+			item.pause = radioBox(el, 'button', 'sg-r-btn sg-r-pause', 782, 470, 84, 84);
+			item.stop = radioBox(el, 'button', 'sg-r-btn sg-r-stop', 878, 470, 84, 84);
+			item.play.textContent = '▶';
+			item.pause.textContent = '❚❚';
+			item.stop.textContent = '■';
+			item.play.setAttribute('aria-label', 'Играть');
+			item.pause.setAttribute('aria-label', 'Пауза');
+			item.stop.setAttribute('aria-label', 'Стоп');
+			$(item.play).on('click', function () {
+				if (preview) {
+					return;
+				}
+
+				var now = musState();
+				var t = music().byId[now.cur];
+
+				if (t && t.folder.section === 'radio') {
+					if (!now.playing) {
+						musPlay(now.cur);
+					}
+					return;
+				}
+
+				var folder = item.dir ? musFolder(item.dir) : null;
+				var id = folder ? musFirst([folder]) : musSection('radio');
+
+				if (id) {
+					musPlay(id);
+				}
+			});
+			$(item.pause).on('click', function () {
+				if (!preview && musState().playing) {
+					musPause();
+				}
+			});
+			$(item.stop).on('click', function () {
+				if (!preview) {
+					musStop();
+				}
+			});
+
+			// «АВТО» — следующий трек той же папки, когда кончился текущий.
+			item.auto = radioBox(el, 'button', 'sg-r-btn sg-r-auto', 686, 604, 190, 58);
+			item.auto.innerHTML = '<span class="sg-r-dot"></span>АВТО ⟳';
+			$(item.auto).on('click', function () {
+				if (!preview) {
+					musState().auto = !musState().auto;
+					musChanged();
+				}
+			});
+
+			// Выключатель — выход на экран, откуда пришли (ответ 4А); музыка играет дальше.
+			var power = radioBox(el, 'button', 'sg-r-power', 686, 760, 276, 150);
+
+			power.setAttribute('aria-label', 'Выключить радио');
+			power.innerHTML = '<span class="sg-r-switch"><span class="sg-r-lever"></span><span class="sg-r-knob"></span></span>' +
+				'<span class="sg-r-off-text">ВЫКЛ<small>выход</small></span>';
+			if (!preview && !restoring && prevPassage && prevPassage !== here) {
+				st.from[here] = prevPassage;
+			}
+			$(power).on('click', function () {
+				if (power.classList.contains('sg-r-down')) {
+					return;
+				}
+				power.classList.add('sg-r-down');
+
+				var target = preview ? '' : musState().from[here] || Config.passages.start;
+
+				setTimeout(function () {
+					if (target && Story.has(target)) {
+						goBack(target);
+					} else {
+						power.classList.remove('sg-r-down');
+					}
+				}, 260);
+			});
+
+			// Каталог открыт там, где играет радио.
+			var cur = music().byId[st.cur];
+
+			if (cur && cur.folder.section === 'radio' && musVisible(cur)) {
+				item.dir = cur.folder.name;
+			}
+			if (preview) {
+				el.setAttribute('data-sg-block', 'radio');
+				el.setAttribute('data-sg-src', this.source);
+			}
+			this.output.appendChild(el);
+			radioItems.push(item);
+			volItems.push(vol);
+			volDraw(vol, Date.now());
+			if (!volTimer) {
+				volTimer = setInterval(volDrawAll, 40);
+			}
+			if (!radioTimer) {
+				radioTimer = setInterval(function () {
+					radioDrawAll();
+					ambDrawAll();
+				}, 250);
+				$(window).on('resize', radioDrawAll);
+			}
+			radioSpark(item);
+			setTimeout(radioDrawAll, 0);
+		}
+	});
+
+	$(document).on(':passageinit', function () {
+		radioItems.forEach(function (item) {
+			clearTimeout(item.sparkTimer);
+		});
+		radioItems = [];
+		ambItems = [];
+	});
+	$(document).on(':passagedisplay', function () {
+		radioDrawAll();
+		ambDrawAll();
+	});
+
+	// «Каталог Атмосферы» (ответ 6А): альбомы (папки раздела «Атмосфера») плиткой,
+	// у каждого «прослушано N из M» и подсказка; «Случайно / По порядку», «Сбросить
+	// прогресс»; щелчок по альбому — играть и открыть список треков. Прослушан —
+	// доигран до конца хотя бы раз (ответ 7А); сброс стирает только отметки.
+	function ambFolders() {
+		return music().folders.filter(function (f) {
+			return f.section === 'ambient' && f.tracks.some(musVisible);
+		});
+	}
+
+	function ambCount(folder) {
+		var st = radioState();
+		var list = folder.tracks.filter(musVisible);
+
+		return list.filter(function (t) {
+			return st.done && st.done[t.id];
+		}).length + ' из ' + list.length;
+	}
+
+	// Сброс — со вторым нажатием: случайный щелчок не стирает прогресс.
+	function ambConfirm(control, label, action) {
+		var timer = null;
+
+		control.textContent = label;
+		$(control).on('click', function () {
+			if (preview) {
+				return;
+			}
+			if (timer) {
+				clearTimeout(timer);
+				timer = null;
+				control.textContent = label;
+				action();
+				return;
+			}
+			control.textContent = 'Нажмите ещё раз';
+			timer = setTimeout(function () {
+				timer = null;
+				control.textContent = label;
+			}, 3000);
+		});
+	}
+
+	function ambOpen(folder) {
+		var st = musState();
+		var t = music().byId[st.cur];
+
+		if (t && t.folder === folder && st.playing) {
+			return;
+		}
+
+		var list = folder.tracks.filter(musVisible);
+		var last = st.lastIn[folder.name];
+		var id = last && music().byId[last] && musVisible(music().byId[last]) ? last : '';
+
+		if (!id && list.length) {
+			id = st.shuffle ? list[Math.floor(Math.random() * list.length)].id : list[0].id;
+		}
+		if (id) {
+			musPlay(id);
+		}
+	}
+
+	function ambDraw(item) {
+		var st = radioState();
+		var folders = ambFolders();
+		var folder = item.dir ? musFolder(item.dir) : null;
+
+		if (folder && folders.indexOf(folder) === -1) {
+			item.dir = '';
+			folder = null;
+		}
+
+		var tracks = folder ? folder.tracks.filter(musVisible) : [];
+		var key = [item.dir, st.cur, st.playing, !!st.shuffle].concat(
+			folders.map(function (f) { return f.name + ':' + ambCount(f); }),
+			tracks.map(function (t) { return t.id + ':' + !!(st.done && st.done[t.id]); })
+		).join('|');
+
+		item.now.textContent = musNowText(true);
+		item.shuffle.textContent = st.shuffle ? 'Случайно' : 'По порядку';
+		if (key === item.key) {
+			return;
+		}
+		item.key = key;
+		$(item.body).empty();
+		if (!folder) {
+			var grid = document.createElement('div');
+
+			grid.className = 'sg-amb-grid';
+			grid.style.gridTemplateColumns = 'repeat(' + item.columns + ', minmax(0, 1fr))';
+			folders.forEach(function (f) {
+				var cell = document.createElement('div');
+				var host = cell;
+
+				cell.className = 'sg-amb-cell';
+				if (f.tip) {
+					// Подсказка — та же рамка, что у <<hovertip>> (вид — в «Оформлении терминала»).
+					var n = ++ambTipCount;
+					var box = document.createElement('span');
+
+					host = document.createElement('span');
+					host.id = 'hoverTip' + n;
+					host.className = 'hoverTipTxt hoverTip sg-amb-tipped';
+					box.id = 'hoverTipTxt' + n;
+					box.className = 'hoverBox hoverTail';
+					box.textContent = f.tip;
+					$(host).on('mouseenter', function () {
+						if (window.UpdateHoverTipTxt) {
+							window.UpdateHoverTipTxt();
+						}
+					});
+					cell.appendChild(host);
+					host.appendChild(box);
+				}
+
+				var holder = document.createElement('span');
+				var tile = actionControl(holder, f.name, false, function () {
+					if (!preview) {
+						item.dir = f.name;
+						ambOpen(f);
+						ambDraw(item);
+					}
+				});
+				var here = music().byId[st.cur] && music().byId[st.cur].folder === f;
+
+				tile.classList.add('sg-tile', 'sg-amb-tile');
+				tile.classList.toggle('sg-amb-here', !!here);
+				tile.innerHTML = '';
+				tile.appendChild(Object.assign(document.createElement('span'), {className: 'sg-tile-name', textContent: (here ? (st.playing ? '▶ ' : '❚❚ ') : '') + f.name}));
+				tile.appendChild(Object.assign(document.createElement('span'), {className: 'sg-tile-status', textContent: 'Прослушано: ' + ambCount(f)}));
+				host.insertBefore(holder, host.firstChild);
+				grid.appendChild(cell);
+			});
+			if (!folders.length) {
+				grid.textContent = 'Альбомов пока нет.';
+			}
+			item.body.appendChild(grid);
+			return;
+		}
+
+		var album = document.createElement('div');
+		var head = document.createElement('div');
+
+		album.className = 'sg-amb-album';
+		head.className = 'sg-amb-head';
+		actionControl(head, '◄ ..', false, function () {
+			item.dir = '';
+			ambDraw(item);
+		}).classList.add('sg-amb-up');
+		head.appendChild(Object.assign(document.createElement('span'), {className: 'sg-amb-title', textContent: folder.name + ' · прослушано ' + ambCount(folder)}));
+		ambConfirm(actionControl(head, 'Сбросить альбом', item.asButton, function () {}), 'Сбросить альбом', function () {
+			folder.tracks.forEach(function (t) {
+				delete musState().done[t.id];
+			});
+			musChanged();
+		});
+		album.appendChild(head);
+		tracks.forEach(function (t) {
+			var row = document.createElement('div');
+			var cur = t.id === st.cur;
+			actionControl(row, t.name, false, function () {
+				if (!preview && (musState().cur !== t.id || !musState().playing)) {
+					musPlay(t.id);
+				}
+			});
+
+			row.className = 'sg-amb-track' + (cur ? ' sg-amb-here' : '');
+			row.insertBefore(Object.assign(document.createElement('span'), {
+				className: 'sg-amb-mark',
+				textContent: cur ? (st.playing ? '▶' : '❚❚') : st.done && st.done[t.id] ? '✓' : ''
+			}), row.firstChild);
+			album.appendChild(row);
+		});
+		item.body.appendChild(album);
+	}
+
+	function ambDrawAll() {
+		ambItems.forEach(function (item) {
+			if (item.el.isConnected) {
+				ambDraw(item);
+			}
+		});
+	}
+
+	Macro.add('sg-ambient', {
+		handler: function () {
+			var a = blockArgs(this, [], ['columns', 'kind'], ['buttons']);
+			var el = document.createElement('div');
+			var inner = el;
+			var bar = document.createElement('div');
+			var item = {el: el, columns: Math.max(1, Math.min(6, Math.round(musNum(a.columns, 3)))), dir: '', key: null, asButton: !!a.buttons};
+
+			el.className = 'sg-amb';
+			if (a.kind) {
+				inner = document.createElement('span');
+				inner.className = String(a.kind);
+				el.appendChild(inner);
+			}
+			bar.className = 'sg-amb-bar';
+			item.now = document.createElement('span');
+			item.now.className = 'sg-amb-now';
+			bar.appendChild(item.now);
+			item.shuffle = actionControl(bar, 'По порядку', item.asButton, function () {
+				if (!preview) {
+					musState().shuffle = !musState().shuffle;
+					musChanged();
+				}
+			});
+			ambConfirm(actionControl(bar, 'Сбросить прогресс', item.asButton, function () {}), 'Сбросить прогресс', function () {
+				var st = musState();
+
+				music().folders.forEach(function (f) {
+					if (f.section === 'ambient') {
+						f.tracks.forEach(function (t) {
+							delete st.done[t.id];
+						});
+					}
+				});
+				musChanged();
+			});
+			item.body = document.createElement('div');
+			item.body.className = 'sg-amb-body';
+			inner.appendChild(bar);
+			inner.appendChild(item.body);
+
+			var st = radioState();
+			var cur = music().byId[st.cur];
+
+			if (cur && cur.folder.section === 'ambient' && st.playing) {
+				item.dir = cur.folder.name;
+			}
+			if (preview) {
+				el.setAttribute('data-sg-block', 'ambient');
+				el.setAttribute('data-sg-src', this.source);
+			}
+			this.output.appendChild(el);
+			ambItems.push(item);
+			ambDraw(item);
+			if (!radioTimer) {
+				radioTimer = setInterval(function () {
+					radioDrawAll();
+					ambDrawAll();
+				}, 250);
+				$(window).on('resize', radioDrawAll);
+			}
+		}
+	});
+
+	engineStyle.textContent +=
+		'.sg-radio { --sg-rf: #c9a24a; --sg-re: #39ff7a; color: var(--sg-re); display: block; margin: 0 auto; max-width: none; position: relative; ' +
+		'font-size: calc(var(--u) * 30); line-height: 1.25; text-align: left; user-select: none; }\n' +
+		'.sg-radio .sg-r-frame { height: 100%; left: 0; overflow: visible; position: absolute; top: 0; width: 100%; }\n' +
+		'.sg-r-frame .sg-r-fr, .sg-r-frame .sg-r-thin, .sg-r-frame .sg-r-crack { fill: none; stroke: var(--sg-rf); stroke-linejoin: round; }\n' +
+		'.sg-r-frame .sg-r-fr { stroke-width: 4; }\n' +
+		'.sg-r-frame .sg-r-thin { opacity: 0.75; stroke-width: 2; }\n' +
+		'.sg-r-frame .sg-r-crack { stroke-width: 3; }\n' +
+		'.sg-r-frame .sg-r-grille circle { fill: var(--sg-rf); opacity: 0.55; }\n' +
+		'.sg-r-frame .sg-r-label { fill: var(--sg-rf); font-family: inherit; font-size: 20px; letter-spacing: 0.18em; }\n' +
+		'.sg-r-frame .sg-r-spark { opacity: 0; }\n' +
+		'.sg-r-frame .sg-r-spark line { stroke: #fff7c2; stroke-width: 2.6; }\n' +
+		'.sg-r-frame .sg-r-spark circle { fill: #fffbe6; }\n' +
+		'.sg-r-frame .sg-r-spark.sg-r-on { animation: sg-r-spark 0.5s steps(1) 1; }\n' +
+		'@keyframes sg-r-spark { 0% { opacity: 1; } 18% { opacity: 0.15; } 30% { opacity: 1; } 46% { opacity: 0.4; } 58%, 100% { opacity: 0; } }\n' +
+		'.sg-r-frame .sg-r-seg.sg-r-jit { animation: sg-r-jit 0.32s steps(1) 1; }\n' +
+		'@keyframes sg-r-jit { 0% { opacity: 0.35; transform: translate(3px, -2px); } 30% { opacity: 1; transform: translate(-2px, 1px); } ' +
+		'60% { opacity: 0.55; transform: translate(1px, 2px); } 100% { opacity: 1; transform: none; } }\n' +
+		'.sg-radio .sg-r-box, .sg-radio .sg-r-cap, .sg-radio .sg-r-btn, .sg-radio .sg-r-power { box-sizing: border-box; position: absolute; }\n' +
+		'.sg-radio .sg-r-box { border: calc(var(--u) * 3) solid var(--sg-re); }\n' +
+		'.sg-radio .sg-r-cap { font-size: calc(var(--u) * 22); letter-spacing: 0.12em; opacity: 0.6; }\n' +
+		'.sg-radio .sg-r-mq { align-items: center; display: flex; overflow: hidden; padding: 0 calc(var(--u) * 14); }\n' +
+		'.sg-radio .sg-r-mq-text { filter: drop-shadow(0 0 calc(var(--u) * 3) var(--sg-re)); flex: none; font-size: calc(var(--u) * 40); letter-spacing: 0.06em; white-space: pre; }\n' +
+		'@keyframes sg-r-run { from { transform: translateX(0); } to { transform: translateX(-50%); } }\n' +
+		'.sg-radio .sg-r-cat { display: flex; flex-direction: column; padding: calc(var(--u) * 10); }\n' +
+		'.sg-radio .sg-r-path { border-bottom: calc(var(--u) * 2) solid var(--sg-re); flex: none; font-size: calc(var(--u) * 22); letter-spacing: 0.1em; ' +
+		'opacity: 0.7; overflow: hidden; padding: 0 calc(var(--u) * 6) calc(var(--u) * 8); text-overflow: ellipsis; white-space: nowrap; }\n' +
+		'.sg-radio .sg-r-list { flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; scrollbar-color: var(--sg-re) transparent; scrollbar-width: thin; }\n' +
+		'html body .sg-radio button { all: unset; box-sizing: border-box; color: var(--sg-re); cursor: pointer; font-family: inherit; position: absolute; }\n' +
+		'html body .sg-radio .sg-r-list button.sg-r-line { align-items: baseline; display: flex; gap: calc(var(--u) * 10); padding: calc(var(--u) * 6) calc(var(--u) * 8); ' +
+		'position: relative; width: 100%; }\n' +
+		'.sg-radio .sg-r-line:hover, .sg-radio .sg-r-line:focus-visible, .sg-radio .sg-r-cur { background: rgba(255, 255, 255, 0.07); }\n' +
+		'.sg-radio .sg-r-line:hover .sg-r-name, .sg-radio .sg-r-cur .sg-r-name { filter: drop-shadow(0 0 calc(var(--u) * 3) var(--sg-re)); }\n' +
+		'.sg-radio .sg-r-mark { flex: none; text-align: center; width: 1.6em; }\n' +
+		'.sg-radio .sg-r-name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }\n' +
+		'.sg-radio .sg-r-side { flex: none; opacity: 0.55; }\n' +
+		'.sg-radio .sg-r-up .sg-r-mark, .sg-radio .sg-r-up .sg-r-name { font-weight: bold; }\n' +
+		'.sg-radio .sg-r-empty { cursor: default; opacity: 0.5; }\n' +
+		'html body .sg-radio button.sg-r-btn { align-items: center; border: calc(var(--u) * 3) solid var(--sg-re); border-radius: calc(var(--u) * 6); display: flex; ' +
+		'font-size: calc(var(--u) * 34); justify-content: center; }\n' +
+		'.sg-radio .sg-r-btn::before { background: var(--sg-re); border-radius: inherit; content: ""; inset: calc(var(--u) * 5); opacity: 0; position: absolute; }\n' +
+		'.sg-radio .sg-r-btn.sg-r-lit::before { opacity: 0.2; }\n' +
+		'.sg-radio .sg-r-btn:hover::before, .sg-radio .sg-r-btn:focus-visible::before { opacity: 0.12; }\n' +
+		'.sg-radio .sg-r-btn.sg-r-lit:hover::before { opacity: 0.3; }\n' +
+		'.sg-radio .sg-r-btn:active { transform: translateY(calc(var(--u) * 2)); }\n' +
+		'html body .sg-radio button.sg-r-auto { border-radius: calc(var(--u) * 29); font-size: calc(var(--u) * 28); gap: calc(var(--u) * 14); justify-content: flex-start; padding-left: calc(var(--u) * 16); }\n' +
+		'.sg-radio .sg-r-dot { border: calc(var(--u) * 2) solid var(--sg-re); border-radius: 50%; height: calc(var(--u) * 14); width: calc(var(--u) * 14); }\n' +
+		'.sg-radio .sg-r-auto.sg-r-lit .sg-r-dot { background: var(--sg-re); box-shadow: 0 0 calc(var(--u) * 6) var(--sg-re); }\n' +
+		'.sg-radio .sg-r-digits { align-items: center; display: flex; font-size: calc(var(--u) * 56); justify-content: center; line-height: 1; }\n' +
+		'.sg-radio .sg-r-digits span { display: inline-block; filter: drop-shadow(0 0 calc(var(--u) * 3) var(--sg-re)); text-align: center; width: 1ch; }\n' +
+		'html body .sg-radio button.sg-r-power { align-items: center; display: flex; gap: calc(var(--u) * 24); }\n' +
+		'.sg-radio .sg-r-switch { border: calc(var(--u) * 3) solid var(--sg-re); border-radius: calc(var(--u) * 8); flex: none; height: calc(var(--u) * 140); position: relative; width: calc(var(--u) * 72); }\n' +
+		'.sg-radio .sg-r-lever { background: var(--sg-re); border-radius: calc(var(--u) * 6); height: calc(var(--u) * 64); left: calc(50% - var(--u) * 6); position: absolute; ' +
+		'top: calc(var(--u) * 6); transform: rotate(18deg); transform-origin: 50% 100%; transition: transform 0.22s ease-in; width: calc(var(--u) * 12); }\n' +
+		'.sg-radio .sg-r-knob { background: var(--sg-re); border-radius: 50%; height: calc(var(--u) * 20); left: calc(50% - var(--u) * 10); position: absolute; top: calc(var(--u) * 60); width: calc(var(--u) * 20); }\n' +
+		'.sg-radio .sg-r-down .sg-r-lever { transform: rotate(162deg); }\n' +
+		'.sg-radio .sg-r-power:hover .sg-r-switch { box-shadow: 0 0 calc(var(--u) * 8) var(--sg-re); }\n' +
+		'.sg-radio .sg-r-off-text { display: flex; flex-direction: column; font-size: calc(var(--u) * 34); letter-spacing: 0.08em; }\n' +
+		'.sg-radio .sg-r-off-text small { font-size: calc(var(--u) * 20); opacity: 0.6; }\n' +
+		'.sg-amb-bar { align-items: baseline; display: flex; flex-wrap: wrap; gap: 0.6em 1.5em; margin-bottom: 1em; }\n' +
+		'.sg-amb-now { flex: 1 1 100%; }\n' +
+		'.sg-amb-grid { display: grid; gap: 0.8em; }\n' +
+		'.sg-amb-cell, .sg-amb-cell > .sg-amb-tipped { display: block; min-width: 0; }\n' +
+		'html .sg-amb .sg-amb-tipped { border-bottom: 0; top: 0; }\n' +
+		'.sg-amb-cell a.sg-tile { height: 100%; }\n' +
+		'.sg-amb-cell .sg-amb-here { box-shadow: 0 0 8px currentColor; }\n' +
+		'.sg-amb-head { align-items: baseline; display: flex; flex-wrap: wrap; gap: 0.6em 1.5em; margin-bottom: 0.8em; }\n' +
+		'.sg-amb-title { font-weight: bold; }\n' +
+		'.sg-amb-track { display: flex; gap: 0.6em; }\n' +
+		'.sg-amb-mark { flex: none; text-align: center; width: 1.6em; }\n';
 
 	// Для проверок и предпросмотра.
 	setup.signaly.music = function () {

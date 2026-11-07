@@ -2,7 +2,8 @@
 //
 // Каталог — пассаж «Музыка» с тегом sg-music (обычный текст, работает в обычном Twine):
 //   <<sg-music volume 30 spin 0.8 [auto]>>                 — общие настройки
-//   <<sg-folder "Классика" section ambient|radio>>         — папка (раздел «Атмосфера» или «Радио»)
+//   <<sg-folder "Классика" section ambient|radio [tip "Подсказка"]>> — папка (раздел «Атмосфера» или «Радио»);
+//                                                          tip — подсказка альбома в «Каталоге Атмосферы» (шаг 7.2)
 //   <<sg-track "Название" "media/audio/x.mp3" [pre "media/audio/игла.wav" wait 3 tail 2 prevolume 100]
 //     [start 40]>>условие<</sg-track>>                     — трек папки (идёт после своей папки)
 // Условие пустое — трек есть всегда; иначе — как в <<if>>.
@@ -38,6 +39,8 @@ export interface MusicTrack {
 export interface MusicFolder {
 	name: string;
 	section: MusicSection;
+	/** Подсказка при наведении на альбом в «Каталоге Атмосферы» (шаг 7.2, ответ 6А). */
+	tip: string;
 	tracks: MusicTrack[];
 }
 
@@ -81,12 +84,24 @@ function unquote(token: string) {
 	return token;
 }
 
+/** Куски /* … *\/ — команды в пояснениях не считаются (в заголовке пассажа есть образец). */
+export function commentRanges(text: string) {
+	return [...text.matchAll(/\/\*[^]*?\*\//g)].map(m => ({from: m.index!, to: m.index! + m[0].length}));
+}
+
 function find(text: string, name: string, container: boolean): Found[] {
 	const re = new RegExp(`<<${name}(?=[\\s>])`, 'g');
 	const out: Found[] = [];
+	const comments = commentRanges(text);
 	let m: RegExpExecArray | null;
 
 	while ((m = re.exec(text))) {
+		const at = m.index;
+
+		if (comments.some(c => at >= c.from && at < c.to)) {
+			continue;
+		}
+
 		const scan = scanArgs(text, m.index + name.length + 2);
 
 		if (!scan) {
@@ -162,6 +177,7 @@ export function readMusic(text: string): MusicCatalog {
 			folders.push({
 				name: w.pos[0] ?? '',
 				section: w.values.section === 'radio' ? 'radio' : 'ambient',
+				tip: w.values.tip ?? '',
 				tracks: []
 			});
 			continue;
@@ -170,7 +186,7 @@ export function readMusic(text: string): MusicCatalog {
 		const w = words(item.f.tokens, 2);
 
 		if (!folders.length) {
-			folders.push({name: 'Музыка', section: 'ambient', tracks: []});
+			folders.push({name: 'Музыка', section: 'ambient', tip: '', tracks: []});
 		}
 		folders[folders.length - 1].tracks.push({
 			name: w.pos[0] ?? '',
@@ -207,7 +223,7 @@ export function writeMusic(text: string, catalog: MusicCatalog) {
 	const lines = [
 		`<<sg-music volume ${clampVolume(s.volume)} spin ${s.spin}${s.auto ? ' auto' : ''}>>`,
 		...catalog.folders.flatMap(f => [
-			`<<sg-folder ${arg(f.name)} section ${f.section}>>`,
+			`<<sg-folder ${arg(f.name)} section ${f.section}${f.tip.trim() ? ` tip ${arg(f.tip.trim())}` : ''}>>`,
 			...f.tracks.map(writeTrack)
 		])
 	];

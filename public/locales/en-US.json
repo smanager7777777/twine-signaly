@@ -746,7 +746,9 @@
 				"camera": "Camera",
 				"pick": "Cycling button",
 				"include": "Insert passage",
-				"volume": "Volume"
+				"volume": "Volume",
+				"radio": "Radio",
+				"ambient": "Atmosphere catalog"
 			},
 			"image": {
 				"title": "Image",
@@ -1179,6 +1181,24 @@
 				"step": "Button step",
 				"size": "Digit size",
 				"kind": "Button kind"
+			},
+			"radio": {
+				"title": "Radio",
+				"view": "Radio look",
+				"noView": "(first look)",
+				"hint": "Looks are set in the Radio window (Story tab).",
+				"noViews": "No radio looks yet.",
+				"missing": "No such look: the first one is used.",
+				"fit": "Fit the game field",
+				"fitHint": "The radio is square.",
+				"size": "Side"
+			},
+			"ambient": {
+				"title": "Atmosphere catalog",
+				"hint": "Albums are the Atmosphere folders of the Music window.",
+				"columns": "Columns",
+				"kind": "Link kind",
+				"buttons": "Buttons instead of links"
 			}
 		},
 		"drag": {
@@ -1615,7 +1635,8 @@
 					"volume": "Set volume",
 					"louder": "Louder",
 					"quieter": "Quieter",
-					"auto": "AUTO"
+					"auto": "AUTO",
+					"section": "Play a section"
 				},
 				"noCatalog": "No catalogue yet.",
 				"track": "Track",
@@ -1645,7 +1666,8 @@
 					"volume": "Shared volume 00–99.",
 					"louder": "Up to 99.",
 					"quieter": "Down to 00.",
-					"auto": "Next track when one ends."
+					"auto": "Next track when one ends.",
+					"section": "The section’s last track from where it stopped."
 				}
 			}
 		},
@@ -2272,7 +2294,9 @@
 				"emptyTrack": "A track has no name or file.",
 				"repeatedTrack": "Two tracks share a name.",
 				"slash": "“/” in a name."
-			}
+			},
+			"tip": "Album tip",
+			"tipHint": "Shown on hover in the Atmosphere catalog."
 		},
 		"screenMusic": {
 			"button": "Screen music",
@@ -2302,6 +2326,49 @@
 			"riseHint": "0 — at full volume.",
 			"leaveHint": "Like the template main screen.",
 			"remove": "Remove screen music"
+		},
+		"radio": {
+			"button": "Radio",
+			"title": "Radio",
+			"intro": "Radio looks.",
+			"add": "Add look",
+			"copy": "Copy",
+			"delete": "Delete",
+			"newName": "Radio",
+			"noName": "(no name)",
+			"empty": "No looks yet.",
+			"name": "Look name",
+			"nameHint": "Radio blocks find the look by name.",
+			"type": "Radio type",
+			"typeHint": "More types later.",
+			"later": "later",
+			"types": {
+				"broken": "Broken, frame {{frame}}",
+				"fixed": "Repaired, frame {{frame}}",
+				"reverse": "Reverse, frame {{frame}}"
+			},
+			"colors": "Colors",
+			"frame": "Frame",
+			"elements": "Controls",
+			"elementsHint": "",
+			"label": "Frame label",
+			"labelHint": "",
+			"sparksTitle": "Sparks",
+			"sparks": "Sparks",
+			"sparksHint": "0 — none.",
+			"sparkSound": "Spark sound",
+			"noSound": "No sound",
+			"sparkVolume": "Spark volume",
+			"used": "Used on {{count}} screen.",
+			"used_plural": "Used on {{count}} screens.",
+			"confirmDelete": "Delete look “{{name}}”?",
+			"confirmDeleteUsed": "Look “{{name}}” is used on {{count}} screens. Delete?",
+			"where": "Stored in passage “{{name}}” (tag sg-radio).",
+			"previewHint": "Preview of the selected look.",
+			"problems": {
+				"emptyName": "A look has no name.",
+				"repeatedName": "Two looks share a name."
+			}
 		}
 	}
 }

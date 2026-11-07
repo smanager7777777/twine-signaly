@@ -1,5 +1,7 @@
 #!/bin/bash
-# Все проверки подряд (сессия 26). Итог — /tmp/run/summary.txt
+# Все проверки подряд (сессия 27). Итог — /tmp/run/summary.txt
+# Старые шаблоны: for c in a8b24b6~2 64321cf 5e0afed 30462fa 60c483a fa0a506 b6203c6 2e57ad0 b633a9d 8b80f1a c6bc328 4b9ae32;
+#   do git show $c:signaly/template/27_03_2025.twee > /tmp/run/t-${c/~/_}.twee; done
 cd /home/claude/twine-signaly
 PW=/opt/npm-tools/node_modules/playwright
 SH=/opt/npm-tools/node_modules/sharp
@@ -7,7 +9,8 @@ T=signaly/template/27_03_2025.twee
 M=/tmp/run/media
 rm -rf $M; mkdir -p $M /tmp/run/logs /tmp/run/shots
 python3 signaly/tests/make_placeholder_media.py signaly/template/media-list.txt $M >/dev/null
-cp /mnt/user-data/attachments/*/51ad9bb9-DSEG7Classic-Regular.woff2 $M/media/fonts/DSEG7Classic-Regular.woff2
+[ -f /tmp/run/package/fonts/DSEG7-Classic/DSEG7Classic-Regular.woff2 ] || (cd /tmp/run && npm pack dseg >/dev/null 2>&1 && tar xzf dseg-*.tgz)
+cp /tmp/run/package/fonts/DSEG7-Classic/DSEG7Classic-Regular.woff2 $M/media/fonts/DSEG7Classic-Regular.woff2
 S=/tmp/run/summary.txt; : > $S
 res() { # имя лог
   local ok=$(grep -c '^OK' $2); local fail=$(grep -c '^FAIL' $2); local tail=$(tail -2 $2 | tr '\n' ' ')
@@ -37,6 +40,7 @@ game step6-play $T $M $PW ""
 game step6b-play $T $M $PW ""
 game step25-play $T $M $PW ""
 game music-play $T $M $PW /tmp/run/shots
+game radio-play $T $M $PW /tmp/run/shots
 echo "--- программа" >> $S
 el() { local name=$1 tw=$2
   for try in 1 2; do
@@ -65,5 +69,6 @@ el electron-step54 /tmp/run/t-2e57ad0.twee
 el electron-step6 /tmp/run/t-b633a9d.twee
 el electron-step6b /tmp/run/t-8b80f1a.twee
 el electron-step25 $T
-el electron-music $T
+el electron-music /tmp/run/t-4b9ae32.twee
+el electron-radio /tmp/run/t-4b9ae32.twee
 echo DONE >> $S

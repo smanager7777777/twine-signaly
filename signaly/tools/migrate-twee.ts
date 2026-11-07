@@ -33,6 +33,9 @@ import {moveScriptDialogs} from '../../src/util/signaly/signaly-actions';
 import {moveTemplateHack} from '../../src/util/signaly/signaly-hack';
 import {moveTemplateCamera} from '../../src/util/signaly/signaly-camera';
 import {moveTemplateTips} from '../../src/util/signaly/signaly-tip';
+import {musicPassageName, musicTag} from '../../src/util/signaly/signaly-music';
+import {moveTemplateMusic} from '../../src/util/signaly/signaly-music-template';
+import {radioPassageName, radioTag} from '../../src/util/signaly/signaly-radio';
 import {freeSpot, keysPassageName, keysTag, moveTemplateKeys} from '../../src/util/signaly/signaly-keys';
 
 function section(source: string, header: RegExp) {
@@ -248,6 +251,51 @@ if (init && findAudioInit(init.text).ranges.length) {
 				twee = replaceSection(twee, found, text, found.to >= twee.length);
 			});
 		result.moved.push('подсказка шаблона → движок и оформление');
+	}
+}
+
+// Музыка (шаг 7.2): экраны и плейлисты шаблона → общий плеер, пассажи «Музыка» и «Радио».
+{
+	const chunks = twee.split(/^(?=:: )/m);
+	const heads = chunks.map(chunk => chunk.slice(0, chunk.indexOf('\n') + 1));
+	const metas = heads.map(head => /^:: ((?:\\.|[^\\[{\n])*?)\s*(?:\[([^\]]*)\])?\s*(\{[^\n]*\})?\s*$/.exec(head.replace(/\s+$/, '')));
+	const list = chunks
+		.map((chunk, i) => ({
+			index: i,
+			name: metas[i]?.[1] ?? '',
+			tags: (metas[i]?.[2] ?? '').split(/\s+/).filter(Boolean),
+			text: chunk.slice(heads[i].length).replace(/\s+$/, '')
+		}))
+		.filter(p => p.name && !/^Story(Script|Stylesheet|Title|Data)$/.test(p.name));
+	const music = moveTemplateMusic(list);
+
+	if (music) {
+		const spots = metas.map(m => {
+			try {
+				const meta = JSON.parse(m?.[3] ?? '{}');
+				const [left, top] = String(meta.position ?? '0,0').split(',').map(Number);
+				const [width] = String(meta.size ?? '100,100').split(',').map(Number);
+
+				return {left, top, width};
+			} catch {
+				return {left: 0, top: 0, width: 100};
+			}
+		});
+		const first = freeSpot(spots);
+		const second = freeSpot([...spots, {...first, width: 100}]);
+		const chunk = (name: string, tag: string, spot: {left: number; top: number}, text: string) =>
+			`:: ${name} [${tag}] {"position":"${spot.left},${spot.top}","size":"100,100"}\n${text.replace(/\s+$/, '')}\n\n\n`;
+
+		music.texts.forEach((text, i) => {
+			const at = list[i].index;
+
+			chunks[at] = heads[at] + text.replace(/\s+$/, '') + /\s*$/.exec(chunks[at])![0];
+		});
+		twee = chunks.join('');
+		twee = twee.replace(scriptHeader, header =>
+			chunk(musicPassageName, musicTag, first, music.music) + chunk(radioPassageName, radioTag, second, music.radio) + header
+		);
+		result.moved.push('музыка шаблона → общий плеер, «Музыка», «Радио»');
 	}
 }
 
