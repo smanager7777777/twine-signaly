@@ -2,10 +2,16 @@
 //
 // Каталог — пассаж «Музыка» с тегом sg-music (обычный текст, работает в обычном Twine):
 //   <<sg-music volume 30 spin 0.8 [auto]>>                 — общие настройки
-//   <<sg-folder "Классика" section ambient|radio [tip "Подсказка"]>> — папка (раздел «Атмосфера» или «Радио»);
-//                                                          tip — подсказка альбома в «Каталоге Атмосферы» (шаг 7.2)
-//   <<sg-track "Название" "media/audio/x.mp3" [pre "media/audio/игла.wav" wait 3 tail 2 prevolume 100]
-//     [start 40]>>условие<</sg-track>>                     — трек папки (идёт после своей папки)
+//   <<sg-folder "Классика" section ambient|radio|air [tip "Подсказка"]>> — папка (раздел «Атмосфера», «Радио»
+//                                                          или «Эфир»); tip — подсказка альбома в «Каталоге Атмосферы» (шаг 7.2).
+//                                                          Шаг 7.3, ответ 1Б: вложенная папка — путь через «/»:
+//                                                          "Дневники/Глава 1" лежит в папке «Дневники», раздел — как у неё
+//   <<sg-track "Название" "media/audio/x.mp3" [gain 80] [pre "media/audio/игла.wav" wait 3 tail 2 prevolume 100]
+//     [start 40] [to "Папка радио"] [width 1.5] [text "Сообщение"]>>условие<</sg-track>>
+//                                                          — трек папки (идёт после своей папки); gain — громкость
+//                                                          файла, % (ответ 2А); to, width, text — у передачи эфира (шаг 7.3):
+//                                                          куда попадает после поимки (нет — помеха, в каталог не попадает),
+//                                                          сколько МГц в каждую сторону её слышно, своё сообщение в строке
 // Условие пустое — трек есть всегда; иначе — как в <<if>>.
 //
 // Музыка экрана — первая строка экрана:
@@ -19,8 +25,8 @@ import {findClose, scanArgs} from './signaly-screen-blocks';
 export const musicTag = 'sg-music';
 export const musicPassageName = 'Музыка';
 
-export type MusicSection = 'ambient' | 'radio';
-export const musicSections: MusicSection[] = ['ambient', 'radio'];
+export type MusicSection = 'ambient' | 'radio' | 'air';
+export const musicSections: MusicSection[] = ['ambient', 'radio', 'air'];
 
 export interface MusicTrack {
 	name: string;
@@ -34,6 +40,14 @@ export interface MusicTrack {
 	start?: number;
 	/** Условие как в <<if>>; '' — всегда. */
 	when: string;
+	/** Громкость файла, 1–100 % (шаг 7.3, ответ 2А): общая громкость действует поверх. */
+	gain: number;
+	/** Передача эфира: папка радио, куда попадает после поимки; '' — помеха, в каталог не попадает. */
+	to: string;
+	/** Передача эфира: сколько МГц в каждую сторону от её точки её слышно (ответ 6). */
+	width: number;
+	/** Передача эфира: своё сообщение в строке радио ('' — сообщение вида, ответ 5А). */
+	text: string;
 }
 
 export interface MusicFolder {
@@ -60,7 +74,56 @@ export interface MusicCatalog {
 
 export const musicDefaults: MusicSettings = {volume: 30, spin: 0.8, auto: true};
 
-export const trackDefaults: Omit<MusicTrack, 'name' | 'src'> = {pre: '', wait: 3, tail: 2, preVolume: 100, when: ''};
+export const trackDefaults: Omit<MusicTrack, 'name' | 'src'> = {
+	pre: '',
+	wait: 3,
+	tail: 2,
+	preVolume: 100,
+	when: '',
+	gain: 100,
+	to: '',
+	width: 1.5,
+	text: ''
+};
+
+/* ----- Вложенные папки (шаг 7.3, ответ 1Б): имя папки — путь через «/» ----- */
+
+/** Папка выше: "Дневники/Глава 1" → "Дневники"; у верхней — ''. */
+export const folderParent = (name: string) => (name.includes('/') ? name.slice(0, name.lastIndexOf('/')) : '');
+/** Своё имя папки без пути. */
+export const folderLeaf = (name: string) => name.slice(name.lastIndexOf('/') + 1);
+export const folderDepth = (name: string) => name.split('/').length - 1;
+/** Лежит ли папка внутри другой (на любой глубине). */
+export const folderInside = (name: string, parent: string) => name.startsWith(parent + '/');
+
+/** Порядок дерева: за каждой папкой — её вложенные, в своём порядке; раздел вложенной — как у верхней. */
+export function treeOrder(folders: MusicFolder[]): MusicFolder[] {
+	const names = new Set(folders.map(f => f.name));
+	const out: MusicFolder[] = [];
+	const done = new Set<MusicFolder>();
+
+	function visit(f: MusicFolder, section: MusicSection) {
+		done.add(f);
+		out.push(f.section === section ? f : {...f, section});
+		for (const c of folders) {
+			if (!done.has(c) && folderParent(c.name) === f.name) {
+				visit(c, section);
+			}
+		}
+	}
+
+	for (const f of folders) {
+		if (!done.has(f) && !names.has(folderParent(f.name))) {
+			visit(f, f.section);
+		}
+	}
+	for (const f of folders) {
+		if (!done.has(f)) {
+			visit(f, f.section);
+		}
+	}
+	return out;
+}
 
 export const musicHeader =
 	'/* СИГНАЛЫ: музыка — правьте в окне «Музыка» (вкладка «История»). Папки и треки идут\n' +
@@ -176,7 +239,7 @@ export function readMusic(text: string): MusicCatalog {
 
 			folders.push({
 				name: w.pos[0] ?? '',
-				section: w.values.section === 'radio' ? 'radio' : 'ambient',
+				section: w.values.section === 'radio' || w.values.section === 'air' ? w.values.section : 'ambient',
 				tip: w.values.tip ?? '',
 				tracks: []
 			});
@@ -196,14 +259,22 @@ export function readMusic(text: string): MusicCatalog {
 			tail: Math.max(0, num(w.values.tail, trackDefaults.tail)),
 			preVolume: Math.max(0, Math.min(100, num(w.values.prevolume, trackDefaults.preVolume))),
 			start: w.values.start !== undefined ? clampVolume(num(w.values.start, 0)) : undefined,
-			when: item.f.content.trim()
+			when: item.f.content.trim(),
+			gain: Math.max(1, Math.min(100, Math.round(num(w.values.gain, trackDefaults.gain)))),
+			to: w.values.to ?? '',
+			width: Math.max(0.1, Math.min(20, num(w.values.width, trackDefaults.width))),
+			text: w.values.text ?? ''
 		});
 	}
-	return {settings, folders};
+	return {settings, folders: treeOrder(folders)};
 }
 
-export function writeTrack(t: MusicTrack) {
+export function writeTrack(t: MusicTrack, air = false) {
 	const parts = [arg(t.name), arg(t.src)];
+
+	if (t.gain !== undefined && t.gain !== 100) {
+		parts.push('gain', String(t.gain));
+	}
 
 	if (t.pre) {
 		parts.push('pre', arg(t.pre), 'wait', String(t.wait), 'tail', String(t.tail));
@@ -214,6 +285,17 @@ export function writeTrack(t: MusicTrack) {
 	if (t.start !== undefined) {
 		parts.push('start', String(clampVolume(t.start)));
 	}
+	if (air) {
+		if (t.to) {
+			parts.push('to', arg(t.to));
+		}
+		if (t.width !== undefined && t.width !== trackDefaults.width) {
+			parts.push('width', String(t.width));
+		}
+		if (t.text?.trim()) {
+			parts.push('text', arg(t.text.trim()));
+		}
+	}
 	return `<<sg-track ${parts.join(' ')}>>${t.when.trim()}<</sg-track>>`;
 }
 
@@ -222,9 +304,9 @@ export function writeMusic(text: string, catalog: MusicCatalog) {
 	const s = catalog.settings;
 	const lines = [
 		`<<sg-music volume ${clampVolume(s.volume)} spin ${s.spin}${s.auto ? ' auto' : ''}>>`,
-		...catalog.folders.flatMap(f => [
+		...treeOrder(catalog.folders).flatMap(f => [
 			`<<sg-folder ${arg(f.name)} section ${f.section}${f.tip.trim() ? ` tip ${arg(f.tip.trim())}` : ''}>>`,
-			...f.tracks.map(writeTrack)
+			...f.tracks.map(tr => writeTrack(tr, f.section === 'air'))
 		])
 	];
 	const found = [...find(text, 'sg-music', false), ...find(text, 'sg-folder', false), ...find(text, 'sg-track', true)].sort(
@@ -249,13 +331,16 @@ export function writeMusic(text: string, catalog: MusicCatalog) {
 /** Повторы имён папок и треков в папке — «Сохранить» недоступна. */
 export function musicProblems(catalog: MusicCatalog) {
 	const names = catalog.folders.map(f => f.name.trim());
+	const radio = new Set(catalog.folders.filter(f => f.section === 'radio').map(f => f.name));
 
 	return {
-		emptyFolder: names.some(n => n === ''),
+		emptyFolder: names.some(n => n === '' || n.split('/').some(part => part.trim() === '')),
 		repeatedFolder: new Set(names).size !== names.length,
 		emptyTrack: catalog.folders.some(f => f.tracks.some(t => !t.name.trim() || !t.src)),
 		repeatedTrack: catalog.folders.some(f => new Set(f.tracks.map(t => t.name.trim())).size !== f.tracks.length),
-		slash: catalog.folders.some(f => f.name.includes('/') || f.tracks.some(t => t.name.includes('/')))
+		slash: catalog.folders.some(f => f.tracks.some(t => t.name.includes('/'))),
+		// Передача ведёт в папку радио, которой нет.
+		noTarget: catalog.folders.some(f => f.section === 'air' && f.tracks.some(t => t.to && !radio.has(t.to)))
 	};
 }
 

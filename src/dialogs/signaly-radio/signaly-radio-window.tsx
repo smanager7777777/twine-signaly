@@ -2,9 +2,13 @@
 // на тип, решение 125), цвет каркаса и элементов, надпись на каркасе, искры
 // сломанного радио. Хранится в пассаже «Радио» с тегом sg-radio (signaly-radio.ts);
 // справа — предпросмотр настоящим SugarCube. Ничего не пишется до «Сохранить».
+// Шаг 7.3: отремонтированное радио — эфир: белый шум и его диапазоны, помехи (файл,
+// ширина, громкость) и сколько их выпадает за раз, сообщение строки, время поимки.
 
+import {IconTrash} from '@tabler/icons';
 import * as React from 'react';
 import {useTranslation} from 'react-i18next';
+import {IconButton} from '../../components/control/icon-button';
 import {Story, updatePassage, useStoriesContext} from '../../store/stories';
 import {useGameFolder} from '../../store/use-game-folder';
 import {defaultAppearance, engineVersionIn, readAppearance, withEngine} from '../../util/signaly/signaly-appearance';
@@ -12,6 +16,7 @@ import {signalyEngineVersion} from '../../util/signaly/signaly-engine';
 import {freeSpot} from '../../util/signaly/signaly-keys';
 import {folderToFileUrl} from '../../util/signaly/signaly-preview';
 import {
+	jamDefaults,
 	newRadioView,
 	radioFrames,
 	radioPassageName,
@@ -175,6 +180,11 @@ export const SignalyRadioWindow: React.FC<{onClose: () => void; story: Story}> =
 		return () => clearTimeout(timer);
 	}, [previewText, selected]);
 
+	const setJam = (index: number, patch: Partial<RadioView['jams'][number]>) =>
+		row && setView({jams: row.view.jams.map((j, i) => (i === index ? {...j, ...patch} : j))});
+	const mhz = t('signaly.music.mhz');
+	const s = t('signaly.appearance.units.seconds');
+
 	const audioOptions = (value: string) => [
 		{label: l('noSound'), value: ''},
 		...[...new Set([value, ...media.audio])].filter(Boolean).map(f => ({label: f, value: f}))
@@ -205,6 +215,66 @@ export const SignalyRadioWindow: React.FC<{onClose: () => void; story: Story}> =
 					value={v.elements}
 				/>
 				<TextField hint={l('labelHint')} label={l('label')} onChange={label => setView({label})} value={v.label} />
+				{v.type !== 'broken' && (
+					<>
+						<h3>{l('airTitle')}</h3>
+						<p className="signaly-field-hint">{l('airHint')}</p>
+						<TextField hint={l('incomingHint')} label={l('incoming')} onChange={incoming => setView({incoming})} value={v.incoming} />
+						<RangeField
+							hint={l('catchHint')}
+							label={l('catch')}
+							max={60}
+							min={1}
+							onChange={catchTime => setView({catchTime})}
+							unit={s}
+							value={v.catchTime}
+						/>
+						<h3>{l('noiseTitle')}</h3>
+						<ChoiceField
+							hint={media.audio.length === 0 ? t('signaly.blocks.noFiles') : l('noiseHint')}
+							label={l('noise')}
+							onChange={noise => setView({noise})}
+							options={audioOptions(v.noise)}
+							value={v.noise}
+						/>
+						{v.noise !== '' && (
+							<>
+								<RangeField label={l('noiseVolume')} max={100} min={0} onChange={noiseVolume => setView({noiseVolume})} unit="%" value={v.noiseVolume} />
+								<TextField hint={l('noiseRangesHint')} label={l('noiseRanges')} onChange={noiseRanges => setView({noiseRanges})} value={v.noiseRanges} />
+							</>
+						)}
+						<h3>{l('jamsTitle')}</h3>
+						<p className="signaly-field-hint">{l('jamsHint')}</p>
+						{v.jams.map((j, i) => (
+							<fieldset className="signaly-block-row" key={i}>
+								<legend>
+									{i + 1}
+									<IconButton
+										icon={<IconTrash />}
+										iconOnly
+										label={l('removeJam')}
+										onClick={() => setView({jams: v.jams.filter((_, k) => k !== i)})}
+									/>
+								</legend>
+								<ChoiceField label={l('jamFile')} onChange={src => setJam(i, {src})} options={audioOptions(j.src).slice(1)} value={j.src} />
+								<RangeField hint={l('jamWidthHint')} label={l('jamWidth')} max={10} min={0.1} onChange={width => setJam(i, {width})} step={0.1} unit={mhz} value={j.width} />
+								<RangeField label={l('jamVolume')} max={100} min={0} onChange={volume => setJam(i, {volume})} unit="%" value={j.volume} />
+							</fieldset>
+						))}
+						<div className="signaly-sound-actions">
+							<button
+								className="signaly-button"
+								disabled={media.audio.length === 0}
+								onClick={() => setView({jams: [...v.jams, {...jamDefaults, src: media.audio[0]}]})}
+								type="button"
+							>
+								{l('addJam')}
+							</button>
+						</div>
+						<RangeField label={l('jamsMin')} max={50} min={0} onChange={jamsMin => setView({jamsMin})} unit="" value={v.jamsMin} />
+						<RangeField hint={l('jamsMaxHint', {files: v.jams.length})} label={l('jamsMax')} max={50} min={0} onChange={jamsMax => setView({jamsMax})} unit="" value={v.jamsMax} />
+					</>
+				)}
 				{v.type === 'broken' && (
 					<>
 						<h3>{l('sparksTitle')}</h3>

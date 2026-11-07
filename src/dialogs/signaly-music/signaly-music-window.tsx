@@ -3,6 +3,8 @@
 // предзвук, начальная громкость); общие настройки — громкость в начале игры,
 // время кручения цифр, «АВТО». Хранится в пассаже «Музыка» с тегом sg-music
 // (signaly-music.ts). Ничего не записывается в историю до «Сохранить».
+// Шаг 7.3: папки внутри папок (ответ 1Б), громкость файла (2А), раздел «Эфир» —
+// передачи отремонтированного радио: куда после поимки, ширина, своё сообщение (3А, 5А, 6).
 
 import {IconArrowDown, IconArrowUp, IconTrash} from '@tabler/icons';
 import * as React from 'react';
@@ -14,6 +16,10 @@ import {signalyEngineVersion} from '../../util/signaly/signaly-engine';
 import {freeSpot} from '../../util/signaly/signaly-keys';
 import {writeExpr} from '../../util/signaly/signaly-logic';
 import {
+	folderDepth,
+	folderInside,
+	folderLeaf,
+	folderParent,
 	MusicCatalog,
 	MusicFolder,
 	musicPassageName,
@@ -23,6 +29,7 @@ import {
 	MusicTrack,
 	readMusic,
 	trackDefaults,
+	treeOrder,
 	writeMusic
 } from '../../util/signaly/signaly-music';
 import {newsConds} from '../../util/signaly/signaly-ticker';
@@ -42,6 +49,44 @@ function move<T>(list: T[], index: number, by: number) {
 
 	next.splice(index + by, 0, item);
 	return next;
+}
+
+/** Где кончается папка вместе со вложенными (список — в порядке дерева). */
+function blockEnd(folders: MusicFolder[], index: number) {
+	let end = index + 1;
+
+	while (end < folders.length && folderInside(folders[end].name, folders[index].name)) {
+		end++;
+	}
+	return end;
+}
+
+/** Соседняя папка того же уровня выше (-1) или ниже (+1); -1 — нет. */
+function sibling(folders: MusicFolder[], index: number, by: -1 | 1) {
+	const f = folders[index];
+	const parent = folderParent(f.name);
+	const same = (g: MusicFolder) => folderParent(g.name) === parent && g.section === f.section;
+
+	if (by < 0) {
+		for (let i = index - 1; i >= 0; i--) {
+			if (same(folders[i])) {
+				return i;
+			}
+			if (!folderInside(folders[i].name, parent) && parent) {
+				return -1;
+			}
+		}
+		return -1;
+	}
+	for (let i = blockEnd(folders, index); i < folders.length; i++) {
+		if (same(folders[i])) {
+			return i;
+		}
+		if (parent && !folderInside(folders[i].name, parent)) {
+			return -1;
+		}
+	}
+	return -1;
 }
 
 export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> = ({onClose, story}) => {
@@ -70,6 +115,43 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 	const setFolders = (folders: MusicFolder[]) => change({...catalog, folders});
 	const setFolder = (patch: Partial<MusicFolder>) =>
 		setFolders(catalog.folders.map((f, i) => (i === selected ? {...f, ...patch} : f)));
+	const radioFolders = catalog.folders.filter(f => f.section === 'radio').map(f => f.name);
+
+	// Переименовать папку: свои вложенные и передачи эфира, которые ведут в неё, — тоже.
+	function renameFolder(leaf: string) {
+		const old = folder.name;
+		const parent = folderParent(old);
+		const name = parent ? `${parent}/${leaf}` : leaf;
+		const moved = (n: string) => (n === old ? name : folderInside(n, old) ? name + n.slice(old.length) : n);
+
+		setFolders(
+			catalog.folders.map(f => ({
+				...f,
+				name: moved(f.name),
+				tracks: f.section === 'air' ? f.tracks.map(tr => (tr.to ? {...tr, to: moved(tr.to)} : tr)) : f.tracks
+			}))
+		);
+	}
+
+	// Раздел меняется у верхней папки — у вложенных он тот же.
+	function setSection(section: MusicFolder['section']) {
+		setFolders(catalog.folders.map(f => (f === folder || folderInside(f.name, folder.name) ? {...f, section} : f)));
+	}
+
+	function moveFolder(by: -1 | 1) {
+		const other = sibling(catalog.folders, selected, by);
+
+		if (other < 0) {
+			return;
+		}
+
+		const [a, b] = by < 0 ? [other, selected] : [selected, other];
+		const list = catalog.folders;
+		const next = [...list.slice(0, a), ...list.slice(b, blockEnd(list, b)), ...list.slice(a, b), ...list.slice(blockEnd(list, b))];
+
+		setFolders(next);
+		setSelected(next.indexOf(folder));
+	}
 	const setTracks = (tracks: MusicTrack[]) => setFolder({tracks});
 	const setTrack = (index: number, patch: Partial<MusicTrack>) =>
 		setTracks(folder.tracks.map((tr, i) => (i === index ? {...tr, ...patch} : tr)));
@@ -109,19 +191,29 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 		}
 	}
 
-	function addFolder(section: MusicFolder['section']) {
-		let n = catalog.folders.length + 1;
+	// Новая папка — в конце раздела; вложенная (inside) — в конце выбранной папки.
+	function addFolder(section: MusicFolder['section'], inside?: MusicFolder) {
+		const prefix = inside ? inside.name + '/' : '';
+		let n = 1;
 
-		while (catalog.folders.some(f => f.name === l('newFolder', {n}))) {
+		while (catalog.folders.some(f => f.name === prefix + l('newFolder', {n}))) {
 			n++;
 		}
-		change({...catalog, folders: [...catalog.folders, {name: l('newFolder', {n}), section, tip: '', tracks: []}]});
-		setSelected(catalog.folders.length);
+
+		const fresh: MusicFolder = {name: prefix + l('newFolder', {n}), section: inside ? inside.section : section, tip: '', tracks: []};
+		const next = inside
+			? [...catalog.folders.slice(0, blockEnd(catalog.folders, selected)), fresh, ...catalog.folders.slice(blockEnd(catalog.folders, selected))]
+			: treeOrder([...catalog.folders, fresh]);
+
+		change({...catalog, folders: next});
+		setSelected(next.indexOf(fresh));
 	}
 
 	function removeFolder() {
-		if (folder && window.confirm(l('confirmDelete', {name: folder.name}))) {
-			setFolders(catalog.folders.filter((_, i) => i !== selected));
+		const end = blockEnd(catalog.folders, selected);
+
+		if (folder && window.confirm(l(end - selected > 1 ? 'confirmDeleteNested' : 'confirmDelete', {name: folder.name, nested: end - selected - 1}))) {
+			setFolders(catalog.folders.filter((_, i) => i < selected || i >= end));
 			setSelected(Math.max(0, selected - 1));
 		}
 	}
@@ -141,6 +233,7 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 
 	function trackEditor(track: MusicTrack, index: number) {
 		const parsed = newsConds(track.when);
+		const air = folder.section === 'air';
 
 		return (
 			<fieldset className="signaly-block-row" key={index}>
@@ -169,7 +262,33 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 				</legend>
 				<TextField label={l('trackName')} onChange={name => setTrack(index, {name})} value={track.name} />
 				{audioChoice(l('file'), track.src, src => setTrack(index, {src}), l('chooseFile'))}
-				<h4 className="signaly-block-subtitle">{l('when')}</h4>
+				<RangeField hint={l('gainHint')} label={l('gain')} max={100} min={1} onChange={gain => setTrack(index, {gain})} unit="%" value={track.gain} />
+				{air && (
+					<>
+						<ChoiceField
+							hint={l('toHint')}
+							label={l('to')}
+							onChange={to => setTrack(index, {to})}
+							options={[
+								{label: l('toNone'), value: ''},
+								...[...new Set([...radioFolders, ...(track.to ? [track.to] : [])])].map(name => ({label: name, value: name}))
+							]}
+							value={track.to}
+						/>
+						<RangeField
+							hint={l('widthHint')}
+							label={l('width')}
+							max={10}
+							min={0.1}
+							onChange={width => setTrack(index, {width})}
+							step={0.1}
+							unit={l('mhz')}
+							value={track.width}
+						/>
+						{track.to !== '' && <TextField hint={l('textHint')} label={l('text')} onChange={text => setTrack(index, {text})} value={track.text} />}
+					</>
+				)}
+				<h4 className="signaly-block-subtitle">{air ? l('whenAir') : l('when')}</h4>
 				{parsed ? (
 					<CondListsContext.Provider value={condLists}>
 						<div className="signaly-field-hint">{l('whenHint')}</div>
@@ -183,13 +302,15 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 				) : (
 					<TextField label={t('signaly.logic.cond.expr')} onChange={when => setTrack(index, {when})} value={track.when} />
 				)}
-				<CheckField
-					hint={l('preHint')}
-					label={l('pre')}
-					onChange={on => setTrack(index, on ? {pre: media.audio[0] ?? 'media/audio/'} : {pre: ''})}
-					value={track.pre !== ''}
-				/>
-				{track.pre !== '' && (
+				{!air && (
+					<CheckField
+						hint={l('preHint')}
+						label={l('pre')}
+						onChange={on => setTrack(index, on ? {pre: media.audio[0] ?? 'media/audio/'} : {pre: ''})}
+						value={track.pre !== ''}
+					/>
+				)}
+				{!air && track.pre !== '' && (
 					<>
 						{audioChoice(l('preFile'), track.pre, pre => setTrack(index, {pre}))}
 						<RangeField label={l('wait')} max={30} min={0} onChange={wait => setTrack(index, {wait})} step={0.5} unit={s} value={track.wait} />
@@ -197,13 +318,15 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 						<RangeField label={l('preVolume')} max={100} min={0} onChange={preVolume => setTrack(index, {preVolume})} unit="%" value={track.preVolume} />
 					</>
 				)}
-				<CheckField
-					hint={l('startHint')}
-					label={l('start')}
-					onChange={on => setTrack(index, {start: on ? catalog.settings.volume : undefined})}
-					value={track.start !== undefined}
-				/>
-				{track.start !== undefined && (
+				{!air && (
+					<CheckField
+						hint={l('startHint')}
+						label={l('start')}
+						onChange={on => setTrack(index, {start: on ? catalog.settings.volume : undefined})}
+						value={track.start !== undefined}
+					/>
+				)}
+				{!air && track.start !== undefined && (
 					<RangeField label={l('startVolume')} max={99} min={0} onChange={start => setTrack(index, {start})} unit="" value={track.start} />
 				)}
 			</fieldset>
@@ -258,17 +381,21 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 					{musicSections.map(section => (
 						<React.Fragment key={section}>
 							<h3>{l(`sections.${section}`)}</h3>
+							{section === 'air' && <p className="signaly-field-hint">{l('airHint')}</p>}
 							<div className="signaly-kinds-list">
 								{catalog.folders.map((f, i) =>
 									f.section !== section ? null : (
 										<button
+											aria-label={f.name || l('noName')}
 											aria-pressed={i === selected}
 											className="signaly-kinds-item"
 											key={i}
 											onClick={() => setSelected(i)}
+											style={{paddingLeft: `${0.6 + folderDepth(f.name) * 1.4}em`}}
 											type="button"
 										>
-											{f.name || l('noName')}
+											{folderDepth(f.name) > 0 ? '└ ' : ''}
+											{folderLeaf(f.name) || l('noName')}
 											<span className="signaly-sound-file">{l('count', {count: f.tracks.length})}</span>
 										</button>
 									)
@@ -293,38 +420,42 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 						<p className="signaly-field-hint">{l('empty')}</p>
 					) : (
 						<>
-							<TextField hint={l('folderHint')} label={l('folderName')} onChange={name => setFolder({name})} value={folder.name} />
-							<ChoiceField
-								label={l('section')}
-								onChange={section => setFolder({section: section as MusicFolder['section']})}
-								options={musicSections.map(v => ({label: l(`sections.${v}`), value: v}))}
-								value={folder.section}
+							<TextField
+								hint={folderParent(folder.name) ? l('folderInHint', {parent: folderParent(folder.name)}) : l('folderHint')}
+								label={l('folderName')}
+								onChange={renameFolder}
+								value={folderLeaf(folder.name)}
 							/>
+							{!folderParent(folder.name) && (
+								<ChoiceField
+									label={l('section')}
+									onChange={section => setSection(section as MusicFolder['section'])}
+									options={musicSections.map(v => ({label: l(`sections.${v}`), value: v}))}
+									value={folder.section}
+								/>
+							)}
 							{folder.section === 'ambient' && (
 								<TextField hint={l('tipHint')} label={l('tip')} onChange={tip => setFolder({tip})} value={folder.tip} />
 							)}
 							<div className="signaly-sound-actions">
 								<button
 									className="signaly-button"
-									disabled={selected === 0}
-									onClick={() => {
-										setFolders(move(catalog.folders, selected, -1));
-										setSelected(selected - 1);
-									}}
+									disabled={sibling(catalog.folders, selected, -1) < 0}
+									onClick={() => moveFolder(-1)}
 									type="button"
 								>
 									{l('up')}
 								</button>
 								<button
 									className="signaly-button"
-									disabled={selected === catalog.folders.length - 1}
-									onClick={() => {
-										setFolders(move(catalog.folders, selected, 1));
-										setSelected(selected + 1);
-									}}
+									disabled={sibling(catalog.folders, selected, 1) < 0}
+									onClick={() => moveFolder(1)}
 									type="button"
 								>
 									{l('down')}
+								</button>
+								<button className="signaly-button" onClick={() => addFolder(folder.section, folder)} type="button">
+									{l('addSubfolder')}
 								</button>
 								<button className="signaly-button" onClick={removeFolder} type="button">
 									{l('deleteFolder')}

@@ -2252,7 +2252,8 @@
 			"autoHint": "When a track ends, the next one of the folder plays.",
 			"sections": {
 				"ambient": "Atmosphere",
-				"radio": "Radio"
+				"radio": "Radio",
+				"air": "On air"
 			},
 			"noName": "(no name)",
 			"count_0": "{{count}} track",
@@ -2293,10 +2294,26 @@
 				"repeatedFolder": "Two folders share a name.",
 				"emptyTrack": "A track has no name or file.",
 				"repeatedTrack": "Two tracks share a name.",
-				"slash": "“/” in a name."
+				"slash": "A track name contains “/”: that is how “Folder/Track” is written.",
+				"noTarget": "A transmission leads to a radio folder that does not exist."
 			},
 			"tip": "Album tip",
-			"tipHint": "Shown on hover in the Atmosphere catalog."
+			"tipHint": "Shown on hover in the Atmosphere catalog.",
+			"airHint": "Transmissions for the repaired radio: each time the screen opens they take random places on the dial. A caught transmission appears in its radio folder.",
+			"addSubfolder": "Subfolder",
+			"confirmDeleteNested": "Delete folder “{{name}}” with its subfolders ({{nested}}) and all tracks?",
+			"folderInHint": "Inside folder “{{parent}}”, same section. No “/”.",
+			"gain": "File volume",
+			"gainHint": "100% — as recorded. Make a loud file quieter to match others; the overall 00–99 volume applies on top.",
+			"to": "When caught — into radio folder",
+			"toHint": "The caught transmission appears in this radio folder.",
+			"toNone": "Nowhere: interference, never in the catalog",
+			"width": "Heard within ±",
+			"widthHint": "How many MHz on each side of the transmission it is heard. Closer needle — louder.",
+			"mhz": "MHz",
+			"text": "Own ticker message",
+			"textHint": "Shown in the radio ticker until caught. Empty — the radio view message.",
+			"whenAir": "When the transmission is on air"
 		},
 		"screenMusic": {
 			"button": "Screen music",
@@ -2340,7 +2357,7 @@
 			"name": "Look name",
 			"nameHint": "Radio blocks find the look by name.",
 			"type": "Radio type",
-			"typeHint": "More types later.",
+			"typeHint": "Reverse comes in the next step.",
 			"later": "later",
 			"types": {
 				"broken": "Broken, frame {{frame}}",
@@ -2367,8 +2384,33 @@
 			"previewHint": "Preview of the selected look.",
 			"problems": {
 				"emptyName": "A look has no name.",
-				"repeatedName": "Two looks share a name."
-			}
+				"repeatedName": "Two looks share a name.",
+				"jamsOrder": "“From” is greater than “to”.",
+				"noiseRanges": "Noise ranges not understood: write 88-95, 101-108."
+			},
+			"airTitle": "On air",
+			"airHint": "Dial 88–108 MHz, drag the needle, −/+ move by 0.1 at most once a second. “SEARCH” pauses catalog music. Transmissions are in the Music window, On air section.",
+			"incoming": "Transmission message",
+			"incomingHint": "The ticker shows it while an uncaught transmission is on air. A transmission may have its own.",
+			"catch": "Hold exact tuning",
+			"catchHint": "Seconds the needle must stay exactly on a transmission to catch it.",
+			"noiseTitle": "White noise",
+			"noise": "White noise file",
+			"noiseHint": "Plays in its ranges, quieter near transmissions and interference, silent on exact tuning.",
+			"noiseVolume": "Noise volume",
+			"noiseRanges": "Ranges, MHz",
+			"noiseRangesHint": "Comma separated, decimal point: 88-95, 101.5-108.",
+			"jamsTitle": "Interference",
+			"jamsHint": "Each time the screen opens a random set is chosen and placed randomly on the dial; nearby ones play together.",
+			"removeJam": "Remove interference",
+			"jamFile": "File",
+			"jamWidth": "Heard within ±",
+			"jamWidthHint": "How many MHz on each side it is heard.",
+			"jamVolume": "Volume",
+			"addJam": "Add interference",
+			"jamsMin": "How many: from",
+			"jamsMax": "to",
+			"jamsMaxHint": "Files in the list: {{files}}. Each one is used at most once."
 		}
 	}
 }

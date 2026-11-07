@@ -11,7 +11,7 @@
 //   - «Атмосфера»: ВКЛ, ПАУЗА, Далее, A–E → действие «Музыка», плейлисты → «Каталог Атмосферы».
 
 import {scriptHash} from './signaly-hack';
-import {MusicCatalog, musicDefaults, screenMusicDefaults, setScreenMusic, writeMusic} from './signaly-music';
+import {MusicCatalog, musicDefaults, screenMusicDefaults, setScreenMusic, trackDefaults, writeMusic} from './signaly-music';
 import {radioDefaults, writeRadios} from './signaly-radio';
 import {findAudioInit, withAudioInit} from './signaly-sounds';
 
@@ -181,7 +181,11 @@ export function moveTemplateMusic(passages: TemplateMusicPassage[], exclude?: st
 					wait: 3,
 					tail: 2,
 					preVolume: 100,
-					when: ''
+					when: '',
+					gain: 100,
+					to: '',
+					width: 1.5,
+					text: ''
 				};
 			})
 		});
@@ -198,7 +202,7 @@ export function moveTemplateMusic(passages: TemplateMusicPassage[], exclude?: st
 		tip: '',
 		tracks: radioTracks.map(([name, id]) => {
 			moved.add(id);
-			return {name, src: src(id)!, pre: vinyl, wait: 8, tail: 2, preVolume: 100, when: ''};
+			return {...trackDefaults, name, src: src(id)!, pre: vinyl, wait: 8};
 		})
 	});
 
@@ -212,6 +216,6 @@ export function moveTemplateMusic(passages: TemplateMusicPassage[], exclude?: st
 	return {
 		texts,
 		music: writeMusic('', catalog),
-		radio: writeRadios('', [{...radioDefaults, name: templateRadioView, extra: []}])
+		radio: writeRadios('', [{...radioDefaults, name: templateRadioView, jams: [], extra: []}])
 	};
 }

@@ -48,6 +48,9 @@
 // - шаг 7.2: радио <<sg-radio "Вид">> (виды — пассаж sg-radio, <<sg-radio-view>>): каркас С2, искры,
 //   каталог-файловая система, ▶ ❚❚ ■, громкость, «АВТО», выключатель; «Каталог Атмосферы» <<sg-ambient>>
 //   (прослушано N из M, «Случайно», сброс); <<sg-mus play section …>>; $sgMusic.done, shuffle, lastIn, from;
+// - шаг 7.3: вложенные папки (путь через «/»), громкость файла (gain), раздел «Эфир» (section air, to,
+//   width, text); отремонтированное радио (каркас Р2): шкала 88–108 МГц, игла, −/+ раз в секунду, ПОИСК,
+//   белый шум и помехи вида, поимка передачи; $sgMusic.freq, scan, caught;
 // - этап 6: кнопка-перебор <<sg-pick>>; звук-сигнал приглушает группу на время
 //   файла (слова duck, to); все картинки из текста экранов загружаются при запуске.
 // - этап 6, порция 2: блок «Значение» обновляется сам; раскрытие <<sg-reveal>>
@@ -65,7 +68,7 @@ import {tipBase} from './signaly-tip';
 const glitchBase = [...glitchRules(defaultGlitch, ':where(.glitchy)'), glitchKeyframes].join('\n');
 
 /** Версия движка. Увеличивать при каждом изменении кода ниже. */
-export const signalyEngineVersion = 24;
+export const signalyEngineVersion = 25;
 
 export const signalyEngineStart =
 	'/* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */';
@@ -3102,7 +3105,12 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			if (musCollect) {
 				var a = blockArgs(this, ['name'], ['section', 'tip'], []);
 
-				musCollect.folders.push({name: String(a.name || ''), section: a.section === 'radio' ? 'radio' : 'ambient', tip: a.tip ? String(a.tip) : '', tracks: []});
+				musCollect.folders.push({
+					name: String(a.name || ''),
+					section: a.section === 'radio' || a.section === 'air' ? a.section : 'ambient',
+					tip: a.tip ? String(a.tip) : '',
+					tracks: []
+				});
 			}
 		}
 	});
@@ -3114,7 +3122,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 				return;
 			}
 
-			var a = blockArgs(this, ['name', 'src'], ['pre', 'wait', 'tail', 'prevolume', 'start'], []);
+			var a = blockArgs(this, ['name', 'src'], ['pre', 'wait', 'tail', 'prevolume', 'start', 'gain', 'to', 'width', 'text'], []);
 
 			if (!musCollect.folders.length) {
 				musCollect.folders.push({name: 'Музыка', section: 'ambient', tracks: []});
@@ -3127,7 +3135,13 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 				tail: Math.max(0, musNum(a.tail, 2)),
 				prevolume: Math.max(0, Math.min(100, musNum(a.prevolume, 100))),
 				start: a.start === undefined ? undefined : musClamp(a.start),
-				when: trimContent(this.payload[0].contents)
+				when: trimContent(this.payload[0].contents),
+				// Шаг 7.3: громкость файла (ответ 2А); у передачи эфира — куда после поимки,
+				// ширина слышимости и своё сообщение.
+				gain: Math.max(1, Math.min(100, musNum(a.gain, 100))),
+				to: a.to ? String(a.to) : '',
+				width: Math.max(0.1, Math.min(20, musNum(a.width, 1.5))),
+				text: a.text ? String(a.text) : ''
 			});
 		}
 	});
@@ -3155,16 +3169,65 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			spin: Math.max(0, musNum(c.settings.spin, 0.8)),
 			auto: !!c.settings.auto,
 			folders: c.folders,
-			byId: {}
+			byId: {},
+			byName: {},
+			air: []
 		};
 		c.folders.forEach(function (f) {
-			f.tracks.forEach(function (t) {
+			musTable.byName[f.name] = f;
+		});
+		// Шаг 7.3, ответ 1Б: вложенная папка — путь через «/»; раздел — как у папки выше.
+		c.folders.forEach(function (f) {
+			f.parent = musParent(f.name);
+		});
+		c.folders.slice().sort(function (x, y) {
+			return x.name.split('/').length - y.name.split('/').length;
+		}).forEach(function (f) {
+			if (f.parent) {
+				f.section = musTable.byName[f.parent].section;
+			}
+		});
+		c.folders.forEach(function (f) {
+			f.tracks.slice().forEach(function (t) {
 				t.id = f.name + '/' + t.name;
 				t.folder = f;
 				musTable.byId[t.id] = t;
+				if (f.section === 'air') {
+					// Передача эфира: в каталоге — в своей папке радио, когда поймана.
+					var home = t.to && musTable.byName[t.to];
+
+					t.air = true;
+					musTable.air.push(t);
+					if (home && home.section === 'radio') {
+						t.folder = home;
+						home.tracks.push(t);
+					} else {
+						t.only = true;
+					}
+				}
 			});
 		});
 		return musTable;
+	}
+
+	// Папка выше: ближайшая существующая по пути, иначе '' (верхняя).
+	function musParent(name) {
+		var parts = name.split('/');
+
+		while (parts.length > 1) {
+			parts.pop();
+			if (musTable.byName[parts.join('/')]) {
+				return parts.join('/');
+			}
+		}
+		return '';
+	}
+
+	// Есть ли в папке или во вложенных хоть один видимый трек.
+	function musDeep(f) {
+		return f.tracks.some(musVisible) || music().folders.some(function (c) {
+			return c.name.indexOf(f.name + '/') === 0 && c.tracks.some(musVisible);
+		});
 	}
 
 	function musState() {
@@ -3174,20 +3237,30 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			st.vol = music().volume;
 			st.auto = music().auto;
 		}
-		['pos', 'seen', 'last', 'lastIn', 'done', 'from'].forEach(function (key) {
+		['pos', 'seen', 'last', 'lastIn', 'done', 'from', 'caught'].forEach(function (key) {
 			if (!st[key] || typeof st[key] !== 'object') {
 				st[key] = {};
 			}
 		});
-		// После сбоя страница новая: что играло, уже молчит (музыку включает мастер).
+		// После сбоя страница новая: что играло, уже молчит (музыку включает мастер);
+		// поиск в эфире тоже выключен.
 		if (mus.fresh) {
 			mus.fresh = false;
 			st.playing = false;
+			st.scan = false;
 		}
 		return st;
 	}
 
+	// Передача эфира видна в каталоге, когда поймана; условие у неё — для эфира (musCond).
 	function musVisible(t) {
+		if (t.air) {
+			return !preview && !!musState().caught[t.id];
+		}
+		return musCond(t);
+	}
+
+	function musCond(t) {
 		if (!t.when) {
 			return true;
 		}
@@ -3200,9 +3273,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	}
 
 	function musFolder(name) {
-		return music().folders.filter(function (f) {
-			return f.name === name;
-		})[0];
+		return music().byName[name];
 	}
 
 	function musFirst(folders) {
@@ -3223,9 +3294,16 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		ambDrawAll();
 	}
 
+	// Громкость файла трека (шаг 7.3, ответ 2А), 1–100 %.
+	function musGain(id) {
+		var t = music().byId[id];
+
+		return t ? t.gain / 100 : 1;
+	}
+
 	function musApply() {
 		if (mus.audio) {
-			mus.audio.volume = Math.max(0, Math.min(1, (musState().vol / 99) * mus.mult));
+			mus.audio.volume = Math.max(0, Math.min(1, (musState().vol / 99) * mus.mult * musGain(mus.id)));
 		}
 	}
 
@@ -3284,6 +3362,11 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			return;
 		}
 		musHalt(true);
+		// Шаг 7.3, ответ 7А: включили трек — поиск в эфире выключается.
+		if (st.scan) {
+			st.scan = false;
+			airStop();
+		}
 		st.cur = id;
 		st.playing = true;
 		st.last[t.folder.section] = id;
@@ -3422,6 +3505,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		var audio = mus.audio;
 		var id = mus.id;
 		var from = mus.mult;
+		var gain = musGain(id);
 
 		musClear();
 		if (!audio) {
@@ -3431,7 +3515,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		mus.audio = null;
 		st.playing = false;
 		musRamp(from, 0, seconds, function (k) {
-			audio.volume = Math.max(0, Math.min(1, (st.vol / 99) * k));
+			audio.volume = Math.max(0, Math.min(1, (st.vol / 99) * k * gain));
 		}, function () {
 			st.pos[id] = audio.ended ? 0 : audio.currentTime;
 			audio.pause();
@@ -3765,7 +3849,8 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	Macro.add('sg-radio-view', {
 		handler: function () {
 			if (radioCollect) {
-				radioCollect.push(blockArgs(this, ['name'], ['type', 'frame', 'elements', 'label', 'sparks', 'sparksound', 'sparkvolume'], []));
+				radioCollect.push(blockArgs(this, ['name'], ['type', 'frame', 'elements', 'label', 'sparks', 'sparksound', 'sparkvolume',
+					'noise', 'noisevolume', 'noiseranges', 'jam', 'jamsmin', 'jamsmax', 'incoming', 'catch'], []));
 			}
 		}
 	});
@@ -3800,10 +3885,46 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 				label: a.label === undefined ? 'ОРБИТА-3' : String(a.label),
 				sparks: Math.max(0, Math.min(100, musNum(a.sparks, 30))),
 				sound: a.sparksound ? String(a.sparksound) : '',
-				volume: Math.max(0, Math.min(100, musNum(a.sparkvolume, 80)))
+				volume: Math.max(0, Math.min(100, musNum(a.sparkvolume, 80))),
+				// Эфир (шаг 7.3): белый шум и где он звучит, помехи и сколько их выпадает,
+				// сообщение строки, сколько секунд держать точную настройку.
+				noise: a.noise ? String(a.noise) : '',
+				noiseVolume: Math.max(0, Math.min(100, musNum(a.noisevolume, 60))),
+				noiseRanges: airRanges(a.noiseranges === undefined ? '88-108' : String(a.noiseranges)),
+				jams: String(a.jam || '').split(';').map(function (part) {
+					var f = part.split('|').map(function (x) {
+						return x.trim();
+					});
+
+					return {
+						src: f[0],
+						width: Math.max(0.1, Math.min(20, musNum(f[1], 1))),
+						volume: Math.max(0, Math.min(100, musNum(f[2], 80)))
+					};
+				}).filter(function (j) {
+					return j.src;
+				}),
+				jamsMin: Math.max(0, Math.round(musNum(a.jamsmin, 4))),
+				jamsMax: Math.max(0, Math.round(musNum(a.jamsmax, 5))),
+				incoming: a.incoming === undefined ? 'ВХОДЯЩАЯ ПЕРЕДАЧА' : String(a.incoming),
+				catchTime: Math.max(1, musNum(a['catch'], 10))
 			};
 		});
 		return radioTable;
+	}
+
+	// «88-95, 101.5-108» → [[880, 950], [1015, 1080]] (десятые доли МГц).
+	function airRanges(value) {
+		var out = [];
+		var re = /(\d+(?:\.\d+)?)\s*[-–—]\s*(\d+(?:\.\d+)?)/g;
+		var m;
+
+		while ((m = re.exec(value))) {
+			if (Number(m[2]) > Number(m[1])) {
+				out.push([Math.round(Number(m[1]) * 10), Math.round(Number(m[2]) * 10)]);
+			}
+		}
+		return out;
 	}
 
 	function svgEl(tag, attrs, parent) {
@@ -3865,6 +3986,53 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		return {svg: svg, segs: segs, sparks: sparks};
 	}
 
+	// Каркас Р2 (шаг 7.3) в квадрате 1000×1000: целая рама, под строкой — линия, под
+	// шкалой частот — вторая; винты внизу по углам и заплатка между ними.
+	function radioFrameFixed(view) {
+		var svg = svgEl('svg', {viewBox: '0 0 1000 1000', 'class': 'sg-r-frame', 'aria-hidden': 'true'});
+
+		svgEl('rect', {x: 14, y: 14, width: 972, height: 972, 'class': 'sg-r-fr'}, svg);
+		svgEl('line', {x1: 14, y1: 136, x2: 986, y2: 136, 'class': 'sg-r-thin'}, svg);
+		svgEl('line', {x1: 14, y1: 338, x2: 986, y2: 338, 'class': 'sg-r-thin'}, svg);
+		[[40, 962], [960, 962]].forEach(function (p) {
+			svgEl('circle', {cx: p[0], cy: p[1], r: 9, 'class': 'sg-r-fr'}, svg);
+			svgEl('line', {x1: p[0] - 5, y1: p[1] - 5, x2: p[0] + 5, y2: p[1] + 5, 'class': 'sg-r-thin'}, svg);
+			svgEl('line', {x1: p[0] - 5, y1: p[1] + 5, x2: p[0] + 5, y2: p[1] - 5, 'class': 'sg-r-thin'}, svg);
+		});
+		svgEl('rect', {x: 420, y: 950, width: 150, height: 24, 'class': 'sg-r-thin sg-r-patch'}, svg);
+		[[428, 958], [562, 958], [428, 966], [562, 966]].forEach(function (p) {
+			svgEl('circle', {cx: p[0], cy: p[1], r: 2.4, 'class': 'sg-r-rivet'}, svg);
+		});
+		if (view.label) {
+			var text = svgEl('text', {x: 812, y: 90, 'class': 'sg-r-label'}, svg);
+
+			text.textContent = view.label;
+		}
+		return {svg: svg, segs: [], sparks: []};
+	}
+
+	// Места частей радио в долях 1000: [x, y, ширина, высота].
+	var radioPlaces = {
+		broken: {
+			mq: [36, 40, 928, 82], cat: [36, 136, 600, 828], cap: [686, 300, 276, 30],
+			minus: [686, 340, 64, 84], digits: [762, 340, 124, 84], plus: [898, 340, 64, 84],
+			play: [686, 470, 84, 84], pause: [782, 470, 84, 84], stop: [878, 470, 84, 84],
+			auto: [686, 604, 190, 58], power: [686, 760, 276, 150]
+		},
+		fixed: {
+			mq: [36, 36, 760, 82], scan: [36, 152, 116, 172], scale: [164, 152, 594, 172],
+			freq: [770, 152, 194, 84], fminus: [770, 248, 92, 76], fplus: [872, 248, 92, 76],
+			cat: [36, 352, 600, 588], cap: [686, 362, 276, 30],
+			minus: [686, 400, 64, 84], digits: [762, 400, 124, 84], plus: [898, 400, 64, 84],
+			play: [686, 520, 84, 84], pause: [782, 520, 84, 84], stop: [878, 520, 84, 84],
+			auto: [686, 648, 190, 58], power: [686, 766, 276, 150]
+		}
+	};
+
+	function radioAt(parent, tag, cls, place) {
+		return radioBox(parent, tag, cls, place[0], place[1], place[2], place[3]);
+	}
+
 	// Элемент поверх каркаса: место и размер — в долях 1000 (var(--u) = сторона / 1000).
 	function radioBox(parent, tag, cls, x, y, w, h) {
 		var el = document.createElement(tag);
@@ -3887,9 +4055,10 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		return preview ? {playing: false, cur: '', auto: music().auto, vol: music().volume, pos: {}, last: {}, from: {}} : musState();
 	}
 
-	function radioFolders() {
+	// Папки радио на уровне dir ('' — верхний), в которых есть что показать (ответ 1Б).
+	function radioFolders(dir) {
 		return music().folders.filter(function (f) {
-			return f.section === 'radio' && f.tracks.some(musVisible);
+			return f.section === 'radio' && f.parent === (dir || '') && musDeep(f);
 		});
 	}
 
@@ -3912,14 +4081,18 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	// рамке и не выходит поверх других частей радио.
 	function radioCatalog(item) {
 		var st = radioState();
-		var folders = radioFolders();
 		var folder = item.dir ? musFolder(item.dir) : null;
+
+		// Папки не стало или в ней пусто — на уровень выше, где есть что показать.
+		while (item.dir && !(folder && folder.section === 'radio' && musDeep(folder))) {
+			item.dir = folder ? folder.parent : '';
+			folder = item.dir ? musFolder(item.dir) : null;
+		}
+
+		var folders = radioFolders(item.dir);
 		var tracks = folder ? folder.tracks.filter(musVisible) : [];
 		var key = [item.dir, st.cur, st.playing].concat(folders.map(function (f) { return f.name; }), tracks.map(function (t) { return t.id; })).join('|');
 
-		if (folder && !folders.length) {
-			item.dir = '';
-		}
 		if (key === item.catKey) {
 			return;
 		}
@@ -3952,12 +4125,26 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			return b;
 		}
 
-		if (item.dir) {
-			line('◄', '..', '', 'sg-r-up', function () {
-				item.dir = '';
+		var cur = music().byId[st.cur];
+
+		function dirLine(f) {
+			var here = cur && (cur.folder === f || cur.folder.name.indexOf(f.name + '/') === 0);
+
+			line(here ? (st.playing ? '▶' : '❚❚') : '▸', f.name.slice(f.name.lastIndexOf('/') + 1), '<DIR>', 'sg-r-dir', function () {
+				item.dir = f.name;
 				radioCatalog(item);
 				list.scrollTop = 0;
 			});
+		}
+
+		if (item.dir) {
+			line('◄', '..', '', 'sg-r-up', function () {
+				item.dir = folder.parent;
+				radioCatalog(item);
+				list.scrollTop = 0;
+			});
+			// Как в файловой системе: сначала папки, потом треки.
+			folders.forEach(dirLine);
 			tracks.forEach(function (t) {
 				var cur = t.id === st.cur;
 
@@ -3974,22 +4161,14 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 				});
 			});
 		} else if (folders.length) {
-			folders.forEach(function (f) {
-				var here = music().byId[st.cur] && music().byId[st.cur].folder === f;
-
-				line(here ? (st.playing ? '▶' : '❚❚') : '▸', f.name, '<DIR>', 'sg-r-dir', function () {
-					item.dir = f.name;
-					radioCatalog(item);
-					list.scrollTop = 0;
-				});
-			});
+			folders.forEach(dirLine);
 		} else {
 			line('', '— ПУСТО —', '', 'sg-r-empty', function () {});
 		}
 	}
 
 	function radioMarquee(item) {
-		var text = musNowText(false);
+		var text = item.scale ? airMarquee(item) : musNowText(false);
 
 		if (text === item.mqText && item.mqWidth === item.mq.clientWidth) {
 			return;
@@ -4019,6 +4198,13 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 
 		radioCatalog(item);
 		radioMarquee(item);
+		if (item.scale) {
+			airDraw(item);
+			// Поиск включён, а эфир ещё не звучит (вернулись на экран) — запустить.
+			if (!preview && !airTimer && st.scan) {
+				airTick();
+			}
+		}
 		item.play.classList.toggle('sg-r-lit', !!(st.playing && cur));
 		item.pause.classList.toggle('sg-r-lit', !!(!st.playing && cur && radioCur));
 		item.auto.classList.toggle('sg-r-lit', !!st.auto);
@@ -4068,7 +4254,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	// Искры (ответ 2А): в случайный момент вспыхивает одна из искр, дрожит линия каркаса,
 	// звучит звук искры. Частота — ползунок вида: 0 — нет, 100 — часто.
 	function radioSpark(item) {
-		if (!item.view.sparks || !item.el.isConnected && item.placed) {
+		if (item.view.type !== 'broken' || !item.view.sparks || !item.el.isConnected && item.placed) {
 			return;
 		}
 
@@ -4100,6 +4286,441 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		}, mean * (0.4 + Math.random() * 1.2));
 	}
 
+	/* ----- Эфир отремонтированного радио (шаг 7.3) ----- */
+
+	// Шкала 88,0–108,0 МГц, шаг 0,1; частота хранится в десятых: $sgMusic.freq = 980.
+	// Передачи — треки раздела «Эфир» окна «Музыка» (ответ 3А), помехи и белый шум — у вида
+	// (ответ 6). При каждом входе на экран передачи и выпавшие помехи встают в случайные
+	// места шкалы. Слышно в пределах своей ширины: чем ближе — тем громче, остальные и шум
+	// тише; в ±0,1 МГц — только ближайшая (ответ 4А). Точная настройка, удержанная catch
+	// секунд, — передача поймана: она в каталоге в своей папке и продолжает звучать уже
+	// как трек каталога, на 10 тише, через 10 с плавно громче. «ПОИСК» ставит каталог на
+	// паузу, выключенный — эфир молчит (ответ 7А).
+	var airItems = [];
+	var airTimer = null;
+	var airLo = 880;
+	var airHi = 1080;
+
+	function airX(f10) {
+		return 18 + (f10 - airLo) / (airHi - airLo) * 552;
+	}
+
+	function airFreq() {
+		var st = radioState();
+		var f = Math.round(Number(st.freq));
+
+		return f >= airLo && f <= airHi ? f : 980;
+	}
+
+	function airText(f10) {
+		return (f10 / 10).toFixed(1);
+	}
+
+	// Передачи, которые сейчас в эфире: условие верно, ещё не пойманы (помехи — всегда).
+	function airTracks() {
+		var caught = preview ? {} : musState().caught;
+
+		return music().air.filter(function (t) {
+			return (t.only || !caught[t.id]) && musCond(t);
+		});
+	}
+
+	// Непойманные передачи, которые попадут в каталог: для сообщения строки (ответ 5А).
+	function airPending() {
+		return airTracks().filter(function (t) {
+			return !t.only;
+		});
+	}
+
+	// Свободное место на шкале: от 88,5 до 107,5, не ближе 0,6 МГц к другим точкам.
+	function airSpot(taken) {
+		var best = 0;
+
+		for (var n = 0; n < 200; n++) {
+			var c = 885 + Math.floor(Math.random() * 191);
+
+			best = c;
+			if (taken.every(function (x) {
+				return Math.abs(x - c) >= 6;
+			})) {
+				break;
+			}
+		}
+		taken.push(best);
+		return best;
+	}
+
+	// Расстановка при входе на экран: передачи и случайный набор помех.
+	function airLayout(item) {
+		var view = item.view;
+		var taken = [];
+		var jams = view.jams.slice();
+		var lo = Math.min(view.jamsMin, view.jamsMax);
+		var count = Math.min(jams.length, lo + Math.floor(Math.random() * (Math.abs(view.jamsMax - view.jamsMin) + 1)));
+
+		item.srcs = [];
+		airTracks().forEach(function (t) {
+			item.srcs.push({kind: 'tx', t: t, c: airSpot(taken), w: t.width * 10, base: t.gain / 100});
+		});
+		for (var i = 0; i < count; i++) {
+			var j = jams.splice(Math.floor(Math.random() * jams.length), 1)[0];
+
+			item.srcs.push({kind: 'jam', src: j.src, c: airSpot(taken), w: j.width * 10, base: j.volume / 100});
+		}
+		item.taken = taken;
+	}
+
+	// Передача появилась (условие стало верным) или ушла — шкала следит сама.
+	function airSync(item) {
+		var now = airTracks();
+
+		item.srcs = item.srcs.filter(function (s) {
+			if (s.kind !== 'tx' || now.indexOf(s.t) !== -1) {
+				return true;
+			}
+			airMute(s);
+			return false;
+		});
+		now.forEach(function (t) {
+			if (!item.srcs.some(function (s) {
+				return s.t === t;
+			})) {
+				item.srcs.push({kind: 'tx', t: t, c: airSpot(item.taken), w: t.width * 10, base: t.gain / 100});
+			}
+		});
+	}
+
+	function airMute(s) {
+		if (s.audio) {
+			s.audio.pause();
+			s.audio = null;
+		}
+	}
+
+	function airStop() {
+		airItems.forEach(function (item) {
+			(item.srcs || []).forEach(airMute);
+			airMute(item.noise || {});
+			item.hold = null;
+		});
+		if (airTimer) {
+			clearInterval(airTimer);
+			airTimer = null;
+		}
+	}
+
+	function airAudio(s, src) {
+		if (!s.audio) {
+			s.audio = new Audio(src);
+			s.audio.loop = true;
+			s.audio.preload = 'auto';
+			s.audio.volume = 0;
+			s.audio.play().catch(function () {});
+		}
+		return s.audio;
+	}
+
+	// Слышимость точки на частоте f: 1 — на точке, 0 — за краем её ширины.
+	function airNear(s, f) {
+		return Math.max(0, 1 - Math.abs(f - s.c) / s.w);
+	}
+
+	// Белый шум: 1 внутри своих диапазонов, к краю — плавно за 0,3 МГц.
+	function airNoiseAt(view, f) {
+		var k = 0;
+
+		view.noiseRanges.forEach(function (r) {
+			var out = f < r[0] ? r[0] - f : f > r[1] ? f - r[1] : 0;
+
+			k = Math.max(k, 1 - out / 3);
+		});
+		return k;
+	}
+
+	// Каждые 0,1 с, пока включён поиск: громкости, удержание точной настройки, поимка.
+	function airTick() {
+		if (preview) {
+			return;
+		}
+
+		var st = musState();
+		var live = airItems.filter(function (item) {
+			return item.el.isConnected;
+		});
+
+		if (!st.scan || !live.length) {
+			airStop();
+			return;
+		}
+		if (!airTimer) {
+			airTimer = setInterval(airTick, 100);
+		}
+
+		var master = st.vol / 99;
+		var f = airFreq();
+
+		live.forEach(function (item) {
+			var view = item.view;
+			var top = null;
+			var best = 0;
+			var exact = null;
+
+			airSync(item);
+			item.srcs.forEach(function (s) {
+				var k = airNear(s, f);
+
+				if (k > best) {
+					best = k;
+					top = s;
+				}
+				if (Math.abs(f - s.c) <= 1 && (!exact || Math.abs(f - s.c) < Math.abs(f - exact.c))) {
+					exact = s;
+				}
+			});
+			item.srcs.forEach(function (s) {
+				var k = airNear(s, f);
+				var v = exact ? (s === exact ? 1 : 0) : s === top ? k : k * (1 - best);
+
+				if (v > 0 || s.audio) {
+					airAudio(s, s.kind === 'tx' ? s.t.src : s.src).volume = Math.max(0, Math.min(1, master * s.base * v));
+				}
+			});
+			if (view.noise) {
+				item.noise = item.noise || {};
+				airAudio(item.noise, view.noise).volume = Math.max(0, Math.min(1, exact ? 0 : master * view.noiseVolume / 100 * airNoiseAt(view, f) * (1 - best)));
+			}
+
+			// Точная настройка на передачу, которая попадёт в каталог (ответ 4А).
+			var aim = exact && exact.kind === 'tx' && !exact.t.only && f === exact.c ? exact : null;
+
+			if (!aim) {
+				item.hold = null;
+			} else if (!item.hold || item.hold.s !== aim) {
+				item.hold = {s: aim, since: Date.now()};
+			} else if (Date.now() - item.hold.since >= view.catchTime * 1000) {
+				airCatch(item, aim);
+			}
+		});
+	}
+
+	// Поймана: передача в каталоге и звучит дальше как трек каталога — на 10 тише,
+	// через 10 с плавно до общей громкости (ТЗ, раздел 4).
+	function airCatch(item, s) {
+		var st = musState();
+		var t = s.t;
+		var audio = airAudio(s, t.src);
+
+		s.audio = null;
+		item.srcs.splice(item.srcs.indexOf(s), 1);
+		st.caught[t.id] = 1;
+		st.seen[t.id] = 1;
+		st.scan = false;
+		airStop();
+		musHalt(true);
+		audio.loop = false;
+		audio.addEventListener('ended', function () {
+			if (mus.audio === audio) {
+				musEnded(t.id);
+			}
+		});
+		mus.audio = audio;
+		mus.id = t.id;
+		st.cur = t.id;
+		st.playing = true;
+		st.last.radio = t.id;
+		st.lastIn[t.folder.name] = t.id;
+
+		var low = st.vol > 0 ? Math.max(0, st.vol - 10) / st.vol : 0;
+
+		mus.mult = low;
+		musApply();
+		mus.timers.push(setTimeout(function () {
+			if (mus.audio === audio) {
+				mus.rise = musRamp(low, 1, 3, function (k) {
+					mus.mult = k;
+					musApply();
+				}, function () {
+					mus.rise = null;
+				});
+			}
+		}, 10000));
+		item.dir = t.folder.name;
+		musChanged();
+	}
+
+	function airTune(item, f10) {
+		var f = Math.max(airLo, Math.min(airHi, Math.round(f10)));
+
+		if (preview) {
+			item.pfreq = f;
+		} else {
+			musState().freq = f;
+			saveVars();
+		}
+		airDraw(item);
+		airTick();
+	}
+
+	function airScan(item) {
+		if (preview) {
+			item.pscan = !item.pscan;
+			airDraw(item);
+			return;
+		}
+
+		var st = musState();
+
+		st.scan = !st.scan;
+		if (st.scan) {
+			// Поиск включён — музыка каталога на паузе (ответ 7А).
+			if (st.playing) {
+				musPause();
+			}
+		}
+		airTick();
+		musChanged();
+	}
+
+	function airDraw(item) {
+		var f = preview && item.pfreq ? item.pfreq : airFreq();
+		var on = preview ? !!item.pscan : !!musState().scan;
+		var text = airText(f);
+
+		item.needle.setAttribute('transform', 'translate(' + airX(f).toFixed(2) + ' 0)');
+		item.scale.classList.toggle('sg-r-scan', on);
+		item.scanBtn.classList.toggle('sg-r-lit', on);
+		if (text !== item.freqShown) {
+			item.freqShown = text;
+			var ch = ('   ' + text).slice(-5).split('');
+
+			[0, 1, 2, 4].forEach(function (pos, i) {
+				item.fcells[i].textContent = ch[pos] === ' ' ? '' : ch[pos];
+			});
+		}
+	}
+
+	// Строка: пока в эфире есть непойманная передача — сообщение (своё у передачи или вида),
+	// за ним что играет; при поиске без передач — «ПОИСК».
+	function airMarquee(item) {
+		var now = musNowText(false);
+		var st = radioState();
+		var pending = preview ? [] : airPending();
+		var own = pending.filter(function (t) {
+			return t.text;
+		})[0];
+
+		if (pending.length) {
+			return '◉ ' + (own ? own.text : item.view.incoming) + (st.playing ? '   ·   ' + now : '');
+		}
+		if (preview ? item.pscan : st.scan) {
+			return '◉ ПОИСК' + (st.playing ? '   ·   ' + now : '');
+		}
+		return now;
+	}
+
+	function airBuild(item, el, P) {
+		item.srcs = [];
+		item.taken = [];
+
+		// ПОИСК — подсветка шкалы, каталог на паузе.
+		item.scanBtn = radioAt(el, 'button', 'sg-r-btn sg-r-scanbtn', P.scan);
+		item.scanBtn.innerHTML = '<span>ПОИСК</span><span class="sg-r-dot"></span>';
+		$(item.scanBtn).on('click', function () {
+			airScan(item);
+		});
+
+		// Шкала: деления по 0,5 МГц, подписи через 2 МГц, игла тянется мышью.
+		item.scale = radioAt(el, 'div', 'sg-r-box sg-r-scale', P.scale);
+
+		var svg = svgEl('svg', {viewBox: '0 0 588 166', 'class': 'sg-r-dial', 'aria-hidden': 'true'}, item.scale);
+
+		svgEl('rect', {x: 0, y: 0, width: 588, height: 166, 'class': 'sg-r-glass'}, svg);
+		svgEl('text', {x: 14, y: 26, 'class': 'sg-r-unit'}, svg).textContent = 'МГц';
+		for (var f = airLo; f <= airHi; f += 5) {
+			var big = f % 10 === 0;
+			var x = airX(f);
+
+			svgEl('line', {x1: x, y1: 156, x2: x, y2: big ? 128 : 140, 'class': big ? 'sg-r-tick sg-r-big' : 'sg-r-tick'}, svg);
+			if (f % 20 === 0) {
+				svgEl('text', {x: x, y: 118, 'class': 'sg-r-num'}, svg).textContent = String(f / 10);
+			}
+		}
+		item.needle = svgEl('g', {'class': 'sg-r-needle'}, svg);
+		svgEl('line', {x1: 0, y1: 8, x2: 0, y2: 158}, item.needle);
+		svgEl('polygon', {points: '-9,6 9,6 0,20'}, item.needle);
+
+		var dragging = false;
+		var at = function (ev) {
+			var r = svg.getBoundingClientRect();
+			var x = (ev.clientX - r.left) / r.width * 588;
+
+			airTune(item, airLo + (x - 18) / 552 * (airHi - airLo));
+		};
+
+		$(item.scale).on('pointerdown', function (ev) {
+			dragging = true;
+			try {
+				item.scale.setPointerCapture(ev.originalEvent.pointerId);
+			} catch (e) {}
+			at(ev.originalEvent);
+			ev.preventDefault();
+		}).on('pointermove', function (ev) {
+			if (dragging) {
+				at(ev.originalEvent);
+			}
+		}).on('pointerup pointercancel', function () {
+			dragging = false;
+		});
+
+		// Окно частоты и −/+ на 0,1 МГц, не чаще раза в секунду (ответ 6А).
+		var freq = radioAt(el, 'div', 'sg-r-box sg-r-digits sg-r-freq', P.freq);
+
+		freq.style.fontFamily = timerFont(timerDefaults.font);
+		item.fcells = [];
+		for (var i = 0; i < 4; i++) {
+			var cell = document.createElement('span');
+
+			if (i === 3) {
+				var dot = document.createElement('span');
+
+				dot.className = 'sg-r-dotch';
+				dot.textContent = '.';
+				freq.appendChild(dot);
+			}
+			freq.appendChild(cell);
+			item.fcells.push(cell);
+		}
+
+		var step = function (button, by) {
+			button.textContent = by < 0 ? '−' : '+';
+			button.setAttribute('aria-label', by < 0 ? 'Частота ниже' : 'Частота выше');
+			$(button).on('click', function () {
+				var now = Date.now();
+
+				if (now - (item.stepAt || 0) < 1000) {
+					return;
+				}
+				item.stepAt = now;
+				[item.fminus, item.fplus].forEach(function (b) {
+					b.classList.add('sg-r-wait');
+				});
+				setTimeout(function () {
+					[item.fminus, item.fplus].forEach(function (b) {
+						b.classList.remove('sg-r-wait');
+					});
+				}, 1000);
+				airTune(item, airFreq() + by);
+			});
+		};
+
+		item.fminus = radioAt(el, 'button', 'sg-r-btn sg-r-fbtn', P.fminus);
+		item.fplus = radioAt(el, 'button', 'sg-r-btn sg-r-fbtn', P.fplus);
+		step(item.fminus, -1);
+		step(item.fplus, 1);
+		airLayout(item);
+		airDraw(item);
+	}
+
 	Macro.add('sg-radio', {
 		handler: function () {
 			var a = blockArgs(this, ['view'], ['size'], []);
@@ -4109,7 +4730,9 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 				name: '', type: 'broken', frame: '#c9a24a', elements: '#39ff7a', label: 'ОРБИТА-3', sparks: 30, sound: '', volume: 80
 			};
 			var el = document.createElement('div');
-			var frame = radioFrame(view);
+			var fixed = view.type !== 'broken';
+			var P = radioPlaces[fixed ? 'fixed' : 'broken'];
+			var frame = fixed ? radioFrameFixed(view) : radioFrame(view);
 			var item = {el: el, view: view, frame: frame, size: Math.max(0, musNum(a.size, 0)), side: 0, unit: 1, dir: '', catKey: null, mqText: null};
 			var st = radioState();
 			var here = State.passage;
@@ -4117,20 +4740,20 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			if (!views[name]) {
 				console.warn('СИГНАЛЫ: вида радио «' + name + '» нет в пассаже «Радио»');
 			}
-			el.className = 'sg-radio sg-radio-' + view.type;
+			el.className = 'sg-radio sg-radio-' + (fixed ? 'fixed' : 'broken');
 			el.style.setProperty('--sg-rf', view.frame);
 			el.style.setProperty('--sg-re', view.elements);
 			el.style.setProperty('--u', '1px');
 			el.appendChild(frame.svg);
 
 			// Бегущая строка — во всю ширину сверху.
-			item.mq = radioBox(el, 'div', 'sg-r-box sg-r-mq', 36, 40, 928, 82);
+			item.mq = radioAt(el, 'div', 'sg-r-box sg-r-mq', P.mq);
 			item.mqLine = document.createElement('span');
 			item.mqLine.className = 'sg-r-mq-text';
 			item.mq.appendChild(item.mqLine);
 
 			// Каталог — крупно слева.
-			var cat = radioBox(el, 'div', 'sg-r-box sg-r-cat', 36, 136, 600, 828);
+			var cat = radioAt(el, 'div', 'sg-r-box sg-r-cat', P.cat);
 
 			item.path = document.createElement('div');
 			item.path.className = 'sg-r-path';
@@ -4140,11 +4763,11 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			cat.appendChild(item.list);
 
 			// Громкость: «−», окошко 00–99, «+».
-			radioBox(el, 'div', 'sg-r-cap', 686, 300, 276, 30).textContent = 'ГРОМКОСТЬ';
+			radioAt(el, 'div', 'sg-r-cap', P.cap).textContent = 'ГРОМКОСТЬ';
 
-			var minus = radioBox(el, 'button', 'sg-r-btn', 686, 340, 64, 84);
-			var digits = radioBox(el, 'div', 'sg-r-box sg-r-digits', 762, 340, 124, 84);
-			var plus = radioBox(el, 'button', 'sg-r-btn', 898, 340, 64, 84);
+			var minus = radioAt(el, 'button', 'sg-r-btn', P.minus);
+			var digits = radioAt(el, 'div', 'sg-r-box sg-r-digits', P.digits);
+			var plus = radioAt(el, 'button', 'sg-r-btn', P.plus);
 			var vol = {target: null, chars: ['', ''], cells: [], stop: [0, 0], start: [0, 0], next: [0, 0]};
 
 			minus.textContent = '−';
@@ -4169,9 +4792,9 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			});
 
 			// ▶ ❚❚ ■ — играть, пауза (место запоминается), стоп (с начала).
-			item.play = radioBox(el, 'button', 'sg-r-btn sg-r-play', 686, 470, 84, 84);
-			item.pause = radioBox(el, 'button', 'sg-r-btn sg-r-pause', 782, 470, 84, 84);
-			item.stop = radioBox(el, 'button', 'sg-r-btn sg-r-stop', 878, 470, 84, 84);
+			item.play = radioAt(el, 'button', 'sg-r-btn sg-r-play', P.play);
+			item.pause = radioAt(el, 'button', 'sg-r-btn sg-r-pause', P.pause);
+			item.stop = radioAt(el, 'button', 'sg-r-btn sg-r-stop', P.stop);
 			item.play.textContent = '▶';
 			item.pause.textContent = '❚❚';
 			item.stop.textContent = '■';
@@ -4212,7 +4835,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			});
 
 			// «АВТО» — следующий трек той же папки, когда кончился текущий.
-			item.auto = radioBox(el, 'button', 'sg-r-btn sg-r-auto', 686, 604, 190, 58);
+			item.auto = radioAt(el, 'button', 'sg-r-btn sg-r-auto', P.auto);
 			item.auto.innerHTML = '<span class="sg-r-dot"></span>АВТО ⟳';
 			$(item.auto).on('click', function () {
 				if (!preview) {
@@ -4222,7 +4845,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			});
 
 			// Выключатель — выход на экран, откуда пришли (ответ 4А); музыка играет дальше.
-			var power = radioBox(el, 'button', 'sg-r-power', 686, 760, 276, 150);
+			var power = radioAt(el, 'button', 'sg-r-power', P.power);
 
 			power.setAttribute('aria-label', 'Выключить радио');
 			power.innerHTML = '<span class="sg-r-switch"><span class="sg-r-lever"></span><span class="sg-r-knob"></span></span>' +
@@ -4247,6 +4870,11 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 				}, 260);
 			});
 
+			// Отремонтированное радио (шаг 7.3): шкала частот, игла, ПОИСК, частота −/+.
+			if (fixed) {
+				airBuild(item, el, P);
+			}
+
 			// Каталог открыт там, где играет радио.
 			var cur = music().byId[st.cur];
 
@@ -4259,6 +4887,9 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			}
 			this.output.appendChild(el);
 			radioItems.push(item);
+			if (fixed) {
+				airItems.push(item);
+			}
 			volItems.push(vol);
 			volDraw(vol, Date.now());
 			if (!volTimer) {
@@ -4282,6 +4913,8 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		});
 		radioItems = [];
 		ambItems = [];
+		airStop();
+		airItems = [];
 	});
 	$(document).on(':passagedisplay', function () {
 		radioDrawAll();
@@ -4587,6 +5220,27 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		'.sg-radio .sg-r-auto.sg-r-lit .sg-r-dot { background: var(--sg-re); box-shadow: 0 0 calc(var(--u) * 6) var(--sg-re); }\n' +
 		'.sg-radio .sg-r-digits { align-items: center; display: flex; font-size: calc(var(--u) * 56); justify-content: center; line-height: 1; }\n' +
 		'.sg-radio .sg-r-digits span { display: inline-block; filter: drop-shadow(0 0 calc(var(--u) * 3) var(--sg-re)); text-align: center; width: 1ch; }\n' +
+		// Шаг 7.3: шкала частот, игла, ПОИСК, окно частоты, каркас Р2.
+		'.sg-radio .sg-r-freq { font-size: calc(var(--u) * 50); }\n' +
+		'.sg-radio .sg-r-freq span.sg-r-dotch { width: 0.35ch; }\n' +
+		'.sg-radio .sg-r-scale { cursor: ew-resize; overflow: hidden; touch-action: none; }\n' +
+		'.sg-radio .sg-r-dial { display: block; height: 100%; width: 100%; }\n' +
+		'.sg-radio .sg-r-dial .sg-r-glass { fill: var(--sg-re); opacity: 0.05; transition: opacity 0.3s; }\n' +
+		'.sg-radio .sg-r-scan .sg-r-glass { opacity: 0.18; }\n' +
+		'.sg-radio .sg-r-scan { box-shadow: 0 0 calc(var(--u) * 14) var(--sg-re); }\n' +
+		'.sg-radio .sg-r-dial .sg-r-tick { stroke: var(--sg-re); stroke-width: 1.4; }\n' +
+		'.sg-radio .sg-r-dial .sg-r-big { stroke-width: 2.4; }\n' +
+		'.sg-radio .sg-r-dial .sg-r-num { fill: var(--sg-re); font-family: inherit; font-size: 20px; opacity: 0.75; text-anchor: middle; }\n' +
+		'.sg-radio .sg-r-dial .sg-r-unit { fill: var(--sg-re); font-family: inherit; font-size: 16px; opacity: 0.55; }\n' +
+		'.sg-radio .sg-r-needle line { stroke: var(--sg-re); stroke-width: 4; }\n' +
+		'.sg-radio .sg-r-needle polygon { fill: var(--sg-re); }\n' +
+		'.sg-radio .sg-r-needle { filter: drop-shadow(0 0 3px var(--sg-re)); }\n' +
+		'html body .sg-radio button.sg-r-scanbtn { flex-direction: column; font-size: calc(var(--u) * 24); gap: calc(var(--u) * 16); letter-spacing: 0.06em; }\n' +
+		'.sg-radio .sg-r-scanbtn.sg-r-lit .sg-r-dot { background: var(--sg-re); box-shadow: 0 0 calc(var(--u) * 6) var(--sg-re); }\n' +
+		'html body .sg-radio button.sg-r-fbtn { font-size: calc(var(--u) * 44); }\n' +
+		'.sg-radio .sg-r-fbtn.sg-r-wait { opacity: 0.45; }\n' +
+		'.sg-r-frame .sg-r-patch { stroke-dasharray: 8 5; }\n' +
+		'.sg-r-frame .sg-r-rivet { fill: var(--sg-rf); }\n' +
 		'html body .sg-radio button.sg-r-power { align-items: center; display: flex; gap: calc(var(--u) * 24); }\n' +
 		'.sg-radio .sg-r-switch { border: calc(var(--u) * 3) solid var(--sg-re); border-radius: calc(var(--u) * 8); flex: none; height: calc(var(--u) * 140); position: relative; width: calc(var(--u) * 72); }\n' +
 		'.sg-radio .sg-r-lever { background: var(--sg-re); border-radius: calc(var(--u) * 6); height: calc(var(--u) * 64); left: calc(50% - var(--u) * 6); position: absolute; ' +
@@ -4613,6 +5267,33 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		var table = music();
 
 		return {table: {folders: table.folders.map(function (f) { return f.name; }), ids: Object.keys(table.byId)}, state: preview ? null : musState(), playing: !!(mus.audio && !mus.audio.paused), src: mus.audio ? mus.audio.src : '', volume: mus.audio ? mus.audio.volume : null, pre: mus.pre ? mus.pre.src : ''};
+	};
+
+	// Эфир — для проверок: расстановка, громкости, удержание; airPlace — передвинуть точку.
+	setup.signaly.air = function () {
+		return {
+			freq: airFreq(),
+			items: airItems.filter(function (item) {
+				return item.el.isConnected;
+			}).map(function (item) {
+				return {
+					srcs: (item.srcs || []).map(function (s) {
+						return {kind: s.kind, name: s.kind === 'tx' ? s.t.id : s.src, c: s.c, w: s.w, vol: s.audio && !s.audio.paused ? s.audio.volume : 0};
+					}),
+					noise: item.noise && item.noise.audio && !item.noise.audio.paused ? item.noise.audio.volume : 0,
+					hold: item.hold ? {name: item.hold.s.t.id, ms: Date.now() - item.hold.since} : null
+				};
+			})
+		};
+	};
+	setup.signaly.airPlace = function (name, c) {
+		airItems.forEach(function (item) {
+			(item.srcs || []).forEach(function (s) {
+				if ((s.kind === 'tx' ? s.t.id : s.src) === name) {
+					s.c = c;
+				}
+			});
+		});
 	};
 
 	/* ----- Кнопка-перебор (этап 6, ответ 2А) ----- */

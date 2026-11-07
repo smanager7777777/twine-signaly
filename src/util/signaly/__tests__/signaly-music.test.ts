@@ -1,10 +1,13 @@
 import {findLinks, parseAction, replaceLink, writeAction} from '../signaly-actions';
 import {
 	findScreenMusic,
+	folderLeaf,
+	folderParent,
 	musicProblems,
 	readMusic,
 	screenMusicDefaults,
 	setScreenMusic,
+	treeOrder,
 	writeMusic
 } from '../signaly-music';
 import {findBlocks, writeBlock} from '../signaly-screen-blocks';
@@ -44,6 +47,60 @@ describe('каталог «Музыка» (шаг 7.1)', () => {
 		expect(Object.values(musicProblems(c)).some(Boolean)).toBe(false);
 		c.folders[1].name = 'Классика';
 		expect(musicProblems(c).repeatedFolder).toBe(true);
+	});
+});
+
+describe('шаг 7.3: вложенные папки, громкость файла, эфир', () => {
+	const text =
+		'<<sg-music volume 30 spin 0.8>>\n<<sg-folder "Дневники" section radio>>\n' +
+		'<<sg-track "Запись 1" "media/audio/d1.mp3" gain 40>><</sg-track>>\n' +
+		'<<sg-folder "Глава 1" section radio>>\n' +
+		'<<sg-folder "Дневники/Капитан" section ambient>>\n' +
+		'<<sg-track "Запись 2" "media/audio/d2.mp3">><</sg-track>>\n' +
+		'<<sg-folder "Эфир" section air>>\n' +
+		'<<sg-track "Перехват" "media/audio/p.mp3" to "Дневники/Капитан" width 0.8 text "СИГНАЛ SOS">>$chapter gte 2<</sg-track>>\n' +
+		'<<sg-track "Морзе" "media/audio/m.mp3">><</sg-track>>\n';
+
+	it('путь папки, порядок дерева, раздел вложенной — как у верхней', () => {
+		const c = readMusic(text);
+
+		expect(folderParent('Дневники/Капитан')).toBe('Дневники');
+		expect(folderParent('Дневники')).toBe('');
+		expect(folderLeaf('Дневники/Капитан')).toBe('Капитан');
+		expect(treeOrder(c.folders).map(f => [f.name, f.section])).toEqual([
+			['Дневники', 'radio'],
+			['Дневники/Капитан', 'radio'],
+			['Глава 1', 'radio'],
+			['Эфир', 'air']
+		]);
+	});
+
+	it('громкость файла и передачи эфира пишутся и читаются', () => {
+		const c = readMusic(text);
+		const out = writeMusic('', c);
+
+		expect(c.folders[0].tracks[0].gain).toBe(40);
+		expect(c.folders[1].tracks[0].gain).toBe(100);
+		expect(c.folders[3].tracks[0]).toMatchObject({to: 'Дневники/Капитан', width: 0.8, text: 'СИГНАЛ SOS', when: '$chapter gte 2'});
+		expect(c.folders[3].tracks[1]).toMatchObject({to: '', width: 1.5, text: ''});
+		expect(out).toContain('<<sg-track "Запись 1" "media/audio/d1.mp3" gain 40>>');
+		expect(out).toContain('<<sg-track "Перехват" "media/audio/p.mp3" to "Дневники/Капитан" width 0.8 text "СИГНАЛ SOS">>');
+		expect(out).toContain('<<sg-track "Морзе" "media/audio/m.mp3">>');
+		// Вложенная папка записывается сразу за своей и с разделом верхней.
+		expect(out.indexOf('"Дневники/Капитан" section radio')).toBeGreaterThan(out.indexOf('"Дневники" section radio'));
+		expect(out.indexOf('"Дневники/Капитан"')).toBeLessThan(out.indexOf('"Глава 1"'));
+		expect(writeMusic(out, readMusic(out))).toBe(out);
+	});
+
+	it('передача в папку, которой нет, и пустая часть пути не дают сохранить', () => {
+		const c = readMusic(text);
+
+		expect(Object.values(musicProblems(c)).some(Boolean)).toBe(false);
+		c.folders[3].tracks[0].to = 'Нет такой';
+		expect(musicProblems(c).noTarget).toBe(true);
+		c.folders[3].tracks[0].to = '';
+		c.folders[1].name = 'Глава 1/';
+		expect(musicProblems(c).emptyFolder).toBe(true);
 	});
 });
 

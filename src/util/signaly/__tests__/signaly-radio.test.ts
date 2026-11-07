@@ -3,7 +3,17 @@ import path from 'path';
 import {parseAction, writeAction} from '../signaly-actions';
 import {musicHeader, readMusic, writeMusic} from '../signaly-music';
 import {moveTemplateMusic} from '../signaly-music-template';
-import {newRadioView, radioHeader, radioProblems, readRadios, renameRadioView, writeRadios} from '../signaly-radio';
+import {
+	newRadioView,
+	radioDefaults,
+	radioHeader,
+	radioProblems,
+	readRadios,
+	readRanges,
+	renameRadioView,
+	writeRadios,
+	writeView
+} from '../signaly-radio';
 import {findBlocks, newBlock, writeBlock} from '../signaly-screen-blocks';
 import {findAudioInit} from '../signaly-sounds';
 
@@ -37,7 +47,19 @@ describe('виды радио (шаг 7.2)', () => {
 		const views = readRadios(text);
 
 		expect(views).toEqual([
-			{name: 'Старое', type: 'broken', frame: '#111111', elements: '#222222', label: '', sparks: 70, sparkSound: 'media/audio/s.wav', sparkVolume: 40, extra: ['glow', '3']}
+			{
+				...radioDefaults,
+				name: 'Старое',
+				type: 'broken',
+				frame: '#111111',
+				elements: '#222222',
+				label: '',
+				sparks: 70,
+				sparkSound: 'media/audio/s.wav',
+				sparkVolume: 40,
+				jams: [],
+				extra: ['glow', '3']
+			}
 		]);
 
 		const next = writeRadios(text, [...views, newRadioView(['Старое'], 'Радио')]);
@@ -54,8 +76,41 @@ describe('виды радио (шаг 7.2)', () => {
 	it('пустое название и повтор — «Сохранить» недоступна', () => {
 		const v = newRadioView([]);
 
-		expect(radioProblems([v, {...v}])).toEqual({emptyName: false, repeatedName: true});
-		expect(radioProblems([{...v, name: ' '}])).toEqual({emptyName: true, repeatedName: false});
+		expect(radioProblems([v, {...v}])).toMatchObject({emptyName: false, repeatedName: true});
+		expect(radioProblems([{...v, name: ' '}])).toMatchObject({emptyName: true, repeatedName: false});
+	});
+
+	it('эфир отремонтированного радио: шум, помехи, сообщение, поимка (шаг 7.3)', () => {
+		const line =
+			'<<sg-radio-view "Эфир" type fixed frame "#111111" elements "#222222" label "ОРБИТА-3М" noise "media/audio/шум.wav" noisevolume 50 ' +
+			'noiseranges "88-95, 101.5-108" jam "media/audio/a.wav|1|80; media/audio/b.wav|0.6|100" jamsmin 6 jamsmax 9 incoming "СИГНАЛ" catch 12>>';
+		const [v] = readRadios(line);
+
+		expect(v).toMatchObject({
+			type: 'fixed',
+			noise: 'media/audio/шум.wav',
+			noiseVolume: 50,
+			noiseRanges: '88-95, 101.5-108',
+			jams: [
+				{src: 'media/audio/a.wav', width: 1, volume: 80},
+				{src: 'media/audio/b.wav', width: 0.6, volume: 100}
+			],
+			jamsMin: 6,
+			jamsMax: 9,
+			incoming: 'СИГНАЛ',
+			catchTime: 12,
+			extra: []
+		});
+		expect(writeView(v)).toBe(line);
+		expect(readRanges(v.noiseRanges)).toEqual([
+			[88, 95],
+			[101.5, 108]
+		]);
+		expect(readRanges('ерунда')).toEqual([]);
+		expect(radioProblems([{...v, jamsMin: 10}])).toMatchObject({jamsOrder: true});
+		expect(radioProblems([{...v, noiseRanges: 'везде'}])).toMatchObject({noiseRanges: true});
+		// У сломанного радио эфира нет — слова эфира не пишутся.
+		expect(writeView({...v, type: 'broken'})).not.toContain('jam');
 	});
 
 	it('переименование правит блоки на экранах', () => {
