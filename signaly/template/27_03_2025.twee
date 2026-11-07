@@ -4811,7 +4811,8 @@ setup.signalySounds = {
 			svgEl('line', {x1: p[0] - 5, y1: p[1] + 5, x2: p[0] + 5, y2: p[1] - 5, 'class': 'sg-r-thin'}, svg);
 		});
 		if (view.label) {
-			var text = svgEl('text', {x: 812, y: 90, 'class': 'sg-r-label'}, svg);
+			// Надпись прижата к правому краю: «ОРБИТА-РЕВЕРС» длиннее «ОРБИТА-3М».
+			var text = svgEl('text', {x: 966, y: 90, 'text-anchor': 'end', 'class': 'sg-r-label'}, svg);
 
 			text.textContent = view.label;
 		}
@@ -4835,7 +4836,7 @@ setup.signalySounds = {
 			auto: [686, 648, 190, 58], power: [686, 766, 276, 150]
 		},
 		reverse: {
-			mq: [36, 36, 760, 82], scan: [316, 152, 96, 110], scale: [424, 152, 360, 110],
+			mq: [36, 36, 712, 82], scan: [316, 152, 96, 110], scale: [424, 152, 360, 110],
 			freq: [796, 152, 168, 60], fminus: [796, 218, 78, 44], fplus: [886, 218, 78, 44],
 			prog: [316, 276, 648, 60],
 			cat: [36, 366, 560, 576], cap: [620, 372, 344, 30],
