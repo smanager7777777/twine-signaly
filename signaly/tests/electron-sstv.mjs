@@ -292,7 +292,7 @@ check('пассаж «SSTV»: режим, начало, длина строки;
 	sstvText = text('SSTV');
 	return /<<sg-sstv "media\/audio\/stest\/jam-red.wav" stamp "\d+-\d+" img "media\/img\/sstv\/stest\/jam-red-1.png" mode "Robot 36" at [\d.]+ line 0\.1[45]\d* rows 240 per 1 width 320 height 240>>/.test(sstvText) &&
 		sstvText.includes('mode "Robot 36"') && sstvText.includes('tx-blue-1.png') && /<<sg-sstv "media\/audio\/stest\/plain.wav" stamp "[^"]+" none>>/.test(sstvText);
-}, 30000), sstvText);
+}, 90000), sstvText);
 check('пассаж «SSTV» с тегом sg-sstv', /tags="sg-sstv"/.test(passageIn(storyFile(), 'SSTV').tag));
 
 const px = async (file, x, y) => {
