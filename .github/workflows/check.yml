@@ -1,0 +1,36 @@
+# «Twine СИГНАЛЫ»: проверка рабочей ветки session-* (без релиза): типы, ESLint, тесты, сборка интерфейса.
+# Нужна, когда в песочнице агента нельзя поставить пакеты (сессия 30).
+
+name: Проверка ветки
+
+on:
+  push:
+    branches: ['session-*']
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: Типы, тесты, сборка
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Установка
+        run: npm ci --ignore-scripts
+      - name: Проверка типов
+        run: npx tsc --noEmit -p tsconfig.json && npx tsc --noEmit -p tsconfig.electron.json
+      - name: ESLint
+        run: npx eslint src --quiet
+      - name: Тесты СИГНАЛОВ
+        run: npx jest --maxWorkers=2 src/util/signaly src/dialogs/signaly src/electron src/store 2>&1 | tail -80
+        shell: bash
+      - name: Тесты окна пассажа и карты
+        run: npx jest --maxWorkers=2 src/dialogs/passage-edit src/routes/story-edit src/components/route-toolbar src/store/prefs 2>&1 | tail -40
+        shell: bash
+      - name: Сборка интерфейса
+        run: npx vite build
