@@ -169,7 +169,7 @@ await win.waitForTimeout(800);
 let file = storyFile();
 
 check('способы в таблице стилей', file.includes('--sg-first-poyavlenie-1: noise 2 0.25 0 80 #ffffff 1 - now glitch -;') && file.includes('fade 2 0.25'), /--sg-first-[^\n]*/.exec(file)?.[0]);
-check('движок 26', file.includes('Версия движка: 26'));
+check('движок 27', file.includes('Версия движка: 27'));
 
 /* Кнопка над текстом */
 await openPassage('Цель');

@@ -213,7 +213,7 @@ let radio = '';
 
 await waitFor(async () => (radio = text('Радио')).includes('Кассета'));
 check('записано: вид с реверсом и своим цветом кнопок, внутренний — как у каркаса', /<<sg-radio-view "Кассета" type reverse [^>]*buttons "#ff0000"/.test(radio) && !/"Кассета"[^\n]*inner/.test(radio), radio);
-check('движок 26', /Версия движка: 26/.test(storyFile()));
+check('движок 27', /Версия движка: 27/.test(storyFile()));
 
 // Шаблон: треки радио развёрнуты (пустышки 0,3 с).
 const tplCopy = reverseFile('radioRegentropfen.wav');
@@ -265,18 +265,19 @@ let music = text('Музыка');
 
 check('записано: свой файл задом наперёд у трека', music.includes('<<sg-track "Своё" "media/audio/rtest/ramp.wav" reverse "media/audio/rtest/own.wav">>'), music.slice(-500));
 
+// Сессия 30, ответ 3Б: копии — моно 22 050 Гц. Рампа шла вверх — развёрнутая идёт вниз.
 const w = readWav(ramp);
-const src = fs.readFileSync(path.join(R, 'ramp.wav'));
-let same = w.channels === 1 && w.rate === 44100 && w.bits === 16 && w.frames === rampN;
+let down = w.channels === 1 && w.rate === 22050 && w.bits === 16 && Math.abs(w.frames - rampN / 2) <= 2;
 
-for (let i = 0; same && i < rampN; i += 997) {
-	same = Math.abs(w.b.readInt16LE(44 + i * 2) - src.readInt16LE(44 + (rampN - 1 - i) * 2)) <= 2;
+for (let i = 200; down && i + 997 < w.frames - 200; i += 997) {
+	down = w.b.readInt16LE(44 + i * 2) > w.b.readInt16LE(44 + (i + 997) * 2);
 }
-check('WAV развёрнут точно: отсчёты в обратном порядке', same, JSON.stringify({channels: w.channels, rate: w.rate, frames: w.frames}));
+check('WAV развёрнут: моно 22 050 Гц, отсчёты идут в обратную сторону', down && w.b.readInt16LE(44 + 400) > 14000 && w.b.readInt16LE(44 + (w.frames - 200) * 2) < -14000,
+	JSON.stringify({channels: w.channels, rate: w.rate, frames: w.frames}));
 
 const s = readWav(song);
 
-check('MP3 развёрнут: стерео 44,1 кГц, около 3 с', s.channels === 2 && s.rate === 44100 && Math.abs(s.frames / 44100 - 3) < 0.1, JSON.stringify({channels: s.channels, rate: s.rate, sec: s.frames / 44100}));
+check('MP3 развёрнут: моно 22 050 Гц, около 3 с', s.channels === 1 && s.rate === 22050 && Math.abs(s.frames / 22050 - 3) < 0.1, JSON.stringify({channels: s.channels, rate: s.rate, sec: s.frames / 22050}));
 check('для трека со своим файлом копии нет (файл «ramp» один на два трека)', !fs.existsSync(reverseFile('rtest/own.wav')));
 check('копия шаблона не переделана заново (не старше трека)', fs.statSync(tplCopy).mtimeMs === firstTime);
 await win.screenshot({path: shot('music')});

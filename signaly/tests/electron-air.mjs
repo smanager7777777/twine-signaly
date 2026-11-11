@@ -171,7 +171,7 @@ let music = text('Музыка');
 check('записано: вложенная папка за своей', /<<sg-folder "Радио" section radio>>[^]*<<sg-folder "Радио\/Записи" section radio>>/.test(music), music.slice(-600));
 check('записано: громкость файла', music.includes('<<sg-track "Запись 1" "media/audio/radiovinyl.wav" gain 60>>'));
 check('записано: передача ведёт в переименованную папку', /section air>>\n<<sg-track "Перехват" "media\/audio\/radiovinyl.wav" to "Радио\/Записи" width 0.8 text "SOS">>/.test(music), music.slice(-400));
-check('движок 26', /Версия движка: 26/.test(storyFile()));
+check('движок 27', /Версия движка: 27/.test(storyFile()));
 await mw.getByRole('button', {name: 'Закрыть', exact: true}).click();
 await win.waitForTimeout(500);
 await toolbarBtn(/^Музыка$/).click();
@@ -205,8 +205,9 @@ await rw.getByLabel('Сообщение о передаче', {exact: true}).fil
 await range(rw, 'Удерживать точную настройку', 5);
 await rw.getByLabel('Файл белого шума', {exact: true}).selectOption('media/audio/radiovinyl.wav');
 await rw.getByLabel('Где звучит, МГц', {exact: true}).fill('88-95, 101-108');
-await rw.getByRole('button', {name: 'Добавить помеху'}).click();
-await rw.getByRole('button', {name: 'Добавить помеху'}).click();
+// Сессия 30: помехи — в окне «Музыка», раздел «Помехи»; здесь — сколько выпадает.
+check('помехи — ссылкой на окно «Музыка»', (await rw.getByText(/Помехи этого радио — в окне «Музыка», раздел «Помехи», папка «Эфир»/).count()) === 1 &&
+	(await rw.getByRole('button', {name: 'Добавить помеху'}).count()) === 0);
 await range(rw, 'до', 2);
 await range(rw, 'Сколько помех выпадает', 3);
 await win.waitForTimeout(300);
@@ -227,7 +228,7 @@ const radio = text('Радио');
 
 check(
 	'записано: вид с эфиром',
-	/<<sg-radio-view "Эфир" type fixed [^>]*noise "media\/audio\/radiovinyl.wav" noisevolume 60 noiseranges "88-95, 101-108" jam "[^"|]+\|1\|80; [^"|]+\|1\|80" jamsmin 1 jamsmax 2 incoming "ПРИЁМ" catch 5>>/.test(radio),
+	/<<sg-radio-view "Эфир" type fixed [^>]*noise "media\/audio\/radiovinyl.wav" noisevolume 60 noiseranges "88-95, 101-108" jamsmin 1 jamsmax 2 incoming "ПРИЁМ" catch 5>>/.test(radio),
 	radio
 );
 

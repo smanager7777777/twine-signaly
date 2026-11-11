@@ -204,7 +204,7 @@ await win.waitForTimeout(1500);
 
 let saved = storyFile();
 
-check('движок 26 поставлен сам (команды движка в действиях)', saved.includes('Версия движка: 26'));
+check('движок 27 поставлен сам (команды движка в действиях)', saved.includes('Версия движка: 27'));
 check('PRCDTEST: окна <<script>> → <<sg-open>>', saved.includes('<<sg-open "Процедура 001" passage "PRCDRESULT">><</sg-open>>') && !saved.includes("Dialog.create('Процедура"));
 
 // 3. [[…]] остаётся разметкой, пока хватает.

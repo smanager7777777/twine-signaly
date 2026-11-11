@@ -1,5 +1,5 @@
 #!/bin/bash
-# Все проверки подряд (сессия 27). Итог — /tmp/run/summary.txt
+# Все проверки подряд (сессия 27; сессия 30 — sstv-play, electron-sstv). Итог — /tmp/run/summary.txt
 # Старые шаблоны: for c in a8b24b6~2 64321cf 5e0afed 30462fa 60c483a fa0a506 b6203c6 2e57ad0 b633a9d 8b80f1a c6bc328 4b9ae32;
 #   do git show $c:signaly/template/27_03_2025.twee > /tmp/run/t-${c/~/_}.twee; done
 cd /home/claude/twine-signaly
@@ -44,6 +44,7 @@ game music-play $T $M $PW /tmp/run/shots
 game radio-play $T $M $PW /tmp/run/shots
 game air-play $T $M $PW /tmp/run/shots
 game reverse-play $T $M $PW /tmp/run/shots
+game sstv-play $T $M $PW $SH /tmp/run/shots
 echo "--- программа" >> $S
 el() { local name=$1 tw=$2
   for try in 1 2; do
@@ -76,4 +77,5 @@ el electron-music /tmp/run/t-4b9ae32.twee
 el electron-radio /tmp/run/t-4b9ae32.twee
 el electron-air $T
 el electron-reverse $T
+el electron-sstv $T
 echo DONE >> $S

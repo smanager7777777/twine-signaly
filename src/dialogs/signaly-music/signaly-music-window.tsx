@@ -125,6 +125,7 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 	const [selected, setSelected] = React.useState(0);
 	// Старые помехи видов перенесены сюда — их нужно сохранить.
 	const [saved, setSaved] = React.useState(start.migrated.length === 0);
+	const [migrated, setMigrated] = React.useState(start.migrated);
 	const folder = catalog.folders[selected];
 	const jamFolder = folder?.section === 'jam';
 	const orphan = jamFolder && !radioViews.some(v => v.type !== 'broken' && v.name === folder.name);
@@ -221,6 +222,7 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 			}
 		}
 		setSaved(true);
+		setMigrated([]);
 		copies.run(catalog, radioViews);
 		sstv.run(catalog, radioViews);
 	}
@@ -450,8 +452,8 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 							<h3>{l(`sections.${section}`)}</h3>
 							{section === 'air' && <p className="signaly-field-hint">{l('airHint')}</p>}
 							{section === 'jam' && <p className="signaly-field-hint">{l('jamHint')}</p>}
-							{section === 'jam' && start.migrated.length > 0 && (
-								<div className="signaly-notice">{l('jamMigrated', {names: start.migrated.join(', ')})}</div>
+							{section === 'jam' && migrated.length > 0 && (
+								<div className="signaly-notice">{l('jamMigrated', {names: migrated.join(', ')})}</div>
 							)}
 							<div className="signaly-kinds-list">
 								{catalog.folders.map((f, i) =>
