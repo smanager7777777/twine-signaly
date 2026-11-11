@@ -1604,9 +1604,10 @@
 				"duck": "Lower while the file plays",
 				"duckHint": "While the file plays, the chosen sounds are quieter, then the volume returns by itself.",
 				"duckWho": "What to lower",
-				"duckAll": "Everything playing",
+				"duckAll": "Everything playing (music and radio too)",
 				"duckTo": "Volume meanwhile",
-				"duckToHint": "Percent of the usual volume that remains."
+				"duckToHint": "Percent of the usual volume that remains.",
+				"duckMusic": "Music and radio (Music window)"
 			},
 			"if": {
 				"then": "Then (if the condition holds)",
@@ -2237,6 +2238,13 @@
 				"media": "The path is written in the story, but the file is not in the game folder.",
 				"variable": "The variable is used but has no starting value in the Variables window. Not always an error.",
 				"code": "The code has no actions, no answer and no destination."
+			},
+			"copies": {
+				"title": "Radio tracks without a reversed copy",
+				"hint": "The story has a radio with reverse: these tracks can't play backwards yet (the game shows “REVERSE UNAVAILABLE”). Copies are also made when you press Save in the Music and Radio windows.",
+				"make": "Make copies",
+				"working": "Reversing: {{done}} of {{total}}…",
+				"failed": "Could not reverse: {{files}}"
 			}
 		},
 		"music": {
@@ -2253,7 +2261,8 @@
 			"sections": {
 				"ambient": "Atmosphere",
 				"radio": "Radio",
-				"air": "On air"
+				"air": "On air",
+				"jam": "Interference"
 			},
 			"noName": "(no name)",
 			"count_0": "{{count}} track",
@@ -2316,7 +2325,14 @@
 			"whenAir": "When the transmission is on air",
 			"reverse": "Reversed file",
 			"reverseHint": "What is heard while REVERSE is held. Empty — the program reverses the track on Save.",
-			"reverseAuto": "Reverse the track (by the program)"
+			"reverseAuto": "Reverse the track (by the program)",
+			"jamHint": "Interference of radios with the air: one folder per radio view from the Radio window, in its order (folders are not created by hand). Each time the radio screen opens, “from”…“to” pieces land on the dial: one already caught piece of this radio, the rest not yet caught ones of this radio and the radios above it; if short — more caught ones of this radio. Interference can be caught like a transmission: it goes to the radio catalog, folder “Interference”.",
+			"jamMigrated": "Interference of radio “{{names}}” moved here from the Radio window. Press Save.",
+			"jamFolder": "Interference of radio “{{name}}”",
+			"jamFolderHint": "Named after the radio view: rename the view in the Radio window, the folder follows.",
+			"jamOrphan": "There is no radio view with this name. This interference is not used — the folder can be deleted.",
+			"whenJam": "When this interference can land on the dial",
+			"jamWidthHint": "How many MHz on each side of its spot it can be heard."
 		},
 		"screenMusic": {
 			"button": "Screen music",
@@ -2360,12 +2376,13 @@
 			"name": "Look name",
 			"nameHint": "Radio blocks find the look by name.",
 			"type": "Radio type",
-			"typeHint": "Repaired has the air band; reverse adds REVERSE, track progress and reels.",
+			"typeHint": "Repaired — with the air; with reverse — plus REVERSE and reels; with decoder — as with reverse plus DECODE and a picture window. Progress bar and SHUFFLE — on all.",
 			"later": "later",
 			"types": {
 				"broken": "Broken, frame {{frame}}",
 				"fixed": "Repaired, frame {{frame}}",
-				"reverse": "Reverse, frame {{frame}}"
+				"reverse": "Reverse, frame {{frame}}",
+				"decoder": "With decoder, frame {{frame}}"
 			},
 			"colors": "Colors",
 			"frame": "Frame",
@@ -2389,7 +2406,8 @@
 				"emptyName": "A look has no name.",
 				"repeatedName": "Two looks share a name.",
 				"jamsOrder": "“From” is greater than “to”.",
-				"noiseRanges": "Noise ranges not understood: write 88-95, 101-108."
+				"noiseRanges": "Noise ranges not understood: write 88-95, 101-108.",
+				"slash": "A view name can't contain “/” (it names the interference folder in the Music window)."
 			},
 			"airTitle": "On air",
 			"airHint": "Scale 88–108 MHz, drag the needle, −/+ move 0.1 at most once a second. Landing on a broadcast with the buttons lights the lamp. SEARCH pauses catalogue music. Broadcasts are in the Music window, Air section.",
@@ -2413,20 +2431,30 @@
 			"addJam": "Add interference",
 			"jamsMin": "How many: from",
 			"jamsMax": "to",
-			"jamsMaxHint": "Files in the list: {{files}}. Each one is used at most once.",
+			"jamsMaxHint": "In this radio's folder: {{files}}; not yet caught interference of the radios above also lands. Each piece — once.",
 			"parts": {
 				"buttons": "Buttons",
 				"power": "Power switch (exit)",
 				"scale": "Tuning scale, frequency, progress",
 				"catalog": "Catalogue",
-				"inner": "Inner frame"
+				"inner": "Inner frame",
+				"lamp": "Fine tuning lamp",
+				"decoder": "Decoder window and DECODE"
 			},
 			"asElements": "Now the same as elements.",
 			"asFrame": "Now the same as the frame: partitions, grille, reels.",
 			"resetElements": "Same as elements",
 			"resetFrame": "Same as frame",
 			"reverseTitle": "Reverse",
-			"reverseHint": "While REVERSE is held the track plays backwards. The program makes reversed copies on Save (here and in Music), into media/audio/reverse."
+			"reverseHint": "While REVERSE is held the track plays backwards. The program makes reversed copies on Save (here and in Music), into media/audio/reverse.",
+			"asScale": "Now — as the dial.",
+			"resetScale": "As the dial",
+			"decoderTitle": "Decoder",
+			"decoderHint": "DECODE turns the decoder on: if the playing track or the loudest spot of the air carries an SSTV picture, it builds line by line in time with the sound; off-tune — noisy lines, not SSTV — garbage lines. Click the window — full terminal, click again — back. Pictures are taken from interference and transmissions when you press Save in the Music window.",
+			"jamsMoved": "Interference of this radio is in the Music window, section Interference, folder “{{name}}” (now: {{count}}). Here — how many land at once.",
+			"up": "▲ Up",
+			"down": "▼ Down",
+			"orderHint": "The order of views is the order of radios in the game: interference of the radios above also lands on the radios below."
 		},
 		"reverse": {
 			"working": "Reversing tracks: {{done}} of {{total}}…",
@@ -2434,6 +2462,12 @@
 			"done_plural": "{{count}} reversed copies made.",
 			"failed": "Could not reverse: {{files}}",
 			"noFolder": "No game folder — reversed copies not made."
+		},
+		"sstv": {
+			"working": "Looking for SSTV pictures in interference and transmissions: {{done}} of {{total}}…",
+			"done": "SSTV pictures: {{count}} (files read: {{files}}).",
+			"failed": "Could not read: {{files}}",
+			"noFolder": "No game folder — SSTV pictures were not searched."
 		}
 	}
 }

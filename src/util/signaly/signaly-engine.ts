@@ -68,7 +68,7 @@ import {tipBase} from './signaly-tip';
 const glitchBase = [...glitchRules(defaultGlitch, ':where(.glitchy)'), glitchKeyframes].join('\n');
 
 /** Версия движка. Увеличивать при каждом изменении кода ниже. */
-export const signalyEngineVersion = 26;
+export const signalyEngineVersion = 27;
 
 export const signalyEngineStart =
 	'/* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */';
@@ -3081,7 +3081,8 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	// старого вида его не трогают. После сбоя музыку включает мастер (решение 37).
 	var musCollect = null;
 	var musTable = null;
-	var mus = {audio: null, id: '', mult: 1, pre: null, rev: null, timers: [], ramps: [], screen: [], fresh: true};
+	// duck — приглушение звуком-сигналом (сессия 30: и общий плеер, и эфир; было только SimpleAudio).
+	var mus = {audio: null, id: '', mult: 1, duck: 1, pre: null, rev: null, timers: [], ramps: [], screen: [], fresh: true};
 	var volItems = [];
 	var volTimer = null;
 
@@ -3110,7 +3111,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 
 				musCollect.folders.push({
 					name: String(a.name || ''),
-					section: a.section === 'radio' || a.section === 'air' ? a.section : 'ambient',
+					section: a.section === 'radio' || a.section === 'air' || a.section === 'jam' ? a.section : 'ambient',
 					tip: a.tip ? String(a.tip) : '',
 					tracks: []
 				});
@@ -3169,6 +3170,15 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			}
 		});
 		musCollect = null;
+		// Сессия 30: папки раздела «Помехи» (section jam) названы по видам радио — в byName их нет,
+		// у их треков id «jam:Вид/Трек»; jamsByView — помехи каждого вида.
+		var jamFolders = c.folders.filter(function (f) {
+			return f.section === 'jam';
+		});
+
+		c.folders = c.folders.filter(function (f) {
+			return f.section !== 'jam';
+		});
 		musTable = {
 			volume: musClamp(musNum(c.settings.volume, 30)),
 			spin: Math.max(0, musNum(c.settings.spin, 0.8)),
@@ -3176,7 +3186,8 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			folders: c.folders,
 			byId: {},
 			byName: {},
-			air: []
+			air: [],
+			jamsByView: {}
 		};
 		c.folders.forEach(function (f) {
 			musTable.byName[f.name] = f;
@@ -3212,7 +3223,61 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 				}
 			});
 		});
+		musJams(jamFolders);
 		return musTable;
+	}
+
+	// Помехи по видам радио (сессия 30). Нет папки — старая запись jam у вида. Пойманная помеха —
+	// трек папки радио «Помехи» (своя папка радио «Помехи» — она, иначе папка появляется сама).
+	function musJams(jamFolders) {
+		var views = radioViews();
+		var home = null;
+
+		radioOrder.forEach(function (name) {
+			var view = views[name];
+
+			if (view.type === 'broken' || !view.jams.length || jamFolders.some(function (f) {
+				return f.name === name;
+			})) {
+				return;
+			}
+
+			var used = {};
+
+			jamFolders.push({name: name, section: 'jam', tip: '', tracks: view.jams.map(function (j) {
+				var base = String(j.src).replace(/^.*\//, '').replace(/\.[^.]*$/, '') || j.src;
+				var nm = base;
+
+				for (var n = 2; used[nm]; n++) {
+					nm = base + ' ' + n;
+				}
+				used[nm] = 1;
+				return {name: nm, src: j.src, pre: '', wait: 3, tail: 2, prevolume: 100, start: undefined, when: '', gain: Math.max(1, j.volume), to: '', width: j.width, text: '', rev: ''};
+			})});
+		});
+		jamFolders.forEach(function (f) {
+			if (!f.tracks.length) {
+				return;
+			}
+			if (!home) {
+				home = musTable.byName['Помехи'];
+				if (!home || home.section !== 'radio') {
+					home = {name: 'Помехи', section: 'radio', tip: '', tracks: [], parent: '', virtual: true};
+					musTable.folders.push(home);
+					musTable.byName[home.name] = home;
+				}
+			}
+			musTable.jamsByView[f.name] = f.tracks;
+			f.tracks.forEach(function (t) {
+				t.id = 'jam:' + f.name + '/' + t.name;
+				t.air = true;
+				t.jam = true;
+				t.view = f.name;
+				t.folder = home;
+				musTable.byId[t.id] = t;
+				home.tracks.push(t);
+			});
+		});
 	}
 
 	// Папка выше: ближайшая существующая по пути, иначе '' (верхняя).
@@ -3253,6 +3318,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			mus.fresh = false;
 			st.playing = false;
 			st.scan = false;
+			st.dec = false;
 		}
 		return st;
 	}
@@ -3389,6 +3455,9 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			audio.play().catch(function () {});
 		}, {once: true});
 		audio.addEventListener('error', function () {
+			// Сессия 30, ответ 5А: копии нет — строка пишет, пока держат.
+			rev.err = true;
+			musChanged();
 			console.warn('СИГНАЛЫ: нет развёрнутого файла «' + audio.getAttribute('src') + '» для трека «' + t.id + '»');
 		});
 		mus.rev = rev;
@@ -3454,11 +3523,16 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	}
 
 	function musApply() {
+		var master = (musState().vol / 99) * mus.duck;
+
 		if (mus.audio) {
-			mus.audio.volume = Math.max(0, Math.min(1, (musState().vol / 99) * mus.mult * musGain(mus.id)));
+			mus.audio.volume = Math.max(0, Math.min(1, master * mus.mult * musGain(mus.id)));
 		}
 		if (mus.rev) {
-			mus.rev.audio.volume = Math.max(0, Math.min(1, (musState().vol / 99) * musGain(mus.rev.t.id)));
+			mus.rev.audio.volume = Math.max(0, Math.min(1, master * musGain(mus.rev.t.id)));
+		}
+		if (mus.pre) {
+			mus.pre.volume = Math.max(0, Math.min(1, master * mus.pre.sgLevel));
 		}
 	}
 
@@ -3587,9 +3661,10 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			// Предзвук: сначала он, через wait секунд — трек, ещё tail секунд — оба.
 			var pre = new Audio(t.pre);
 
-			pre.volume = Math.max(0, Math.min(1, (st.vol / 99) * (t.prevolume / 100)));
-			pre.play().catch(function () {});
+			pre.sgLevel = t.prevolume / 100;
 			mus.pre = pre;
+			musApply();
+			pre.play().catch(function () {});
 			mus.timers.push(setTimeout(go, t.wait * 1000));
 			mus.timers.push(setTimeout(function () {
 				if (mus.pre === pre) {
@@ -3629,8 +3704,10 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	// «Случайно» (шаг 7.2, ответ 6А), случайный, кроме текущего.
 	function musAfter(t) {
 		var list = t.folder.tracks.filter(musVisible);
+		// Сессия 30: у радио своё «СЛУЧАЙНО» (rshuffle), у Атмосферы — своё (shuffle).
+		var random = t.folder.section === 'radio' ? musState().rshuffle : musState().shuffle;
 
-		if (musState().shuffle && list.length > 1) {
+		if (random && list.length > 1) {
 			var others = list.filter(function (x) {
 				return x !== t;
 			});
@@ -3682,7 +3759,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		mus.audio = null;
 		st.playing = false;
 		musRamp(from, 0, seconds, function (k) {
-			audio.volume = Math.max(0, Math.min(1, (st.vol / 99) * k * gain));
+			audio.volume = Math.max(0, Math.min(1, (st.vol / 99) * mus.duck * k * gain));
 		}, function () {
 			st.pos[id] = audio.ended ? 0 : audio.currentTime;
 			audio.pause();
@@ -4007,6 +4084,8 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	// Звучит общий плеер «Музыки»: радио — его пульт.
 	var radioCollect = null;
 	var radioTable = null;
+	// Порядок видов в пассаже «Радио» — порядок радио в игре (сессия 30).
+	var radioOrder = [];
 	var radioItems = [];
 	var radioTimer = null;
 	var ambItems = [];
@@ -4018,7 +4097,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			if (radioCollect) {
 				radioCollect.push(blockArgs(this, ['name'], ['type', 'frame', 'elements', 'label', 'sparks', 'sparksound', 'sparkvolume',
 					'noise', 'noisevolume', 'noiseranges', 'jam', 'jamsmin', 'jamsmax', 'incoming', 'catch',
-					'buttons', 'power', 'scale', 'catalog', 'inner'], []));
+					'buttons', 'power', 'scale', 'catalog', 'inner', 'lamp', 'decoder'], []));
 			}
 		}
 	});
@@ -4042,12 +4121,16 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		});
 		radioCollect = null;
 		radioTable = {};
+		radioOrder = [];
 		list.forEach(function (a) {
 			var name = String(a.name === undefined ? '' : a.name);
 
+			if (!radioTable[name]) {
+				radioOrder.push(name);
+			}
 			radioTable[name] = {
 				name: name,
-				type: a.type === 'fixed' || a.type === 'reverse' ? a.type : 'broken',
+				type: a.type === 'fixed' || a.type === 'reverse' || a.type === 'decoder' ? a.type : 'broken',
 				frame: String(a.frame || '#c9a24a'),
 				elements: String(a.elements || '#39ff7a'),
 				label: a.label === undefined ? 'ОРБИТА-3' : String(a.label),
@@ -4057,6 +4140,8 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 				scale: a.scale ? String(a.scale) : '',
 				catalog: a.catalog ? String(a.catalog) : '',
 				inner: a.inner ? String(a.inner) : '',
+				lamp: a.lamp ? String(a.lamp) : '',
+				decoder: a.decoder ? String(a.decoder) : '',
 				sparks: Math.max(0, Math.min(100, musNum(a.sparks, 30))),
 				sound: a.sparksound ? String(a.sparksound) : '',
 				volume: Math.max(0, Math.min(100, musNum(a.sparkvolume, 80))),
@@ -4226,21 +4311,61 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		return {svg: svg, segs: [], sparks: [], reels: reels};
 	}
 
+	// Каркас Д2 (сессия 30) в квадрате 1000×1000: целая рама, под строкой — линия, над
+	// каталогом — вторая; справа — окно катушек; винты внизу справа (слева внизу — каталог).
+	function radioFrameDecoder(view) {
+		var svg = svgEl('svg', {viewBox: '0 0 1000 1000', 'class': 'sg-r-frame', 'aria-hidden': 'true'});
+		var reels = [];
+
+		svgEl('rect', {x: 14, y: 14, width: 972, height: 972, 'class': 'sg-r-fr'}, svg);
+		svgEl('line', {x1: 14, y1: 136, x2: 986, y2: 136, 'class': 'sg-r-thin'}, svg);
+		svgEl('line', {x1: 14, y1: 596, x2: 986, y2: 596, 'class': 'sg-r-thin'}, svg);
+		svgEl('rect', {x: 770, y: 268, width: 194, height: 132, rx: 12, 'class': 'sg-r-thin'}, svg);
+		[818, 916].forEach(function (cx) {
+			var cy = 334;
+
+			svgEl('circle', {cx: cx, cy: cy, r: 40, 'class': 'sg-r-reelrim'}, svg);
+
+			var g = svgEl('g', {'class': 'sg-r-reel'}, svg);
+
+			svgEl('circle', {cx: cx, cy: cy, r: 13, 'class': 'sg-r-thin'}, g);
+			for (var a = 0; a < 3; a++) {
+				var ang = a * 2.094 - 1.571;
+
+				svgEl('line', {x1: cx + Math.cos(ang) * 13, y1: cy + Math.sin(ang) * 13, x2: cx + Math.cos(ang) * 33, y2: cy + Math.sin(ang) * 33, 'class': 'sg-r-thin'}, g);
+			}
+			reels.push({g: g, cx: cx, cy: cy});
+		});
+		svgEl('line', {x1: 818, y1: 374, x2: 916, y2: 374, 'class': 'sg-r-thin'}, svg);
+		[[662, 962], [960, 962]].forEach(function (p) {
+			svgEl('circle', {cx: p[0], cy: p[1], r: 9, 'class': 'sg-r-fr'}, svg);
+			svgEl('line', {x1: p[0] - 5, y1: p[1] - 5, x2: p[0] + 5, y2: p[1] + 5, 'class': 'sg-r-thin'}, svg);
+			svgEl('line', {x1: p[0] - 5, y1: p[1] + 5, x2: p[0] + 5, y2: p[1] - 5, 'class': 'sg-r-thin'}, svg);
+		});
+		if (view.label) {
+			var text = svgEl('text', {x: 966, y: 90, 'text-anchor': 'end', 'class': 'sg-r-label'}, svg);
+
+			text.textContent = view.label;
+		}
+		return {svg: svg, segs: [], sparks: [], reels: reels};
+	}
+
 	// Места частей радио в долях 1000: [x, y, ширина, высота].
 	var radioPlaces = {
+		// Сессия 30: у всех радио — полоса прогресса (prog) и «СЛУЧАЙНО» (shuffle).
 		broken: {
-			mq: [36, 40, 928, 82], cat: [36, 136, 600, 828], cap: [686, 300, 276, 30],
+			mq: [36, 40, 928, 82], cat: [36, 136, 600, 740], prog: [36, 890, 600, 60], cap: [686, 300, 276, 30],
 			minus: [686, 340, 64, 84], digits: [762, 340, 124, 84], plus: [898, 340, 64, 84],
 			play: [686, 470, 84, 84], pause: [782, 470, 84, 84], stop: [878, 470, 84, 84],
-			auto: [686, 604, 190, 58], power: [686, 760, 276, 150]
+			auto: [686, 590, 276, 52], shuffle: [686, 654, 276, 52], power: [686, 760, 276, 150]
 		},
 		fixed: {
 			mq: [36, 36, 760, 82], scan: [36, 152, 116, 172], scale: [164, 152, 594, 172],
 			freq: [770, 152, 194, 84], fminus: [770, 248, 92, 76], fplus: [872, 248, 92, 76],
-			cat: [36, 352, 600, 588], cap: [686, 362, 276, 30],
+			cat: [36, 352, 600, 500], prog: [36, 868, 600, 60], cap: [686, 362, 276, 30],
 			minus: [686, 400, 64, 84], digits: [762, 400, 124, 84], plus: [898, 400, 64, 84],
 			play: [686, 520, 84, 84], pause: [782, 520, 84, 84], stop: [878, 520, 84, 84],
-			auto: [686, 648, 190, 58], power: [686, 766, 276, 150]
+			auto: [686, 630, 276, 50], shuffle: [686, 690, 276, 50], power: [686, 766, 276, 150]
 		},
 		reverse: {
 			mq: [36, 36, 712, 82], scan: [316, 152, 96, 110], scale: [424, 152, 360, 110],
@@ -4249,7 +4374,18 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			cat: [36, 366, 560, 576], cap: [620, 372, 344, 30],
 			minus: [620, 406, 70, 80], digits: [702, 406, 180, 80], plus: [894, 406, 70, 80],
 			play: [620, 504, 102, 80], pause: [741, 504, 102, 80], stop: [862, 504, 102, 80],
-			rev: [620, 602, 344, 84], auto: [620, 706, 190, 58], power: [620, 784, 344, 150]
+			rev: [620, 602, 344, 84], auto: [620, 706, 166, 58], shuffle: [798, 706, 166, 58], power: [620, 784, 344, 150]
+		},
+		// Сессия 30: радио с декодером (Д2) — окно картинки и ДЕКОД слева сверху.
+		decoder: {
+			mq: [36, 36, 712, 82], dec: [36, 152, 360, 360], decbtn: [36, 524, 360, 56],
+			scan: [412, 152, 100, 104], scale: [524, 152, 440, 104],
+			freq: [412, 268, 170, 60], fminus: [594, 268, 76, 60], fplus: [682, 268, 76, 60],
+			prog: [412, 340, 346, 60], cap: [412, 416, 260, 28],
+			minus: [412, 450, 72, 70], digits: [496, 450, 124, 70], plus: [632, 450, 72, 70],
+			play: [720, 450, 74, 70], pause: [805, 450, 74, 70], stop: [890, 450, 74, 70],
+			rev: [412, 524, 552, 56], cat: [36, 612, 590, 352],
+			auto: [642, 612, 322, 50], shuffle: [642, 672, 322, 50], power: [642, 742, 322, 150]
 		}
 	};
 
@@ -4296,6 +4432,9 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		}
 		if (ambient) {
 			return (st.playing ? 'Сейчас: ' : 'Пауза: ') + t.name + ' — ' + t.folder.name;
+		}
+		if (mus.rev && mus.rev.err) {
+			return '◀◀ РЕВЕРС НЕДОСТУПЕН   ·   ' + t.name;
 		}
 		return (mus.rev ? '◀◀ РЕВЕРС: ' : st.playing ? '▶ СЕЙЧАС ИГРАЕТ: ' : '❚❚ ПАУЗА: ') + t.name + '   ·   ПАПКА «' + t.folder.name + '»';
 	}
@@ -4442,6 +4581,11 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		item.play.classList.toggle('sg-r-lit', !!(st.playing && cur));
 		item.pause.classList.toggle('sg-r-lit', !!(!st.playing && cur && radioCur));
 		item.auto.classList.toggle('sg-r-lit', !!st.auto);
+		item.shuffle.classList.toggle('sg-r-lit', !!st.rshuffle);
+		progDraw(item);
+		if (item.decBox) {
+			decDraw(item);
+		}
 	}
 
 	function radioDrawAll() {
@@ -4585,22 +4729,61 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	}
 
 	// Расстановка при входе на экран: передачи и случайный набор помех.
+	// Сессия 30: какие помехи могут выпасть. mine — этого радио, fresh — ещё не пойманные этого
+	// радио и радио выше в окне «Радио» (по порядку видов).
+	function airJamPool(view) {
+		var caught = preview ? {} : musState().caught;
+		var byView = music().jamsByView;
+		var order = radioOrder.filter(function (n) {
+			return radioViews()[n].type !== 'broken';
+		});
+		var at = order.indexOf(view.name);
+		var mine = (byView[view.name] || []).filter(musCond);
+		var all = mine.slice();
+
+		order.slice(0, Math.max(0, at)).forEach(function (n) {
+			all = all.concat((byView[n] || []).filter(musCond));
+		});
+		return {
+			caught: mine.filter(function (t) {
+				return caught[t.id];
+			}),
+			fresh: all.filter(function (t) {
+				return !caught[t.id];
+			})
+		};
+	}
+
+	function airTake(list) {
+		return list.splice(Math.floor(Math.random() * list.length), 1)[0];
+	}
+
+	// Расстановка при входе на экран: передачи и случайный набор помех — одна уже пойманная
+	// этого радио, остальные ещё не пойманные; не хватает — ещё пойманные этого радио.
 	function airLayout(item) {
 		var view = item.view;
 		var taken = [];
-		var jams = view.jams.slice();
+		var pool = airJamPool(view);
 		var lo = Math.min(view.jamsMin, view.jamsMax);
-		var count = Math.min(jams.length, lo + Math.floor(Math.random() * (Math.abs(view.jamsMax - view.jamsMin) + 1)));
+		var want = lo + Math.floor(Math.random() * (Math.abs(view.jamsMax - view.jamsMin) + 1));
+		var picked = [];
 
+		if (want > 0 && pool.caught.length) {
+			picked.push(airTake(pool.caught));
+		}
+		while (picked.length < want && pool.fresh.length) {
+			picked.push(airTake(pool.fresh));
+		}
+		while (picked.length < want && pool.caught.length) {
+			picked.push(airTake(pool.caught));
+		}
 		item.srcs = [];
 		airTracks().forEach(function (t) {
 			item.srcs.push({kind: 'tx', t: t, c: airSpot(taken), w: t.width * 10, base: t.gain / 100});
 		});
-		for (var i = 0; i < count; i++) {
-			var j = jams.splice(Math.floor(Math.random() * jams.length), 1)[0];
-
-			item.srcs.push({kind: 'jam', src: j.src, c: airSpot(taken), w: j.width * 10, base: j.volume / 100});
-		}
+		picked.forEach(function (t) {
+			item.srcs.push({kind: 'jam', t: t, src: t.src, c: airSpot(taken), w: t.width * 10, base: t.gain / 100});
+		});
 		item.taken = taken;
 	}
 
@@ -4693,7 +4876,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			airTimer = setInterval(airTick, 100);
 		}
 
-		var master = st.vol / 99;
+		var master = st.vol / 99 * mus.duck;
 		var f = airFreq();
 
 		live.forEach(function (item) {
@@ -4727,8 +4910,10 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 				airAudio(item.noise, view.noise).volume = Math.max(0, Math.min(1, exact ? 0 : master * view.noiseVolume / 100 * airNoiseAt(view, f) * (1 - best)));
 			}
 
-			// Точная настройка на передачу, которая попадёт в каталог (ответ 4А).
-			var aim = exact && exact.kind === 'tx' && !exact.t.only && f === exact.c ? exact : null;
+			// Точная настройка на передачу, которая попадёт в каталог (ответ 4А), или на ещё не
+			// пойманную помеху (сессия 30: помехи ловятся так же).
+			var catchable = exact && (exact.kind === 'tx' ? !exact.t.only : !st.caught[exact.t.id]);
+			var aim = catchable && f === exact.c ? exact : null;
 
 			// Сессия 29: лампочка — точно на передаче и встали кнопками (не иглой).
 			item.lamp.classList.toggle('sg-r-lamp-on', !!(aim && item.byButton));
@@ -4974,8 +5159,8 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	var revFrame = null;
 	var revLast = 0;
 
-	// Полоса прогресса без цифр времени (ответ 5Б) и подсветка РЕВЕРСА.
-	function revDraw(item) {
+	// Полоса прогресса без цифр времени (ответ 5Б; с сессии 30 — у всех радио).
+	function progDraw(item) {
 		var w = musWhere();
 		var frac = preview ? (item.pfrac === undefined ? 0.35 : item.pfrac) : w && w.dur ? Math.max(0, Math.min(1, w.pos / w.dur)) : 0;
 		var text = frac.toFixed(4);
@@ -4986,7 +5171,52 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			item.progThumb.style.left = 'calc(var(--u) * 14 + (100% - var(--u) * 28) * ' + text + ')';
 		}
 		item.prog.classList.toggle('sg-r-none', !preview && !w);
+	}
+
+	// Подсветка РЕВЕРСА и прогресс.
+	function revDraw(item) {
+		progDraw(item);
 		item.revBtn.classList.toggle('sg-r-lit', preview ? !!item.pback : !!mus.rev);
+	}
+
+	// Прогресс трека: тянуть ползунок или щёлкнуть — туда; работает и на паузе.
+	function progBuild(item, el, P) {
+		var prog = radioAt(el, 'div', 'sg-r-prog', P.prog);
+		var dragging = false;
+
+		prog.innerHTML = '<span class="sg-r-prog-line"><span class="sg-r-prog-fill"></span></span><span class="sg-r-prog-thumb"></span>';
+		item.prog = prog;
+		item.progFill = prog.querySelector('.sg-r-prog-fill');
+		item.progThumb = prog.querySelector('.sg-r-prog-thumb');
+
+		var at = function (ev) {
+			var r = prog.querySelector('.sg-r-prog-line').getBoundingClientRect();
+			var frac = Math.max(0, Math.min(1, (ev.clientX - r.left) / Math.max(1, r.width)));
+
+			if (preview) {
+				item.pfrac = frac;
+			} else {
+				musSeek(frac);
+			}
+			item.progShown = null;
+			progDraw(item);
+		};
+
+		$(prog).on('pointerdown', function (ev) {
+			dragging = true;
+			try {
+				prog.setPointerCapture(ev.originalEvent.pointerId);
+			} catch (e) {}
+			at(ev.originalEvent);
+			ev.preventDefault();
+		}).on('pointermove', function (ev) {
+			if (dragging) {
+				at(ev.originalEvent);
+			}
+		}).on('pointerup pointercancel', function () {
+			dragging = false;
+		});
+		progDraw(item);
 	}
 
 	// Катушки крутятся, пока трек играет; при реверсе — в обратную сторону; на паузе
@@ -5064,44 +5294,6 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			ev.preventDefault();
 		}).on('pointerup pointercancel lostpointercapture', release);
 		item.revBtn = btn;
-
-		// Прогресс трека: тянуть ползунок или щёлкнуть — туда; работает и на паузе.
-		var prog = radioAt(el, 'div', 'sg-r-prog', P.prog);
-		var dragging = false;
-
-		prog.innerHTML = '<span class="sg-r-prog-line"><span class="sg-r-prog-fill"></span></span><span class="sg-r-prog-thumb"></span>';
-		item.prog = prog;
-		item.progFill = prog.querySelector('.sg-r-prog-fill');
-		item.progThumb = prog.querySelector('.sg-r-prog-thumb');
-
-		var at = function (ev) {
-			var r = prog.querySelector('.sg-r-prog-line').getBoundingClientRect();
-			var frac = Math.max(0, Math.min(1, (ev.clientX - r.left) / Math.max(1, r.width)));
-
-			if (preview) {
-				item.pfrac = frac;
-			} else {
-				musSeek(frac);
-			}
-			item.progShown = null;
-			revDraw(item);
-		};
-
-		$(prog).on('pointerdown', function (ev) {
-			dragging = true;
-			try {
-				prog.setPointerCapture(ev.originalEvent.pointerId);
-			} catch (e) {}
-			at(ev.originalEvent);
-			ev.preventDefault();
-		}).on('pointermove', function (ev) {
-			if (dragging) {
-				at(ev.originalEvent);
-			}
-		}).on('pointerup pointercancel', function () {
-			dragging = false;
-		});
-
 		item.reelAngle = 0;
 		revItems.push(item);
 		if (!revFrame) {
@@ -5109,6 +5301,433 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		}
 		revDraw(item);
 	}
+
+	/* ----- Радио с декодером (сессия 30): ДЕКОД и окно картинки SSTV ----- */
+
+	// Картинки SSTV программа достаёт из помех и передач при «Сохранить» в окне «Музыка»: файл
+	// media/img/sstv/…png и строка <<sg-sstv "трек" stamp "…" img "…png" mode "Robot 36" at 4.911
+	// line 0.15 rows 240 per 1 width 320 height 240>> в пассаже с тегом sg-sstv (игра из папки
+	// прочитать звук своих файлов не может). Движок набирает картинку строка за строкой в такт
+	// звуку: строка r видна, когда место трека ≥ at + (⌊r / per⌋ + 1) · line. Источник — играющий
+	// трек каталога или самая слышная точка эфира с картинкой; настроились неточно — строки с
+	// шумом пропорционально; звучит не SSTV — строки помех; тишина — набор стоит; трек начался
+	// заново — новая картинка. Набранное живёт между экранами (до перезагрузки страницы).
+	var sstvCollect = null;
+	var sstvTableCache = null;
+	var decItems = [];
+	var decFrame = null;
+	var decLast = 0;
+	var dec = {buf: null, key: '', drawn: 0, w: 320, h: 256, mode: '', gy: 0, acc: 0, noise: 0, ver: 0, state: 'idle', row: null};
+
+	Macro.add('sg-sstv', {
+		handler: function () {
+			if (sstvCollect) {
+				sstvCollect.push(blockArgs(this, ['src'], ['stamp', 'img', 'mode', 'at', 'line', 'rows', 'per', 'width', 'height'], ['none']));
+			}
+		}
+	});
+
+	function sstvClean(src) {
+		return String(src || '').replace(/^\.\//, '');
+	}
+
+	function sstvTable() {
+		if (sstvTableCache) {
+			return sstvTableCache;
+		}
+
+		var list = [];
+
+		sstvCollect = list;
+		Story.filter(function (p) {
+			return p.tags.indexOf('sg-sstv') !== -1;
+		}).forEach(function (p) {
+			try {
+				new Wikifier(document.createDocumentFragment(), p.text);
+			} catch (e) {
+				console.error('СИГНАЛЫ: SSTV', e);
+			}
+		});
+		sstvCollect = null;
+		sstvTableCache = {};
+		list.forEach(function (a) {
+			if (a.none || !a.img) {
+				return;
+			}
+
+			var key = sstvClean(a.src);
+			var line = musNum(a.line, 0);
+
+			if (!(line > 0)) {
+				return;
+			}
+			(sstvTableCache[key] = sstvTableCache[key] || []).push({
+				img: String(a.img),
+				mode: String(a.mode || 'SSTV'),
+				at: musNum(a.at, 0),
+				line: line,
+				rows: Math.max(1, Math.round(musNum(a.rows, 1))),
+				per: Math.max(1, Math.round(musNum(a.per, 1))),
+				w: Math.max(1, Math.round(musNum(a.width, 320))),
+				h: Math.max(1, Math.round(musNum(a.height, 256))),
+				el: null
+			});
+		});
+		Object.keys(sstvTableCache).forEach(function (key) {
+			sstvTableCache[key].sort(function (x, y) {
+				return x.at - y.at;
+			});
+		});
+		return sstvTableCache;
+	}
+
+	function sstvFor(src) {
+		return sstvTable()[sstvClean(src)] || null;
+	}
+
+	// Картинка загружена? Загружается при первом обращении.
+	function sstvImage(e) {
+		if (!e.el) {
+			e.el = new Image();
+			e.el.src = e.img;
+		}
+		return e.el.complete && e.el.naturalWidth > 0 ? e.el : null;
+	}
+
+	// Что сейчас слышно для декодера: {src, imgs, pos, noise}, {sound: true} (звучит не SSTV) или null.
+	function decSource() {
+		if (mus.rev) {
+			return {sound: true};
+		}
+		if (mus.audio && !mus.audio.paused && !mus.audio.ended && mus.audio.volume > 0) {
+			var t = music().byId[mus.id];
+			var own = t ? sstvFor(t.src) : null;
+
+			return own ? {src: t.src, imgs: own, pos: mus.audio.currentTime, noise: 0} : {sound: true};
+		}
+
+		var best = null;
+		var any = false;
+		var f = airFreq();
+
+		airItems.forEach(function (item) {
+			if (!item.el.isConnected) {
+				return;
+			}
+			(item.srcs || []).forEach(function (s) {
+				if (!s.audio || s.audio.paused || s.audio.volume <= 0.002) {
+					return;
+				}
+				any = true;
+
+				var imgs = sstvFor(s.kind === 'tx' ? s.t.src : s.src);
+
+				if (imgs && (!best || s.audio.volume > best.vol)) {
+					best = {src: s.kind === 'tx' ? s.t.src : s.src, imgs: imgs, pos: s.audio.currentTime, vol: s.audio.volume, noise: 1 - airNear(s, f)};
+				}
+			});
+			if (item.noise && item.noise.audio && !item.noise.audio.paused && item.noise.audio.volume > 0.002) {
+				any = true;
+			}
+		});
+		if (best) {
+			return {src: best.src, imgs: best.imgs, pos: best.pos, noise: Math.max(0, Math.min(1, best.noise))};
+		}
+		return any ? {sound: true} : null;
+	}
+
+	function decCanvas(w, h) {
+		if (!dec.buf) {
+			dec.buf = document.createElement('canvas');
+		}
+		dec.buf.width = w;
+		dec.buf.height = h;
+		dec.w = w;
+		dec.h = h;
+
+		var ctx = dec.buf.getContext('2d');
+
+		ctx.fillStyle = '#000';
+		ctx.fillRect(0, 0, w, h);
+		dec.ver++;
+	}
+
+	// Строка шума: level — непрозрачность (0…1), garbage — строка помех (полосы и рябь).
+	function decNoiseRow(y, level, garbage) {
+		if (!dec.row || dec.row.width !== dec.w) {
+			dec.row = document.createElement('canvas');
+			dec.row.width = dec.w;
+			dec.row.height = 1;
+		}
+
+		var rctx = dec.row.getContext('2d');
+		var data = rctx.createImageData(dec.w, 1);
+		var tint = garbage ? [Math.random() * 120, Math.random() * 120, Math.random() * 120] : [0, 0, 0];
+		var band = garbage ? Math.random() * dec.w : -1;
+
+		for (var x = 0; x < dec.w; x++) {
+			var v = Math.random() * 255;
+			var i = x * 4;
+			var near = band >= 0 && Math.abs(x - band) < dec.w * 0.08;
+
+			data.data[i] = near ? 255 : (v + tint[0]) % 256;
+			data.data[i + 1] = near ? 255 : (v + tint[1]) % 256;
+			data.data[i + 2] = near ? 255 : (v + tint[2]) % 256;
+			data.data[i + 3] = 255;
+		}
+		rctx.putImageData(data, 0, 0);
+
+		var ctx = dec.buf.getContext('2d');
+
+		ctx.globalAlpha = Math.max(0, Math.min(1, level));
+		ctx.drawImage(dec.row, 0, y);
+		ctx.globalAlpha = 1;
+	}
+
+	function decStep(dt) {
+		var src = decSource();
+
+		if (!dec.buf) {
+			decCanvas(320, 256);
+		}
+		if (!src) {
+			dec.state = dec.state === 'image' || dec.state === 'done' ? 'done' : 'idle';
+			return;
+		}
+		if (src.sound) {
+			// Звучит не SSTV — строки помех, как у декодера без синхронизации (~7 строк в секунду).
+			if (dec.key !== 'garbage') {
+				dec.key = 'garbage';
+				dec.gy = 0;
+				dec.acc = 0;
+			}
+			dec.state = 'garbage';
+			dec.acc += dt * 7;
+			while (dec.acc >= 1) {
+				dec.acc -= 1;
+				decNoiseRow(dec.gy, 1, true);
+				dec.gy = (dec.gy + 1) % dec.h;
+				dec.ver++;
+			}
+			return;
+		}
+
+		// Какая картинка трека сейчас: последняя, чей заголовок (≈1 с до первой строки) уже прозвучал.
+		var index = -1;
+
+		src.imgs.forEach(function (e, i) {
+			if (src.pos >= e.at - 1) {
+				index = i;
+			}
+		});
+		if (index < 0) {
+			dec.state = dec.state === 'garbage' ? 'idle' : dec.state;
+			return;
+		}
+
+		var e = src.imgs[index];
+		var key = sstvClean(src.src) + '#' + index;
+		var target = Math.max(0, Math.min(e.h, Math.floor((src.pos - e.at) / e.line) * e.per));
+
+		// Новая картинка или трек начался заново — чистый экран.
+		if (key !== dec.key || target < dec.drawn - e.per * 2) {
+			dec.key = key;
+			dec.drawn = 0;
+			dec.mode = e.mode;
+			decCanvas(e.w, e.h);
+		}
+		dec.noise = src.noise;
+		dec.state = target >= e.h ? 'done' : 'image';
+
+		var img = sstvImage(e);
+
+		if (!img || target <= dec.drawn) {
+			return;
+		}
+
+		var ctx = dec.buf.getContext('2d');
+
+		ctx.drawImage(img, 0, dec.drawn, e.w, target - dec.drawn, 0, dec.drawn, e.w, target - dec.drawn);
+		if (src.noise > 0.01) {
+			for (var y = dec.drawn; y < target; y++) {
+				decNoiseRow(y, src.noise, false);
+			}
+		}
+		dec.drawn = target;
+		dec.ver++;
+	}
+
+	function decCaption() {
+		if (dec.state === 'image') {
+			return dec.mode.toUpperCase() + '  ·  ' + Math.round(dec.drawn / dec.h * 100) + '%';
+		}
+		if (dec.state === 'done') {
+			return dec.mode.toUpperCase();
+		}
+		if (dec.state === 'garbage') {
+			return 'НЕТ СИНХРОНИЗАЦИИ';
+		}
+		return 'ЖДУ СИГНАЛ';
+	}
+
+	// Предпросмотр: цветные полосы набраны наполовину, чтобы было видно окно.
+	function decDemo(item) {
+		var c = item.decCanvas;
+		var ctx = c.getContext('2d');
+		var colors = ['#c0c0c0', '#c0c000', '#00c0c0', '#00c000', '#c000c0', '#c00000', '#0000c0'];
+
+		c.width = 320;
+		c.height = 256;
+		ctx.fillStyle = '#000';
+		ctx.fillRect(0, 0, 320, 256);
+		colors.forEach(function (col, i) {
+			ctx.fillStyle = col;
+			ctx.fillRect(Math.round(i * 320 / 7), 0, Math.ceil(320 / 7), 150);
+		});
+	}
+
+	function decDraw(item) {
+		var on = preview ? !!item.pdec : !!musState().dec;
+
+		item.decBtn.classList.toggle('sg-r-lit', on);
+		item.decBox.classList.toggle('sg-r-dec-off', !on);
+		if (preview) {
+			item.decCap.textContent = on ? 'ПРЕДПРОСМОТР' : 'ДЕКОДЕР ВЫКЛЮЧЕН';
+			return;
+		}
+
+		var cap = on ? decCaption() : 'ДЕКОДЕР ВЫКЛЮЧЕН';
+
+		if (item.decCap.textContent !== cap) {
+			item.decCap.textContent = cap;
+		}
+		if (dec.buf && item.decVer !== dec.ver) {
+			item.decVer = dec.ver;
+			if (item.decCanvas.width !== dec.w || item.decCanvas.height !== dec.h) {
+				item.decCanvas.width = dec.w;
+				item.decCanvas.height = dec.h;
+			}
+			item.decCanvas.getContext('2d').drawImage(dec.buf, 0, 0);
+		}
+	}
+
+	function decLoop(now) {
+		decItems = decItems.filter(function (item) {
+			return item.el.isConnected || !item.placed;
+		});
+		if (!decItems.length) {
+			decFrame = null;
+			decLast = 0;
+			return;
+		}
+
+		var dt = decLast ? Math.min(0.25, (now - decLast) / 1000) : 0;
+
+		decLast = now;
+		if (!preview && musState().dec) {
+			decStep(dt);
+		}
+		decItems.forEach(function (item) {
+			if (item.el.isConnected) {
+				item.placed = true;
+				decDraw(item);
+				if (item.decFull) {
+					decFit(item);
+				}
+			}
+		});
+		decFrame = requestAnimationFrame(decLoop);
+	}
+
+	// На весь терминал (щелчок по окну) и обратно.
+	function decFit(item) {
+		var box = document.getElementById('passages');
+		var r = box ? box.getBoundingClientRect() : {left: 0, top: 0, width: window.innerWidth, height: window.innerHeight};
+		var st = item.decBox.style;
+
+		st.left = r.left + 'px';
+		st.top = r.top + 'px';
+		st.width = r.width + 'px';
+		st.height = r.height + 'px';
+	}
+
+	function decToggleFull(item) {
+		item.decFull = !item.decFull;
+		item.decBox.classList.toggle('sg-r-dec-full', item.decFull);
+		if (item.decFull) {
+			decFit(item);
+		} else {
+			['left', 'top', 'width', 'height'].forEach(function (k) {
+				item.decBox.style[k] = item.decPlace[k];
+			});
+		}
+	}
+
+	function decBuild(item, el, P) {
+		var box = radioAt(el, 'div', 'sg-r-box sg-r-dec', P.dec);
+		var canvas = document.createElement('canvas');
+		var cap = document.createElement('span');
+
+		canvas.width = 320;
+		canvas.height = 256;
+		cap.className = 'sg-r-dec-cap';
+		box.appendChild(canvas);
+		box.appendChild(cap);
+		box.setAttribute('role', 'button');
+		box.setAttribute('aria-label', 'Окно декодера — на весь терминал');
+		item.decBox = box;
+		item.decCanvas = canvas;
+		item.decCap = cap;
+		item.decVer = -1;
+		item.decPlace = {left: box.style.left, top: box.style.top, width: box.style.width, height: box.style.height};
+		$(box).on('click', function () {
+			uiClick(box);
+			decToggleFull(item);
+		});
+
+		item.decBtn = radioAt(el, 'button', 'sg-r-btn sg-r-decbtn', P.decbtn);
+		item.decBtn.innerHTML = '<span class="sg-r-dot"></span>ДЕКОД';
+		item.decBtn.setAttribute('aria-label', 'Декодер');
+		$(item.decBtn).on('click', function () {
+			if (preview) {
+				item.pdec = !item.pdec;
+			} else {
+				musState().dec = !musState().dec;
+				saveVars();
+			}
+			decDraw(item);
+		});
+		if (preview) {
+			decDemo(item);
+		} else {
+			// Картинки — заранее, чтобы набор не ждал загрузки.
+			var table = sstvTable();
+
+			Object.keys(table).forEach(function (key) {
+				table[key].forEach(sstvImage);
+			});
+		}
+		decItems.push(item);
+		if (!decFrame) {
+			decFrame = requestAnimationFrame(decLoop);
+		}
+	}
+
+	function decLeave() {
+		decItems = [];
+	}
+
+	// Декодер — для проверок.
+	setup.signaly.dec = function () {
+		return {on: !preview && !!musState().dec, key: dec.key, drawn: dec.drawn, w: dec.w, h: dec.h, mode: dec.mode, state: dec.state, noise: dec.noise, gy: dec.gy, caption: decCaption(),
+			pixel: function (x, y) {
+				try {
+					return Array.prototype.slice.call(dec.buf.getContext('2d').getImageData(x, y, 1, 1).data);
+				} catch (e) {
+					return null;
+				}
+			}};
+	};
 
 	Macro.add('sg-radio', {
 		handler: function () {
@@ -5120,9 +5739,10 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			};
 			var el = document.createElement('div');
 			var fixed = view.type !== 'broken';
-			var reverse = view.type === 'reverse';
-			var P = radioPlaces[reverse ? 'reverse' : fixed ? 'fixed' : 'broken'];
-			var frame = reverse ? radioFrameReverse(view) : fixed ? radioFrameFixed(view) : radioFrame(view);
+			var decoder = view.type === 'decoder';
+			var reverse = view.type === 'reverse' || decoder;
+			var P = radioPlaces[decoder ? 'decoder' : reverse ? 'reverse' : fixed ? 'fixed' : 'broken'];
+			var frame = decoder ? radioFrameDecoder(view) : reverse ? radioFrameReverse(view) : fixed ? radioFrameFixed(view) : radioFrame(view);
 			var item = {el: el, view: view, frame: frame, size: Math.max(0, musNum(a.size, 0)), side: 0, unit: 1, dir: '', catKey: null, mqText: null};
 			var st = radioState();
 			var here = State.passage;
@@ -5130,7 +5750,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			if (!views[name]) {
 				console.warn('СИГНАЛЫ: вида радио «' + name + '» нет в пассаже «Радио»');
 			}
-			el.className = 'sg-radio sg-radio-' + (fixed ? 'fixed' : 'broken') + (reverse ? ' sg-radio-reverse' : '');
+			el.className = 'sg-radio sg-radio-' + (fixed ? 'fixed' : 'broken') + (reverse ? ' sg-radio-reverse' : '') + (decoder ? ' sg-radio-decoder' : '');
 			el.style.setProperty('--sg-rf', view.frame);
 			el.style.setProperty('--sg-re', view.elements);
 			// Сессия 29: свои цвета кнопок, выключателя, шкалы, каталога, внутреннего каркаса.
@@ -5139,6 +5759,11 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			el.style.setProperty('--sg-rs', view.scale || view.elements);
 			el.style.setProperty('--sg-rc', view.catalog || view.elements);
 			el.style.setProperty('--sg-ri', view.inner || view.frame);
+			// Сессия 30, ответ 6Б: свой цвет лампочки; нет — как у шкалы.
+			if (view.lamp) {
+				el.style.setProperty('--sg-rl', view.lamp);
+			}
+			el.style.setProperty('--sg-rd', view.decoder || view.elements);
 			el.style.setProperty('--u', '1px');
 			el.appendChild(frame.svg);
 
@@ -5240,6 +5865,17 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 				}
 			});
 
+			// «СЛУЧАЙНО» (сессия 30) — следующий трек папки радио случайный, кроме текущего.
+			item.shuffle = radioAt(el, 'button', 'sg-r-btn sg-r-auto sg-r-shuffle', P.shuffle);
+			item.shuffle.innerHTML = '<span class="sg-r-dot"></span>СЛУЧАЙНО';
+			$(item.shuffle).on('click', function () {
+				if (!preview) {
+					musState().rshuffle = !musState().rshuffle;
+					musChanged();
+				}
+			});
+			progBuild(item, el, P);
+
 			// Выключатель — выход на экран, откуда пришли (ответ 4А); музыка играет дальше.
 			var power = radioAt(el, 'button', 'sg-r-power', P.power);
 
@@ -5270,9 +5906,13 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			if (fixed) {
 				airBuild(item, el, P);
 			}
-			// Радио с реверсом (шаг 7.4): РЕВЕРС, прогресс трека, катушки.
+			// Радио с реверсом (шаг 7.4): РЕВЕРС, катушки.
 			if (reverse) {
 				revBuild(item, el, P);
+			}
+			// Радио с декодером (сессия 30): ДЕКОД и окно картинки.
+			if (decoder) {
+				decBuild(item, el, P);
 			}
 
 			// Каталог открыт там, где играет радио.
@@ -5316,6 +5956,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		airStop();
 		airItems = [];
 		revItems = [];
+		decLeave();
 	});
 	$(document).on(':passagedisplay', function () {
 		radioDrawAll();
@@ -5660,8 +6301,8 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		'.sg-radio .sg-r-cat { --sg-re: var(--sg-rc, #39ff7a); color: var(--sg-re); }\n' +
 		'.sg-radio .sg-r-scale, .sg-radio .sg-r-freq, .sg-radio .sg-r-prog { --sg-re: var(--sg-rs, #39ff7a); color: var(--sg-re); }\n' +
 		// Лампочка точной настройки: круг на шкале, горит — залит и светится.
-		'.sg-radio .sg-r-dial .sg-r-lamp { fill: none; stroke: var(--sg-re); stroke-width: 2.4; opacity: 0.55; transition: fill 0.15s, opacity 0.15s; }\n' +
-		'.sg-radio .sg-r-dial .sg-r-lamp.sg-r-lamp-on { fill: var(--sg-re); filter: drop-shadow(0 0 6px var(--sg-re)); opacity: 1; }\n' +
+		'.sg-radio .sg-r-dial .sg-r-lamp { fill: none; stroke: var(--sg-rl, var(--sg-re)); stroke-width: 2.4; opacity: 0.55; transition: fill 0.15s, opacity 0.15s; }\n' +
+		'.sg-radio .sg-r-dial .sg-r-lamp.sg-r-lamp-on { fill: var(--sg-rl, var(--sg-re)); filter: drop-shadow(0 0 6px var(--sg-rl, var(--sg-re))); opacity: 1; }\n' +
 		// Шаг 7.4: радио с реверсом — меньше окно частоты, РЕВЕРС, прогресс трека.
 		'.sg-radio-reverse .sg-r-freq { font-size: calc(var(--u) * 40); }\n' +
 		'html body .sg-radio-reverse button.sg-r-fbtn { font-size: calc(var(--u) * 36); }\n' +
@@ -5675,6 +6316,19 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		'.sg-radio .sg-r-prog-thumb { background: var(--sg-re); border-radius: calc(var(--u) * 3); height: calc(var(--u) * 40); position: absolute; ' +
 		'top: calc(50% - var(--u) * 20); transform: translateX(-50%); width: calc(var(--u) * 16); }\n' +
 		'.sg-radio .sg-r-prog.sg-r-none { opacity: 0.35; }\n' +
+		// Сессия 30: «СЛУЧАЙНО», радио с декодером — окно картинки и ДЕКОД.
+		'html body .sg-radio-reverse:not(.sg-radio-decoder) button.sg-r-auto { font-size: calc(var(--u) * 24); gap: calc(var(--u) * 10); padding-left: calc(var(--u) * 12); }\n' +
+		'.sg-radio .sg-r-dec { --sg-re: var(--sg-rd, #39ff7a); align-items: center; background: #000; color: var(--sg-re); cursor: zoom-in; display: flex; justify-content: center; overflow: hidden; }\n' +
+		'.sg-radio .sg-r-dec canvas { display: block; height: 100%; image-rendering: pixelated; object-fit: contain; width: 100%; }\n' +
+		'.sg-radio .sg-r-dec-cap { background: rgba(0, 0, 0, 0.65); bottom: 0; font-size: calc(var(--u) * 18); left: 0; letter-spacing: 0.1em; padding: calc(var(--u) * 4) calc(var(--u) * 10); position: absolute; right: 0; text-align: center; }\n' +
+		'.sg-radio .sg-r-dec.sg-r-dec-off canvas { opacity: 0.25; }\n' +
+		'.sg-radio .sg-r-dec.sg-r-dec-full { border-width: 3px; cursor: zoom-out; position: fixed; z-index: 1000; }\n' +
+		'.sg-radio .sg-r-dec.sg-r-dec-full .sg-r-dec-cap { font-size: 22px; padding: 6px 12px; }\n' +
+		'html body .sg-radio button.sg-r-decbtn { --sg-re: var(--sg-rd, #39ff7a); font-size: calc(var(--u) * 30); gap: calc(var(--u) * 14); letter-spacing: 0.08em; }\n' +
+		'.sg-radio .sg-r-decbtn.sg-r-lit .sg-r-dot { background: var(--sg-re); box-shadow: 0 0 calc(var(--u) * 6) var(--sg-re); }\n' +
+		'.sg-radio-decoder .sg-r-freq { font-size: calc(var(--u) * 40); }\n' +
+		'html body .sg-radio-decoder button.sg-r-btn { font-size: calc(var(--u) * 30); }\n' +
+		'html body .sg-radio-decoder button.sg-r-auto { font-size: calc(var(--u) * 26); }\n' +
 		'.sg-amb-bar { align-items: baseline; display: flex; flex-wrap: wrap; gap: 0.6em 1.5em; margin-bottom: 1em; }\n' +
 		'.sg-amb-now { flex: 1 1 100%; }\n' +
 		'.sg-amb-grid { display: grid; gap: 0.8em; }\n' +
@@ -5703,7 +6357,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			}).map(function (item) {
 				return {
 					srcs: (item.srcs || []).map(function (s) {
-						return {kind: s.kind, name: s.kind === 'tx' ? s.t.id : s.src, c: s.c, w: s.w, vol: s.audio && !s.audio.paused ? s.audio.volume : 0};
+						return {kind: s.kind, name: s.kind === 'tx' ? s.t.id : s.src, id: s.t ? s.t.id : '', c: s.c, w: s.w, vol: s.audio && !s.audio.paused ? s.audio.volume : 0};
 					}),
 					noise: item.noise && item.noise.audio && !item.noise.audio.paused ? item.noise.audio.volume : 0,
 					hold: item.hold ? {name: item.hold.s.t.id, ms: Date.now() - item.hold.since} : null,
@@ -8411,9 +9065,21 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		duckList = duckList.filter(function (d) {
 			return !d.audio.paused && !d.audio.ended;
 		});
+		var musWanted = 1;
+
 		duckList.forEach(function (d) {
-			duckTracks(d.who, wanted, d.level);
+			// Сессия 30: «Всё, что играет» и «Музыка» приглушают и общий плеер (музыка, радио, эфир).
+			if (d.who === ':playing' || d.who === ':music') {
+				musWanted = Math.min(musWanted, d.level);
+			}
+			if (d.who !== ':music') {
+				duckTracks(d.who, wanted, d.level);
+			}
 		});
+		if (mus.duck !== musWanted) {
+			mus.duck = mus.duck < musWanted ? Math.min(musWanted, mus.duck + step) : Math.max(musWanted, mus.duck - step);
+			musApply();
+		}
 		wanted.forEach(function (level, track) {
 			if (!duckNow.has(track)) {
 				duckNow.set(track, 1);
@@ -8430,7 +9096,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 				duckNow.set(track, next);
 			}
 		});
-		if (!duckList.length && !duckNow.size) {
+		if (!duckList.length && !duckNow.size && mus.duck === 1) {
 			clearInterval(duckTimer);
 			duckTimer = null;
 		}

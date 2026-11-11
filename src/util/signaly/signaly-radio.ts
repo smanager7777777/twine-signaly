@@ -15,6 +15,9 @@
 // Сессия 29 (замечание к build-31): свои цвета частей — [buttons "#…"] [power "#…"] [scale "#…"]
 // [catalog "#…"] [inner "#…"]; нет — как у элементов (внутренний каркас — как у каркаса).
 // Шаг 7.4: type reverse — каркас В2: всё, что у отремонтированного, плюс РЕВЕРС, прогресс трека, катушки.
+// Сессия 30: type decoder — каркас Д2: всё, что у В2, плюс ДЕКОД и окно картинки SSTV; свои цвета
+// лампочки (lamp, по умолчанию — как у шкалы) и декодера (decoder). Помехи (jam у вида) переехали в
+// окно «Музыка», раздел «Помехи» (папка — вид радио); старая запись jam понимается и переносится.
 
 import {arg} from './signaly-link-form';
 import {commentRanges} from './signaly-music';
@@ -23,10 +26,10 @@ import {findBlocks, replaceBlock, scanArgs} from './signaly-screen-blocks';
 export const radioTag = 'sg-radio';
 export const radioPassageName = 'Радио';
 
-export type RadioType = 'broken' | 'fixed' | 'reverse';
-export const radioTypes: RadioType[] = ['broken', 'fixed', 'reverse'];
+export type RadioType = 'broken' | 'fixed' | 'reverse' | 'decoder';
+export const radioTypes: RadioType[] = ['broken', 'fixed', 'reverse', 'decoder'];
 /** Типы, которые уже рисует движок. */
-export const radioReady: RadioType[] = ['broken', 'fixed', 'reverse'];
+export const radioReady: RadioType[] = ['broken', 'fixed', 'reverse', 'decoder'];
 
 /** Шкала эфира: 88,0–108,0 МГц, шаг 0,1. */
 export const airMin = 88;
@@ -39,10 +42,13 @@ export interface RadioJam {
 	/** Громкость, %. */
 	volume: number;
 }
-export const radioFrames: Record<RadioType, string> = {broken: 'С2', fixed: 'Р2', reverse: 'В2'};
+export const radioFrames: Record<RadioType, string> = {broken: 'С2', fixed: 'Р2', reverse: 'В2', decoder: 'Д2'};
 
 /** Части радио со своим цветом (сессия 29): по умолчанию — как у элементов (inner — как у каркаса). */
-export const radioPartColors = ['buttons', 'power', 'scale', 'catalog', 'inner'] as const;
+export const radioPartColors = ['buttons', 'power', 'scale', 'lamp', 'catalog', 'decoder', 'inner'] as const;
+/** Какие части есть у типа (лампочка — у радио с эфиром, декодер — у Д2). */
+export const radioPartFor = (key: RadioPartColor, type: RadioType) =>
+	key === 'lamp' ? type !== 'broken' : key === 'decoder' ? type === 'decoder' : true;
 export type RadioPartColor = typeof radioPartColors[number];
 
 export interface RadioView {
@@ -60,6 +66,9 @@ export interface RadioView {
 	scale: string;
 	catalog: string;
 	inner: string;
+	/** Сессия 30: лампочка ('' — как у шкалы) и окно декодера с кнопкой ДЕКОД ('' — как у элементов). */
+	lamp: string;
+	decoder: string;
 	/** Искры сломанного радио: 0 — нет, 100 — часто. */
 	sparks: number;
 	sparkSound: string;
@@ -90,6 +99,8 @@ export const radioDefaults: Omit<RadioView, 'name'> = {
 	scale: '',
 	catalog: '',
 	inner: '',
+	lamp: '',
+	decoder: '',
 	sparks: 30,
 	sparkSound: '',
 	sparkVolume: 80,
@@ -188,6 +199,8 @@ const keys = [
 	'scale',
 	'catalog',
 	'inner',
+	'lamp',
+	'decoder',
 	'sparks',
 	'sparksound',
 	'sparkvolume',
@@ -233,6 +246,8 @@ function readView(tokens: string[]): RadioView {
 			case 'scale':
 			case 'catalog':
 			case 'inner':
+			case 'lamp':
+			case 'decoder':
 				view[key] = value;
 				break;
 			case 'sparks':
@@ -293,7 +308,7 @@ export function writeView(v: RadioView) {
 			w.push('sparksound', arg(v.sparkSound), 'sparkvolume', String(v.sparkVolume));
 		}
 	}
-	if (v.type === 'fixed' || v.type === 'reverse') {
+	if (v.type !== 'broken') {
 		if (v.noise) {
 			w.push('noise', arg(v.noise), 'noisevolume', String(v.noiseVolume), 'noiseranges', arg(v.noiseRanges));
 		}
@@ -338,6 +353,8 @@ export function radioProblems(views: RadioView[]) {
 
 	return {
 		emptyName: names.some(n => n === ''),
+		// Сессия 30: название вида — имя папки раздела «Помехи» в окне «Музыка».
+		slash: names.some(n => n.includes('/')),
 		repeatedName: new Set(names).size !== names.length,
 		// Эфир: «от» больше «до» или диапазоны шума не разобрать.
 		jamsOrder: views.some(v => v.type !== 'broken' && v.jamsMin > v.jamsMax),
@@ -355,4 +372,14 @@ export function renameRadioView(text: string, from: string, to: string) {
 		}
 	}
 	return out;
+}
+
+/** Сессия 30: старые помехи у видов, чьи помехи уже в окне «Музыка», — убрать из записи вида. */
+export function withoutLegacyJams(text: string, moved: string[]) {
+	const views = readRadios(text);
+
+	if (!views.some(v => v.jams.length && moved.includes(v.name))) {
+		return text;
+	}
+	return writeRadios(text, views.map(v => (moved.includes(v.name) ? {...v, jams: []} : v)));
 }

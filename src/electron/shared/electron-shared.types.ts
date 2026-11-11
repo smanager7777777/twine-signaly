@@ -23,6 +23,10 @@ export interface TwineElectronWindow extends Window {
 			jobs: Array<{src: string; out: string}>
 		): Promise<Array<{src: string; out: string}>>;
 		signalyReadMedia(folder: string, path: string): Promise<Uint8Array>;
+		/** Сессия 30: отметки файлов «время-размер» ('' — файла нет). */
+		signalyMediaStamps(folder: string, paths: string[]): Promise<Record<string, string>>;
+		/** Сессия 30: записать картинку SSTV (только .png в media/img/sstv/). */
+		signalyWriteSstv(folder: string, path: string, data: Uint8Array): Promise<string>;
 		signalyWriteReverse(
 			folder: string,
 			path: string,

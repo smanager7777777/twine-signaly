@@ -41,6 +41,12 @@ contextBridge.exposeInMainWorld('twineElectron', {
 	signalyReadMedia(folder: string, path: string) {
 		return ipcRenderer.invoke('signaly-read-media', folder, path);
 	},
+	signalyMediaStamps(folder: string, paths: string[]) {
+		return ipcRenderer.invoke('signaly-media-stamps', folder, paths);
+	},
+	signalyWriteSstv(folder: string, path: string, data: Uint8Array) {
+		return ipcRenderer.invoke('signaly-write-sstv', folder, path, data);
+	},
 	signalyWriteReverse(folder: string, path: string, data: Uint8Array) {
 		return ipcRenderer.invoke('signaly-write-reverse', folder, path, data);
 	},

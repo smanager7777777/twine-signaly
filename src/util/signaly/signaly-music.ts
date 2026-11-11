@@ -14,6 +14,9 @@
 //                                                          сколько МГц в каждую сторону её слышно, своё сообщение в строке
 //   … [reverse "media/audio/послание.wav"]               — шаг 7.4, ответ 2А: свой файл «что слышно задом наперёд»
 //                                                          (нет — программа делает копию сама, signaly-reverse.ts)
+// Сессия 30: раздел «Помехи» (section jam) — помехи радио с эфиром. Папка — вид радио (окно «Радио»,
+// по порядку окна), папки сами не создаются; трек — как обычный трек радио плюс ширина (width). Пойманная
+// помеха попадает в каталог радио в папку «Помехи» (своя папка радио «Помехи» — туда же).
 // Условие пустое — трек есть всегда; иначе — как в <<if>>.
 //
 // Музыка экрана — первая строка экрана:
@@ -27,8 +30,12 @@ import {findClose, scanArgs} from './signaly-screen-blocks';
 export const musicTag = 'sg-music';
 export const musicPassageName = 'Музыка';
 
-export type MusicSection = 'ambient' | 'radio' | 'air';
-export const musicSections: MusicSection[] = ['ambient', 'radio', 'air'];
+export type MusicSection = 'ambient' | 'radio' | 'air' | 'jam';
+export const musicSections: MusicSection[] = ['ambient', 'radio', 'air', 'jam'];
+/** Разделы, которые можно выбрать у папки: «Помехи» — папки по видам радио, сами не создаются. */
+export const folderSections: MusicSection[] = ['ambient', 'radio', 'air'];
+/** Папка каталога радио, куда попадают пойманные помехи. */
+export const caughtJamsFolder = 'Помехи';
 
 export interface MusicTrack {
 	name: string;
@@ -91,6 +98,9 @@ export const trackDefaults: Omit<MusicTrack, 'name' | 'src'> = {
 	reverse: ''
 };
 
+/** Ширина помехи по умолчанию, МГц (как у помех вида в шаге 7.3). */
+export const jamWidth = 1;
+
 /* ----- Вложенные папки (шаг 7.3, ответ 1Б): имя папки — путь через «/» ----- */
 
 /** Папка выше: "Дневники/Глава 1" → "Дневники"; у верхней — ''. */
@@ -101,8 +111,12 @@ export const folderDepth = (name: string) => name.split('/').length - 1;
 /** Лежит ли папка внутри другой (на любой глубине). */
 export const folderInside = (name: string, parent: string) => name.startsWith(parent + '/');
 
-/** Порядок дерева: за каждой папкой — её вложенные, в своём порядке; раздел вложенной — как у верхней. */
-export function treeOrder(folders: MusicFolder[]): MusicFolder[] {
+/**
+ * Порядок дерева: за каждой папкой — её вложенные, в своём порядке; раздел вложенной — как у верхней.
+ * Папки «Помех» не вкладываются (их имена — названия видов радио) и идут в конце.
+ */
+export function treeOrder(all: MusicFolder[]): MusicFolder[] {
+	const folders = all.filter(f => f.section !== 'jam');
 	const names = new Set(folders.map(f => f.name));
 	const out: MusicFolder[] = [];
 	const done = new Set<MusicFolder>();
@@ -127,7 +141,7 @@ export function treeOrder(folders: MusicFolder[]): MusicFolder[] {
 			visit(f, f.section);
 		}
 	}
-	return out;
+	return [...out, ...all.filter(f => f.section === 'jam')];
 }
 
 export const musicHeader =
@@ -244,7 +258,7 @@ export function readMusic(text: string): MusicCatalog {
 
 			folders.push({
 				name: w.pos[0] ?? '',
-				section: w.values.section === 'radio' || w.values.section === 'air' ? w.values.section : 'ambient',
+				section: (['radio', 'air', 'jam'] as const).find(v => v === w.values.section) ?? 'ambient',
 				tip: w.values.tip ?? '',
 				tracks: []
 			});
@@ -267,7 +281,7 @@ export function readMusic(text: string): MusicCatalog {
 			when: item.f.content.trim(),
 			gain: Math.max(1, Math.min(100, Math.round(num(w.values.gain, trackDefaults.gain)))),
 			to: w.values.to ?? '',
-			width: Math.max(0.1, Math.min(20, num(w.values.width, trackDefaults.width))),
+			width: Math.max(0.1, Math.min(20, num(w.values.width, folders[folders.length - 1].section === 'jam' ? jamWidth : trackDefaults.width))),
 			text: w.values.text ?? '',
 			reverse: w.values.reverse ?? ''
 		});
@@ -275,7 +289,9 @@ export function readMusic(text: string): MusicCatalog {
 	return {settings, folders: treeOrder(folders)};
 }
 
-export function writeTrack(t: MusicTrack, air = false) {
+export function writeTrack(t: MusicTrack, section: MusicSection | boolean = 'radio') {
+	const air = section === true || section === 'air';
+	const jam = section === 'jam';
 	const parts = [arg(t.name), arg(t.src)];
 
 	if (t.gain !== undefined && t.gain !== 100) {
@@ -293,6 +309,9 @@ export function writeTrack(t: MusicTrack, air = false) {
 	}
 	if (t.reverse) {
 		parts.push('reverse', arg(t.reverse));
+	}
+	if (jam && t.width !== undefined && t.width !== jamWidth) {
+		parts.push('width', String(t.width));
 	}
 	if (air) {
 		if (t.to) {
@@ -315,7 +334,7 @@ export function writeMusic(text: string, catalog: MusicCatalog) {
 		`<<sg-music volume ${clampVolume(s.volume)} spin ${s.spin}${s.auto ? ' auto' : ''}>>`,
 		...treeOrder(catalog.folders).flatMap(f => [
 			`<<sg-folder ${arg(f.name)} section ${f.section}${f.tip.trim() ? ` tip ${arg(f.tip.trim())}` : ''}>>`,
-			...f.tracks.map(tr => writeTrack(tr, f.section === 'air'))
+			...f.tracks.map(tr => writeTrack(tr, f.section))
 		])
 	];
 	const found = [...find(text, 'sg-music', false), ...find(text, 'sg-folder', false), ...find(text, 'sg-track', true)].sort(
@@ -339,7 +358,8 @@ export function writeMusic(text: string, catalog: MusicCatalog) {
 
 /** Повторы имён папок и треков в папке — «Сохранить» недоступна. */
 export function musicProblems(catalog: MusicCatalog) {
-	const names = catalog.folders.map(f => f.name.trim());
+	// Папки «Помех» названы по видам радио: с остальными папками они не спорят.
+	const names = catalog.folders.filter(f => f.section !== 'jam').map(f => f.name.trim());
 	const radio = new Set(catalog.folders.filter(f => f.section === 'radio').map(f => f.name));
 
 	return {
@@ -474,4 +494,68 @@ export function setScreenMusic(text: string, m: Omit<ScreenMusic, 'from' | 'to'>
 		return text;
 	}
 	return text.trim() === '' ? line : `${line}\\\n${text}`;
+}
+
+/* ----- Сессия 30: раздел «Помехи» ----- */
+
+/** Вид радио, нужный разделу «Помехи» (только то, что нужно здесь — без зависимости от signaly-radio). */
+export interface JamView {
+	name: string;
+	type: string;
+	jams: Array<{src: string; width: number; volume: number}>;
+}
+
+/** Помехи вида, записанные по-старому (jam "a.wav|1|80" у вида) — треками раздела «Помехи». */
+export function legacyJamTracks(view: JamView): MusicTrack[] {
+	const used = new Set<string>();
+
+	return view.jams.map(j => {
+		const base = j.src.replace(/^.*\//, '').replace(/\.[^.]*$/, '') || j.src;
+		let name = base;
+
+		for (let n = 2; used.has(name); n++) {
+			name = `${base} ${n}`;
+		}
+		used.add(name);
+		return {...trackDefaults, name, src: j.src, width: j.width, gain: Math.max(1, Math.min(100, Math.round(j.volume)))};
+	});
+}
+
+/**
+ * Папки «Помех» — по видам радио с эфиром, по порядку окна «Радио». Есть папка — она; нет — из
+ * старых помех вида (migrated) или пустая. Папки видов, которых больше нет, остаются в конце
+ * (orphans): окно предупреждает, их можно удалить.
+ */
+export function syncJamFolders(catalog: MusicCatalog, views: JamView[]) {
+	const air = views.filter(v => v.type !== 'broken');
+	const old = catalog.folders.filter(f => f.section === 'jam');
+	const migrated: string[] = [];
+	const jams = air.map<MusicFolder>(v => {
+		const have = old.find(f => f.name === v.name);
+
+		if (have) {
+			return have;
+		}
+		if (v.jams.length) {
+			migrated.push(v.name);
+		}
+		return {name: v.name, section: 'jam', tip: '', tracks: legacyJamTracks(v)};
+	});
+	const orphans = old.filter(f => !air.some(v => v.name === f.name));
+
+	return {
+		catalog: {...catalog, folders: [...catalog.folders.filter(f => f.section !== 'jam'), ...jams, ...orphans]},
+		migrated,
+		orphans: orphans.map(f => f.name)
+	};
+}
+
+/** Переименовать папку «Помех» (вид радио переименовали в окне «Радио»). */
+export function renameJamFolder(text: string, from: string, to: string) {
+	const catalog = readMusic(text);
+
+	if (!catalog.folders.some(f => f.section === 'jam' && f.name === from)) {
+		return text;
+	}
+	return writeMusic(text, {...catalog, folders: catalog.folders.map(f => (f.section === 'jam' && f.name === from ? {...f, name: to} : f))});
 }

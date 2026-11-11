@@ -9,7 +9,7 @@ import {Story} from '../store/stories';
 import {useGameFolder} from '../store/use-game-folder';
 import {MusicCatalog} from '../util/signaly/signaly-music';
 import {RadioView} from '../util/signaly/signaly-radio';
-import {encodeWav, needsReverse, reverseChannels, reverseJobs, reverseRate} from '../util/signaly/signaly-reverse';
+import {encodeWav, mixMono, needsReverse, reverseChannels, reverseJobs, reverseRate} from '../util/signaly/signaly-reverse';
 
 export interface ReverseResult {
 	made: number;
@@ -30,8 +30,8 @@ export async function makeReverseCopies(
 	}
 
 	const todo = await bridge.signalyReverseNeeded(folder, reverseJobs(catalog));
-	// OfflineAudioContext приводит звук к своей частоте — копии все 44,1 кГц.
-	const context = new OfflineAudioContext(2, 1, reverseRate);
+	// OfflineAudioContext приводит звук к своей частоте — копии все 22 050 Гц, моно (ответ 3Б).
+	const context = new OfflineAudioContext(1, 1, reverseRate);
 
 	onProgress?.(0, todo.length);
 	for (const [i, job] of todo.entries()) {
@@ -40,7 +40,7 @@ export async function makeReverseCopies(
 			const audio = await context.decodeAudioData(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
 			const channels = Array.from({length: audio.numberOfChannels}, (_, c) => audio.getChannelData(c));
 
-			await bridge.signalyWriteReverse(folder, job.out, encodeWav(reverseChannels(channels), audio.sampleRate));
+			await bridge.signalyWriteReverse(folder, job.out, encodeWav(reverseChannels([mixMono(channels)]), audio.sampleRate));
 			result.made++;
 		} catch (e) {
 			console.warn('СИГНАЛЫ: развёрнутая копия', job.src, e);

@@ -29,8 +29,8 @@ export interface ReverseJob {
 	out: string;
 }
 
-/** Нужны ли копии: в истории есть вид радио с реверсом. */
-export const needsReverse = (views: RadioView[]) => views.some(v => v.type === 'reverse');
+/** Нужны ли копии: в истории есть вид радио с реверсом (или с декодером: он тоже с реверсом). */
+export const needsReverse = (views: RadioView[]) => views.some(v => v.type === 'reverse' || v.type === 'decoder');
 
 /**
  * Треки, которым нужна копия: разделы «Радио» и «Эфир» (пойманная передача становится
@@ -45,7 +45,8 @@ export function reverseJobs(catalog: MusicCatalog): ReverseJob[] {
 			continue;
 		}
 		for (const track of folder.tracks) {
-			// Помеха (передача без папки радио) в каталог не попадает — разворачивать нечего.
+			// Помеха эфира (передача без папки радио) в каталог не попадает — разворачивать нечего.
+			// Помехи раздела «Помехи» (сессия 30) ловятся и становятся треками радио.
 			if (!track.src || track.reverse || (folder.section === 'air' && !track.to) || seen.has(track.src)) {
 				continue;
 			}
@@ -108,5 +109,25 @@ export function encodeWav(channels: Float32Array[], sampleRate: number): Uint8Ar
 	return new Uint8Array(buffer);
 }
 
-/** Частота копий: decodeAudioData приводит звук к частоте контекста. */
-export const reverseRate = 44100;
+/**
+ * Частота копий: decodeAudioData приводит звук к частоте контекста. Сессия 30, ответ 3Б:
+ * моно 22 050 Гц — в 4 раза меньше прежних (стерео, 44,1 кГц), задом наперёд разница
+ * почти не слышна. Старые копии программа делает заново (по заголовку WAV).
+ */
+export const reverseRate = 22050;
+
+/** Свести каналы в один (среднее). */
+export function mixMono(channels: Float32Array[]): Float32Array {
+	if (channels.length <= 1) {
+		return channels[0] ?? new Float32Array(0);
+	}
+
+	const out = new Float32Array(channels[0].length);
+
+	for (const ch of channels) {
+		for (let i = 0; i < out.length; i++) {
+			out[i] += ch[i] / channels.length;
+		}
+	}
+	return out;
+}

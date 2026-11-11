@@ -7,24 +7,24 @@
 // Сессия 29: свои цвета кнопок, выключателя, шкалы, каталога, внутреннего каркаса; предпросмотр —
 // само радио во всё место справа. Шаг 7.4: тип «С реверсом» (каркас В2); «Сохранить» делает
 // развёрнутые копии треков, если есть радио с реверсом.
+// Сессия 30: порядок видов (▲▼) — порядок радио в игре (помехи прошлых радио выпадают и у следующих);
+// помехи — в окне «Музыка», раздел «Помехи»; свои цвета лампочки и декодера; тип «С декодером» (Д2).
 
-import {IconTrash} from '@tabler/icons';
 import * as React from 'react';
 import {useTranslation} from 'react-i18next';
-import {IconButton} from '../../components/control/icon-button';
 import {Story, updatePassage, useStoriesContext} from '../../store/stories';
 import {useGameFolder} from '../../store/use-game-folder';
 import {defaultAppearance, engineVersionIn, readAppearance, withEngine} from '../../util/signaly/signaly-appearance';
 import {signalyEngineVersion} from '../../util/signaly/signaly-engine';
 import {freeSpot} from '../../util/signaly/signaly-keys';
 import {folderToFileUrl} from '../../util/signaly/signaly-preview';
-import {musicTag, readMusic} from '../../util/signaly/signaly-music';
+import {musicTag, readMusic, renameJamFolder, syncJamFolders} from '../../util/signaly/signaly-music';
 import {
-	jamDefaults,
 	newRadioView,
 	radioFrames,
 	RadioPartColor,
 	radioPartColors,
+	radioPartFor,
 	radioPassageName,
 	radioProblems,
 	radioReady,
@@ -101,6 +101,16 @@ export const SignalyRadioWindow: React.FC<{onClose: () => void; story: Story}> =
 		setSelected(rows.length);
 	}
 
+	// Порядок видов — порядок радио в игре (сессия 30): помехи радио выше выпадают и у радио ниже.
+	function moveView(by: -1 | 1) {
+		const next = [...rows];
+		const [r] = next.splice(selected, 1);
+
+		next.splice(selected + by, 0, r);
+		change(next);
+		setSelected(selected + by);
+	}
+
 	function remove() {
 		const count = used(row.was);
 
@@ -133,9 +143,15 @@ export const SignalyRadioWindow: React.FC<{onClose: () => void; story: Story}> =
 				props: {name: radioPassageName, story: story.id, tags: [radioTag], text, ...freeSpot(story.passages)}
 			});
 		}
-		// Переименованный вид — поправить блоки «Радио» на экранах.
+		// Переименованный вид — поправить блоки «Радио» на экранах и папку его помех в «Музыке».
+		const musicPassage = story.passages.find(ps => ps.tags.includes(musicTag));
+		let musicText = musicPassage?.text;
+
 		for (const r of rows) {
 			if (r.was && r.was !== r.view.name) {
+				if (musicText !== undefined) {
+					musicText = renameJamFolder(musicText, r.was, r.view.name);
+				}
 				for (const ps of story.passages) {
 					const next = renameRadioView(ps.text, r.was, r.view.name);
 
@@ -145,13 +161,17 @@ export const SignalyRadioWindow: React.FC<{onClose: () => void; story: Story}> =
 				}
 			}
 		}
+		if (musicPassage && musicText !== undefined && musicText !== musicPassage.text) {
+			dispatch(updatePassage(story, musicPassage, {text: musicText}));
+		}
 		setRows(rows.map(r => ({...r, was: r.view.name})));
 		setSaved(true);
 
-		// Шаг 7.4: радио с реверсом — развёрнутые копии треков каталога.
-		const music = story.passages.find(ps => ps.tags.includes(musicTag));
-
-		copies.run(readMusic(music?.text ?? (pendingTemplateMusic(story)?.music || '')), views);
+		// Шаг 7.4: радио с реверсом — развёрнутые копии треков каталога (и помех, сессия 30).
+		copies.run(
+			syncJamFolders(readMusic(musicText ?? (pendingTemplateMusic(story)?.music || '')), views).catalog,
+			views
+		);
 	}
 
 	function close() {
@@ -193,10 +213,14 @@ export const SignalyRadioWindow: React.FC<{onClose: () => void; story: Story}> =
 		return () => clearTimeout(timer);
 	}, [previewText, selected]);
 
-	const setJam = (index: number, patch: Partial<RadioView['jams'][number]>) =>
-		row && setView({jams: row.view.jams.map((j, i) => (i === index ? {...j, ...patch} : j))});
-	const mhz = t('signaly.music.mhz');
 	const s = t('signaly.appearance.units.seconds');
+	// Помехи вида — папка раздела «Помехи» окна «Музыка» (сессия 30).
+	const jamCount = React.useMemo(() => {
+		const music = story.passages.find(ps => ps.tags.includes(musicTag));
+		const catalog = syncJamFolders(readMusic(music?.text ?? ''), views).catalog;
+
+		return (name: string) => catalog.folders.find(f => f.section === 'jam' && f.name === name)?.tracks.length ?? 0;
+	}, [story.passages, views]);
 
 	const audioOptions = (value: string) => [
 		{label: l('noSound'), value: ''},
@@ -205,12 +229,17 @@ export const SignalyRadioWindow: React.FC<{onClose: () => void; story: Story}> =
 
 	// Свой цвет части (сессия 29): пусто — как у элементов (внутренний каркас — как у каркаса).
 	function partColor(v: RadioView, key: RadioPartColor) {
-		const base = key === 'inner' ? v.frame : v.elements;
+		if (!radioPartFor(key, v.type)) {
+			return null;
+		}
+
+		// Лампочка по умолчанию — как шкала (сессия 30, ответ 6Б).
+		const base = key === 'inner' ? v.frame : key === 'lamp' ? v.scale || v.elements : v.elements;
 
 		return (
 			<div className="signaly-radio-part" key={key}>
 				<ColorField
-					hint={v[key] ? undefined : l(key === 'inner' ? 'asFrame' : 'asElements')}
+					hint={v[key] ? undefined : l(key === 'inner' ? 'asFrame' : key === 'lamp' ? 'asScale' : 'asElements')}
 					label={l(`parts.${key}`)}
 					onChange={value => setView({[key]: value} as Partial<RadioView>)}
 					onSaveColor={() => {}}
@@ -219,7 +248,7 @@ export const SignalyRadioWindow: React.FC<{onClose: () => void; story: Story}> =
 				/>
 				{v[key] && (
 					<button className="signaly-small-button" onClick={() => setView({[key]: ''} as Partial<RadioView>)} type="button">
-						{l(key === 'inner' ? 'resetFrame' : 'resetElements')}
+						{l(key === 'inner' ? 'resetFrame' : key === 'lamp' ? 'resetScale' : 'resetElements')}
 					</button>
 				)}
 			</div>
@@ -252,10 +281,16 @@ export const SignalyRadioWindow: React.FC<{onClose: () => void; story: Story}> =
 				/>
 				{radioPartColors.map(key => partColor(v, key))}
 				<TextField hint={l('labelHint')} label={l('label')} onChange={label => setView({label})} value={v.label} />
-				{v.type === 'reverse' && (
+				{(v.type === 'reverse' || v.type === 'decoder') && (
 					<>
 						<h3>{l('reverseTitle')}</h3>
 						<p className="signaly-field-hint">{l('reverseHint')}</p>
+					</>
+				)}
+				{v.type === 'decoder' && (
+					<>
+						<h3>{l('decoderTitle')}</h3>
+						<p className="signaly-field-hint">{l('decoderHint')}</p>
 					</>
 				)}
 				{v.type !== 'broken' && (
@@ -287,35 +322,9 @@ export const SignalyRadioWindow: React.FC<{onClose: () => void; story: Story}> =
 							</>
 						)}
 						<h3>{l('jamsTitle')}</h3>
-						<p className="signaly-field-hint">{l('jamsHint')}</p>
-						{v.jams.map((j, i) => (
-							<fieldset className="signaly-block-row" key={i}>
-								<legend>
-									{i + 1}
-									<IconButton
-										icon={<IconTrash />}
-										iconOnly
-										label={l('removeJam')}
-										onClick={() => setView({jams: v.jams.filter((_, k) => k !== i)})}
-									/>
-								</legend>
-								<ChoiceField label={l('jamFile')} onChange={src => setJam(i, {src})} options={audioOptions(j.src).slice(1)} value={j.src} />
-								<RangeField hint={l('jamWidthHint')} label={l('jamWidth')} max={10} min={0.1} onChange={width => setJam(i, {width})} step={0.1} unit={mhz} value={j.width} />
-								<RangeField label={l('jamVolume')} max={100} min={0} onChange={volume => setJam(i, {volume})} unit="%" value={j.volume} />
-							</fieldset>
-						))}
-						<div className="signaly-sound-actions">
-							<button
-								className="signaly-button"
-								disabled={media.audio.length === 0}
-								onClick={() => setView({jams: [...v.jams, {...jamDefaults, src: media.audio[0]}]})}
-								type="button"
-							>
-								{l('addJam')}
-							</button>
-						</div>
+						<p className="signaly-field-hint">{l('jamsMoved', {name: v.name, count: jamCount(row.was || v.name)})}</p>
 						<RangeField label={l('jamsMin')} max={50} min={0} onChange={jamsMin => setView({jamsMin})} unit="" value={v.jamsMin} />
-						<RangeField hint={l('jamsMaxHint', {files: v.jams.length})} label={l('jamsMax')} max={50} min={0} onChange={jamsMax => setView({jamsMax})} unit="" value={v.jamsMax} />
+						<RangeField hint={l('jamsMaxHint', {files: jamCount(row.was || v.name)})} label={l('jamsMax')} max={50} min={0} onChange={jamsMax => setView({jamsMax})} unit="" value={v.jamsMax} />
 					</>
 				)}
 				{v.type === 'broken' && (
@@ -371,6 +380,7 @@ export const SignalyRadioWindow: React.FC<{onClose: () => void; story: Story}> =
 							{text}
 						</div>
 					))}
+					<p className="signaly-field-hint">{l('orderHint')}</p>
 					<div className="signaly-kinds-list">
 						{rows.map((r, i) => (
 							<button aria-pressed={i === selected} className="signaly-kinds-item" key={r.key} onClick={() => setSelected(i)} type="button">
@@ -387,6 +397,12 @@ export const SignalyRadioWindow: React.FC<{onClose: () => void; story: Story}> =
 						</button>
 						<button className="signaly-button" disabled={!row} onClick={remove} type="button">
 							{l('delete')}
+						</button>
+						<button className="signaly-button" disabled={!row || selected === 0} onClick={() => moveView(-1)} type="button">
+							{l('up')}
+						</button>
+						<button className="signaly-button" disabled={!row || selected >= rows.length - 1} onClick={() => moveView(1)} type="button">
+							{l('down')}
 						</button>
 					</div>
 					{row ? editor(row.view) : <p className="signaly-field-hint">{l('empty')}</p>}

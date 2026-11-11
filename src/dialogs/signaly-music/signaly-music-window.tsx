@@ -7,6 +7,9 @@
 // передачи отремонтированного радио: куда после поимки, ширина, своё сообщение (3А, 5А, 6).
 // Шаг 7.4: у треков радио и передач — «Файл задом наперёд» (свой, ответ 2А); «Сохранить» делает
 // развёрнутые копии остальных (ответ 1А), если в истории есть радио с реверсом.
+// Сессия 30: раздел «Помехи» — папки по видам радио с эфиром (по порядку окна «Радио»), папки сами не
+// создаются; старые помехи видов переносятся сюда при открытии окна. «Сохранить» ещё разбирает помехи
+// и передачи на картинки SSTV (для радио с декодером).
 
 import {IconArrowDown, IconArrowUp, IconTrash} from '@tabler/icons';
 import * as React from 'react';
@@ -22,6 +25,8 @@ import {
 	folderInside,
 	folderLeaf,
 	folderParent,
+	folderSections,
+	jamWidth,
 	MusicCatalog,
 	MusicFolder,
 	musicPassageName,
@@ -30,11 +35,12 @@ import {
 	musicTag,
 	MusicTrack,
 	readMusic,
+	syncJamFolders,
 	trackDefaults,
 	treeOrder,
 	writeMusic
 } from '../../util/signaly/signaly-music';
-import {radioTag, readRadios} from '../../util/signaly/signaly-radio';
+import {radioTag, readRadios, withoutLegacyJams} from '../../util/signaly/signaly-radio';
 import {needsReverse} from '../../util/signaly/signaly-reverse';
 import {newsConds} from '../../util/signaly/signaly-ticker';
 import {knownVariables} from '../../util/signaly/signaly-variables';
@@ -42,6 +48,7 @@ import {CheckField, ChoiceField, RangeField, TextField} from '../signaly-appeara
 import {CondListsContext, CondRows, useCondLists} from '../passage-edit/signaly-logic-form';
 import {useLists} from '../passage-edit/signaly-block-panel';
 import {useReverseCopies} from '../signaly-reverse-copies';
+import {useSstvImages} from '../signaly-sstv-images';
 import {pendingTemplateMusic, saveStoryWithUpgrade} from '../signaly-upgrade';
 import '../signaly-appearance/signaly-appearance.css';
 import '../signaly-kinds/signaly-kinds.css';
@@ -103,22 +110,29 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 	const variables = React.useMemo(() => knownVariables(story.passages), [story.passages]);
 	const musicPassage =
 		story.passages.find(p => p.tags.includes(musicTag)) ?? story.passages.find(p => p.name === musicPassageName);
-	// Шаг 7.2: шаблон ещё на старой музыке — начать с каталога, который даст перенос.
-	const [catalog, setCatalog] = React.useState<MusicCatalog>(() =>
-		readMusic(musicPassage?.text ?? (pendingTemplateMusic(story)?.music || ''))
+	// Виды радио истории: есть радио с реверсом — нужны развёрнутые копии (шаг 7.4); радио с эфиром —
+	// папки раздела «Помехи» (сессия 30).
+	const radioPassage = story.passages.find(p => p.tags.includes(radioTag));
+	const radioViews = React.useMemo(
+		() => readRadios(radioPassage?.text ?? (pendingTemplateMusic(story)?.radio || '')),
+		[radioPassage, story]
 	);
+	// Шаг 7.2: шаблон ещё на старой музыке — начать с каталога, который даст перенос.
+	const [start] = React.useState(() =>
+		syncJamFolders(readMusic(musicPassage?.text ?? (pendingTemplateMusic(story)?.music || '')), radioViews)
+	);
+	const [catalog, setCatalog] = React.useState<MusicCatalog>(start.catalog);
 	const [selected, setSelected] = React.useState(0);
-	const [saved, setSaved] = React.useState(true);
+	// Старые помехи видов перенесены сюда — их нужно сохранить.
+	const [saved, setSaved] = React.useState(start.migrated.length === 0);
 	const folder = catalog.folders[selected];
+	const jamFolder = folder?.section === 'jam';
+	const orphan = jamFolder && !radioViews.some(v => v.type !== 'broken' && v.name === folder.name);
 	const s = t('signaly.appearance.units.seconds');
-	// Виды радио истории: есть радио с реверсом — нужны развёрнутые копии (шаг 7.4).
-	const radioViews = React.useMemo(() => {
-		const radio = story.passages.find(p => p.tags.includes(radioTag));
-
-		return readRadios(radio?.text ?? (pendingTemplateMusic(story)?.radio || ''));
-	}, [story]);
 	const reversing = needsReverse(radioViews);
 	const copies = useReverseCopies(story);
+	// Сессия 30: радио с декодером — картинки SSTV из помех и передач.
+	const sstv = useSstvImages(story);
 
 	function change(next: MusicCatalog) {
 		setCatalog(next);
@@ -195,8 +209,20 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 				props: {name: musicPassageName, story: story.id, tags: [musicTag], text, ...freeSpot(story.passages)}
 			});
 		}
+		// Сессия 30: помехи вида теперь здесь — убрать старую запись у вида.
+		if (radioPassage) {
+			const radioText = withoutLegacyJams(
+				radioPassage.text,
+				catalog.folders.filter(f => f.section === 'jam').map(f => f.name)
+			);
+
+			if (radioText !== radioPassage.text) {
+				dispatch(updatePassage(story, radioPassage, {text: radioText}));
+			}
+		}
 		setSaved(true);
 		copies.run(catalog, radioViews);
+		sstv.run(catalog, radioViews);
 	}
 
 	function close() {
@@ -248,6 +274,7 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 	function trackEditor(track: MusicTrack, index: number) {
 		const parsed = newsConds(track.when);
 		const air = folder.section === 'air';
+		const jam = folder.section === 'jam';
 
 		return (
 			<fieldset className="signaly-block-row" key={index}>
@@ -277,6 +304,18 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 				<TextField label={l('trackName')} onChange={name => setTrack(index, {name})} value={track.name} />
 				{audioChoice(l('file'), track.src, src => setTrack(index, {src}), l('chooseFile'))}
 				<RangeField hint={l('gainHint')} label={l('gain')} max={100} min={1} onChange={gain => setTrack(index, {gain})} unit="%" value={track.gain} />
+				{jam && (
+					<RangeField
+						hint={l('jamWidthHint')}
+						label={l('width')}
+						max={10}
+						min={0.1}
+						onChange={width => setTrack(index, {width})}
+						step={0.1}
+						unit={l('mhz')}
+						value={track.width}
+					/>
+				)}
 				{air && (
 					<>
 						<ChoiceField
@@ -302,7 +341,7 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 						{track.to !== '' && <TextField hint={l('textHint')} label={l('text')} onChange={text => setTrack(index, {text})} value={track.text} />}
 					</>
 				)}
-				<h4 className="signaly-block-subtitle">{air ? l('whenAir') : l('when')}</h4>
+				<h4 className="signaly-block-subtitle">{air ? l('whenAir') : jam ? l('whenJam') : l('when')}</h4>
 				{parsed ? (
 					<CondListsContext.Provider value={condLists}>
 						<div className="signaly-field-hint">{l('whenHint')}</div>
@@ -369,6 +408,7 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 					{saved ? t('signaly.appearance.saved') : t('signaly.appearance.unsaved')}
 				</span>
 				{copies.status && <span className="signaly-appearance-status signaly-reverse-status">{copies.status}</span>}
+				{sstv.status && <span className="signaly-appearance-status signaly-reverse-status signaly-sstv-status">{sstv.status}</span>}
 				<button className="signaly-button primary" disabled={saved || problems.length > 0} onClick={save} type="button">
 					{t('signaly.appearance.save')}
 				</button>
@@ -409,6 +449,10 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 						<React.Fragment key={section}>
 							<h3>{l(`sections.${section}`)}</h3>
 							{section === 'air' && <p className="signaly-field-hint">{l('airHint')}</p>}
+							{section === 'jam' && <p className="signaly-field-hint">{l('jamHint')}</p>}
+							{section === 'jam' && start.migrated.length > 0 && (
+								<div className="signaly-notice">{l('jamMigrated', {names: start.migrated.join(', ')})}</div>
+							)}
 							<div className="signaly-kinds-list">
 								{catalog.folders.map((f, i) =>
 									f.section !== section ? null : (
@@ -428,11 +472,13 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 									)
 								)}
 							</div>
-							<div className="signaly-sound-actions">
-								<button className="signaly-button" onClick={() => addFolder(section)} type="button">
-									{l('addFolder')}
-								</button>
-							</div>
+							{section !== 'jam' && (
+								<div className="signaly-sound-actions">
+									<button className="signaly-button" onClick={() => addFolder(section)} type="button">
+										{l('addFolder')}
+									</button>
+								</div>
+							)}
 						</React.Fragment>
 					))}
 					<p className="signaly-field-hint">{l('where', {name: musicPassage?.name ?? musicPassageName})}</p>
@@ -447,26 +493,34 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 						<p className="signaly-field-hint">{l('empty')}</p>
 					) : (
 						<>
-							<TextField
-								hint={folderParent(folder.name) ? l('folderInHint', {parent: folderParent(folder.name)}) : l('folderHint')}
-								label={l('folderName')}
-								onChange={renameFolder}
-								value={folderLeaf(folder.name)}
-							/>
-							{!folderParent(folder.name) && (
+							{jamFolder ? (
+								<>
+									<h3>{l('jamFolder', {name: folder.name})}</h3>
+									<p className="signaly-field-hint">{orphan ? l('jamOrphan') : l('jamFolderHint')}</p>
+								</>
+							) : (
+								<TextField
+									hint={folderParent(folder.name) ? l('folderInHint', {parent: folderParent(folder.name)}) : l('folderHint')}
+									label={l('folderName')}
+									onChange={renameFolder}
+									value={folderLeaf(folder.name)}
+								/>
+							)}
+							{!folderParent(folder.name) && !jamFolder && (
 								<ChoiceField
 									label={l('section')}
 									onChange={section => setSection(section as MusicFolder['section'])}
-									options={musicSections.map(v => ({label: l(`sections.${v}`), value: v}))}
+									options={folderSections.map(v => ({label: l(`sections.${v}`), value: v}))}
 									value={folder.section}
 								/>
 							)}
 							{folder.section === 'ambient' && (
 								<TextField hint={l('tipHint')} label={l('tip')} onChange={tip => setFolder({tip})} value={folder.tip} />
 							)}
-							<div className="signaly-sound-actions">
+							<div className="signaly-sound-actions" hidden={jamFolder && !orphan}>
 								<button
 									className="signaly-button"
+									hidden={jamFolder}
 									disabled={sibling(catalog.folders, selected, -1) < 0}
 									onClick={() => moveFolder(-1)}
 									type="button"
@@ -475,13 +529,14 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 								</button>
 								<button
 									className="signaly-button"
+									hidden={jamFolder}
 									disabled={sibling(catalog.folders, selected, 1) < 0}
 									onClick={() => moveFolder(1)}
 									type="button"
 								>
 									{l('down')}
 								</button>
-								<button className="signaly-button" onClick={() => addFolder(folder.section, folder)} type="button">
+								<button className="signaly-button" hidden={jamFolder} onClick={() => addFolder(folder.section, folder)} type="button">
 									{l('addSubfolder')}
 								</button>
 								<button className="signaly-button" onClick={removeFolder} type="button">
@@ -494,7 +549,10 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 								<button
 									className="signaly-button"
 									onClick={() =>
-										setTracks([...folder.tracks, {...trackDefaults, name: l('newTrack', {n: folder.tracks.length + 1}), src: ''}])
+										setTracks([
+								...folder.tracks,
+								{...trackDefaults, ...(jamFolder ? {width: jamWidth} : {}), name: l('newTrack', {n: folder.tracks.length + 1}), src: ''}
+							])
 									}
 									type="button"
 								>

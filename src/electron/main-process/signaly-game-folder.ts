@@ -173,7 +173,7 @@ export async function listGameMedia(
 			const path = `${relative}/${entry.name}`;
 
 			// Шаг 7.4: развёрнутые копии программы в списках файлов не нужны.
-			if (entry.isDirectory() && path === 'media/audio/reverse') {
+			if (entry.isDirectory() && (path === 'media/audio/reverse' || path === 'media/img/sstv')) {
 				continue;
 			}
 			if (entry.isDirectory() && depth < 4) {
@@ -215,8 +215,26 @@ async function mtime(path: string) {
 	}
 }
 
+/** Частота и число каналов WAV-копии (заголовок); не WAV — undefined. */
+async function wavFormat(path: string) {
+	try {
+		const head = (await readFile(path)).subarray(0, 36);
+
+		if (head.length < 36 || head.toString('latin1', 0, 4) !== 'RIFF' || head.toString('latin1', 8, 12) !== 'WAVE') {
+			return undefined;
+		}
+		return {channels: head.readUInt16LE(22), rate: head.readUInt32LE(24)};
+	} catch {
+		return undefined;
+	}
+}
+
+/** Сессия 30, ответ 3Б: копии — моно 22 050 Гц; старые (стерео, 44,1 кГц) делаются заново. */
+export const reverseFormat = {channels: 1, rate: 22050};
+
 /**
- * Какие копии нужно сделать: исходный файл есть, а копии нет или она старше.
+ * Какие копии нужно сделать: исходный файл есть, а копии нет, она старше или
+ * в старом формате.
  */
 export async function reverseNeeded(
 	folder: string,
@@ -229,7 +247,17 @@ export async function reverseNeeded(
 			const from = await mtime(mediaFile(folder, job.src));
 			const to = await mtime(mediaFile(folder, job.out));
 
-			if (from !== undefined && (to === undefined || to < from)) {
+			if (from === undefined) {
+				continue;
+			}
+			if (to === undefined || to < from) {
+				out.push(job);
+				continue;
+			}
+
+			const format = await wavFormat(mediaFile(folder, job.out));
+
+			if (!format || format.channels !== reverseFormat.channels || format.rate !== reverseFormat.rate) {
 				out.push(job);
 			}
 		} catch {
@@ -254,6 +282,36 @@ export async function writeReverseFile(
 
 	if (!relative.startsWith('media/audio/reverse/') || extname(path).toLowerCase() !== '.wav' || !(data instanceof Uint8Array)) {
 		throw new Error(`Only .wav inside media/audio/reverse: ${relative}`);
+	}
+	await mkdirp(dirname(path));
+	await writeFile(path, Buffer.from(data.buffer, data.byteOffset, data.byteLength));
+	return path;
+}
+
+/* ----- Сессия 30: картинки SSTV из помех и передач ----- */
+
+/** Отметка файла «время изменения-размер»; файла нет — ''. */
+export async function mediaStamps(folder: string, paths: string[]) {
+	const out: Record<string, string> = {};
+
+	for (const relative of Array.isArray(paths) ? paths : []) {
+		try {
+			const info = await stat(mediaFile(folder, relative));
+
+			out[relative] = `${Math.round(info.mtimeMs)}-${info.size}`;
+		} catch {
+			out[relative] = '';
+		}
+	}
+	return out;
+}
+
+/** Записать картинку SSTV: только .png в media/img/sstv/. */
+export async function writeSstvFile(folder: string, relative: string, data: Uint8Array) {
+	const path = mediaFile(folder, relative);
+
+	if (!relative.startsWith('media/img/sstv/') || extname(path).toLowerCase() !== '.png' || !(data instanceof Uint8Array)) {
+		throw new Error(`Only .png inside media/img/sstv: ${relative}`);
 	}
 	await mkdirp(dirname(path));
 	await writeFile(path, Buffer.from(data.buffer, data.byteOffset, data.byteLength));

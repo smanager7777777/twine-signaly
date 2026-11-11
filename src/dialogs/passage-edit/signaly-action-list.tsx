@@ -523,10 +523,11 @@ export const ActionList: React.FC<ActionListProps> = props => {
 						label={l('signal.duckWho')}
 						onChange={duck => edit(index, a, {duck})}
 						options={[
-							...[...new Set([...audio.groups.map(g => g.id), ...(a.duck === ':playing' ? [] : [a.duck])])].map(id => ({
+							...[...new Set([...audio.groups.map(g => g.id), ...(a.duck === ':playing' || a.duck === ':music' ? [] : [a.duck])])].map(id => ({
 								label: id,
 								value: id
 							})),
+							{label: l('signal.duckMusic'), value: ':music'},
 							{label: l('signal.duckAll'), value: ':playing'}
 						]}
 						value={a.duck}

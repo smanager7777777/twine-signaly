@@ -15,11 +15,13 @@ import {openHtmlWithScratchFile} from './scratch-file';
 import {
 	chooseGameFolder,
 	listGameMedia,
+	mediaStamps,
 	readMediaFile,
 	reverseNeeded,
 	showGameFolder,
 	writeGameFile,
-	writeReverseFile
+	writeReverseFile,
+	writeSstvFile
 } from './signaly-game-folder';
 import {Story} from '../../store/stories/stories.types';
 
@@ -103,6 +105,16 @@ export function initIpc() {
 
 	ipcMain.handle('signaly-read-media', (event, folder: string, path: string) =>
 		readMediaFile(folder, path)
+	);
+
+	ipcMain.handle('signaly-media-stamps', (event, folder: string, paths: string[]) =>
+		mediaStamps(folder, paths)
+	);
+
+	ipcMain.handle(
+		'signaly-write-sstv',
+		(event, folder: string, path: string, data: Uint8Array) =>
+			writeSstvFile(folder, path, data)
 	);
 
 	ipcMain.handle(
