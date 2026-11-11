@@ -6114,7 +6114,13 @@ setup.signalySounds = {
 			}
 		});
 		if (index < 0) {
-			dec.state = dec.state === 'garbage' ? 'idle' : dec.state;
+			// Тот же трек начался заново — экран чистый, ждём заголовок картинки.
+			if (dec.key.indexOf(sstvClean(src.src) + '#') === 0 && dec.key !== sstvClean(src.src) + '#-1') {
+				dec.key = sstvClean(src.src) + '#-1';
+				dec.drawn = 0;
+				decCanvas(dec.w, dec.h);
+			}
+			dec.state = 'idle';
 			return;
 		}
 
@@ -6922,6 +6928,8 @@ setup.signalySounds = {
 		'.sg-radio-decoder .sg-r-freq { font-size: calc(var(--u) * 40); }\n' +
 		'html body .sg-radio-decoder button.sg-r-btn { font-size: calc(var(--u) * 30); }\n' +
 		'html body .sg-radio-decoder button.sg-r-auto { font-size: calc(var(--u) * 26); }\n' +
+		'html body .sg-radio-decoder button.sg-r-scanbtn { font-size: calc(var(--u) * 19); gap: calc(var(--u) * 10); }\n' +
+		'html body .sg-radio-decoder button.sg-r-revbtn { flex-direction: row; font-size: calc(var(--u) * 30); gap: calc(var(--u) * 22); }\n' +
 		'.sg-amb-bar { align-items: baseline; display: flex; flex-wrap: wrap; gap: 0.6em 1.5em; margin-bottom: 1em; }\n' +
 		'.sg-amb-now { flex: 1 1 100%; }\n' +
 		'.sg-amb-grid { display: grid; gap: 0.8em; }\n' +
