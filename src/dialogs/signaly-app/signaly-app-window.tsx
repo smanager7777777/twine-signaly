@@ -42,6 +42,9 @@ import {readSettings} from '../../util/signaly/signaly-app';
 import {appRefs, newSettings} from '../../util/signaly/signaly-app-model';
 import {AppRefsContext, usePhoneL} from './signaly-app-fields';
 import {AppPreview} from './signaly-app-preview';
+import {BlocksTab} from './signaly-app-blocks';
+import {QrTab, SstvTab} from './signaly-app-media-tabs';
+import {addPassageEditors, useDialogsContext} from '../context';
 import {
 	AppTab,
 	appTabs,
@@ -99,6 +102,7 @@ export const SignalyAppWindow: React.FC<SignalyAppWindowProps> = props => {
 	);
 	const has = hasAppData(story.passages);
 	const pl = usePhoneL();
+	const dialogs = useDialogsContext();
 
 	/* ----- формы (сессия 33) ----- */
 
@@ -196,6 +200,15 @@ export const SignalyAppWindow: React.FC<SignalyAppWindowProps> = props => {
 	function close() {
 		if (saved || window.confirm(t('signaly.appearance.confirmClose'))) {
 			onClose();
+			return true;
+		}
+		return false;
+	}
+
+	/** «Блоки» → блок: окно закрывается, открывается пассаж (сессия 34). */
+	function openPassage(passageId: string) {
+		if (close()) {
+			dialogs.dispatch(addPassageEditors(story.id, [passageId]));
 		}
 	}
 
@@ -532,6 +545,9 @@ export const SignalyAppWindow: React.FC<SignalyAppWindowProps> = props => {
 					{tab === 'apps' && <DevicesTab {...tabProps} />}
 					{tab === 'events' && <EventsTab {...tabProps} setSub={setEvSub} sub={evSub} />}
 					{tab === 'voice' && <VoiceTab {...tabProps} />}
+					{tab === 'blocks' && <BlocksTab onOpen={openPassage} story={story} />}
+					{tab === 'qr' && <QrTab folder={folder} game={work.game} table={work.table} />}
+					{tab === 'sstv' && <SstvTab folder={folder} story={story} />}
 				</AppRefsContext.Provider>
 				{tab === 'pack' && (
 				<>

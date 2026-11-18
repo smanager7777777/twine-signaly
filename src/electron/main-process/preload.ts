@@ -50,6 +50,9 @@ contextBridge.exposeInMainWorld('twineElectron', {
 	signalyListAppFiles(folder: string) {
 		return ipcRenderer.invoke('signaly-list-app-files', folder);
 	},
+	signalyWriteOutput(folder: string, path: string, data: Uint8Array) {
+		return ipcRenderer.invoke('signaly-write-output', folder, path, data);
+	},
 	signalyWriteAppFile(folder: string, path: string, data: Uint8Array) {
 		return ipcRenderer.invoke('signaly-write-app-file', folder, path, data);
 	},

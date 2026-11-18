@@ -328,9 +328,13 @@ describe('проверка истории и пассажи приложения
 		const pack = readSgpack(fixture('app-test-pack.sgpack'));
 		const {passages} = apply([], pack.game, Object.keys(pack.files));
 
-		expect(
-			checkStory({passages, script: '', stylesheet: '', media: []})
-		).toEqual([]);
+		const all = checkStory({passages, script: '', stylesheet: '', media: []});
+
+		expect(all.filter((p: {kind: string}) => p.kind !== 'app')).toEqual([]);
+		// Сессия 34: данные приложения проверяются как в редакторе приложения (только предупреждения).
+		expect(all.filter((p: {kind: string}) => p.kind === 'app').map((p: {level: string; detail: string}) => `${p.level}: ${p.detail}`)).toEqual(
+			JSON.parse(readFileSync(join(__dirname, 'fixtures', 'app-test-pack.problems.json'), 'utf8'))
+		);
 	});
 });
 

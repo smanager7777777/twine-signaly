@@ -31,6 +31,8 @@ export interface TwineElectronWindow extends Window {
 		signalyListAppFiles(folder: string): Promise<string[]>;
 		/** Записать файл приложения (только внутри media/app/). */
 		signalyWriteAppFile(folder: string, path: string, data: Uint8Array): Promise<string>;
+		/** Сессия 34: картинка QR (QR/*.jpg) или звук SSTV (media/audio/sstv/*.wav) в папке игры; возвращает полный путь. */
+		signalyWriteOutput(folder: string, path: string, data: Uint8Array): Promise<string>;
 		/** Записать пакет приложения <имя>.sgpack прямо в папку игры; возвращает полный путь. */
 		signalyWriteAppPack(folder: string, filename: string, data: Uint8Array): Promise<string>;
 		signalyWriteReverse(

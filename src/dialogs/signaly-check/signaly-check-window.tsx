@@ -24,7 +24,7 @@ export interface SignalyCheckWindowProps {
 	story: Story;
 }
 
-const kinds: CheckKind[] = ['screen', 'media', 'variable', 'code', 'phone'];
+const kinds: CheckKind[] = ['screen', 'media', 'variable', 'code', 'phone', 'app'];
 const mediaKinds: MediaKind[] = ['img', 'audio', 'video', 'fonts'];
 
 export const SignalyCheckWindow: React.FC<SignalyCheckWindowProps> = props => {
@@ -55,6 +55,8 @@ export const SignalyCheckWindow: React.FC<SignalyCheckWindowProps> = props => {
 				: undefined;
 
 			const bridge = (window as TwineElectronWindow).twineElectron;
+			// Сессия 34: файлы приложения (профили и блоки) — media/app/.
+			const appFiles = folder && bridge?.signalyListAppFiles ? await bridge.signalyListAppFiles(folder) : undefined;
 			const missing =
 				folder && catalog && bridge?.signalyReverseNeeded ? await bridge.signalyReverseNeeded(folder, reverseJobs(catalog)) : [];
 
@@ -65,7 +67,8 @@ export const SignalyCheckWindow: React.FC<SignalyCheckWindowProps> = props => {
 						passages: story.passages.map(p => ({name: p.name, tags: p.tags, text: p.text})),
 						script: story.script,
 						stylesheet: story.stylesheet,
-						media
+						media,
+						appFiles
 					})
 				);
 			}
@@ -167,7 +170,14 @@ export const SignalyCheckWindow: React.FC<SignalyCheckWindowProps> = props => {
 												<span>{p.passage}</span>
 											)}
 											{': '}
-											<code>{p.detail}</code>
+											{p.kind === 'app' ? (
+												<span className={p.level === 'error' ? 'signaly-check-error' : 'signaly-check-warn'}>
+													{p.level === 'error' ? '✗ ' : '⚠ '}
+													{p.detail}
+												</span>
+											) : (
+												<code>{p.detail}</code>
+											)}
 										</li>
 									))}
 								</ul>

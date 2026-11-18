@@ -66,7 +66,9 @@ export const AppBlockForm: React.FC<{
 	onText: (text: string) => void;
 	onTag: () => void;
 	onRemove: () => void;
-}> = ({onRemove, onTag, onText, passage, story, tagged, text}) => {
+	/** Где курсор в тексте пассажа (ответ Т3-10 А: «+ Картинка» и «+ Звук» — туда). */
+	cursor?: () => {line: number; ch: number} | undefined;
+}> = ({cursor, onRemove, onTag, onText, passage, story, tagged, text}) => {
 	const l = usePhoneL();
 	const head = readBlockHead(text);
 	const table = React.useMemo(() => readCodes(codesPassageOf(story.passages)?.text ?? ''), [story.passages]);
@@ -171,14 +173,14 @@ export const AppBlockForm: React.FC<{
 			<div className="signaly-block-buttons">
 				<button
 					className="signaly-button"
-					onClick={() => onText(addBlockMedia(text, {type: 'image', file: files.find(isImage) ?? '', caption: ''}))}
+					onClick={() => onText(addBlockMedia(text, {type: 'image', file: files.find(isImage) ?? '', caption: ''}, cursor?.()))}
 					type="button"
 				>
 					{l('block.addImage')}
 				</button>
 				<button
 					className="signaly-button"
-					onClick={() => onText(addBlockMedia(text, {type: 'audio', file: files.find(isAudio) ?? '', caption: ''}))}
+					onClick={() => onText(addBlockMedia(text, {type: 'audio', file: files.find(isAudio) ?? '', caption: ''}, cursor?.()))}
 					type="button"
 				>
 					{l('block.addAudio')}

@@ -8,6 +8,7 @@ import {appModules, moduleOff, newAccount, voiceModes} from '../../util/signaly/
 import {CheckField, ChoiceField, TextField} from '../signaly-appearance/signaly-appearance-fields';
 import {AppRefsContext, paletteOptions, usePhoneL} from '../signaly-app/signaly-app-fields';
 import {randomDigits} from '../../util/signaly/signaly-app-model';
+import {AreaInput} from '../signaly-app/signaly-app-fields';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -28,12 +29,100 @@ export function voiceModeOf(data: AppGame) {
 		: 'off';
 }
 
+const isImage = (f: string) => /\.(png|jpe?g|gif|webp|svg)$/i.test(f);
+const isAudio = (f: string) => /\.(mp3|wav|ogg|m4a|aac)$/i.test(f);
+
+/** Профиль персонажа (Мультипаспорт, сессия 34 — ответ Т3-9 А): записи сверху на вкладке «Данные»
+ *  телефона — текст, картинка, звук, как в редакторе приложения. Файлы — из media/app/ папки игры. */
+export const ProfileItems: React.FC<{
+	items: AppGame[];
+	files?: string[];
+	onChange: (items: AppGame[]) => void;
+}> = ({files = [], items, onChange}) => {
+	const l = usePhoneL();
+	const put = (i: number, item: AppGame | undefined) => {
+		const next = items.slice();
+
+		if (item) {
+			next[i] = item;
+		} else {
+			next.splice(i, 1);
+		}
+		onChange(next);
+	};
+	const move = (i: number, d: number) => {
+		const next = items.slice();
+		const [x] = next.splice(i, 1);
+
+		next.splice(i + d, 0, x);
+		onChange(next);
+	};
+	const fileOptions = (item: AppGame) => {
+		const own = (files ?? []).filter(item.type === 'image' ? isImage : isAudio);
+		const file = String(item.file ?? '');
+
+		return [
+			{label: l('block.noFile'), value: ''},
+			...own.map(f => ({label: f, value: f})),
+			...(file && !own.includes(file) ? [{label: l('block.missingFile', {file}), value: file}] : [])
+		];
+	};
+
+	return (
+		<div className="signaly-app-profile">
+			<h3>{l('person.profile')}</h3>
+			<div className="signaly-field-hint">{l('person.profileHint')}</div>
+			{items.map((item, i) => (
+				<fieldset className="signaly-app-profile-item" key={i}>
+					<legend>{l(`person.profileKind.${item.type === 'image' || item.type === 'audio' ? item.type : 'text'}`)}</legend>
+					{item.type === 'image' || item.type === 'audio' ? (
+						<>
+							<ChoiceField label={l('block.file')} onChange={file => put(i, {...item, file})} options={fileOptions(item)} value={String(item.file ?? '')} />
+							{item.type === 'image' ? (
+								<TextField label={l('block.caption')} onChange={caption => put(i, {...item, caption})} value={String(item.caption ?? '')} />
+							) : (
+								<TextField label={l('block.audioTitle')} onChange={title => put(i, {...item, title})} value={String(item.title ?? '')} />
+							)}
+						</>
+					) : (
+						<AreaInput hint={l('person.profileTextHint')} label={l('person.profileText')} onChange={text => put(i, {...item, text})} rows={5} value={item.text} />
+					)}
+					<div className="signaly-block-buttons">
+						<button className="signaly-button" disabled={i === 0} onClick={() => move(i, -1)} type="button">
+							↑
+						</button>
+						<button className="signaly-button" disabled={i === items.length - 1} onClick={() => move(i, 1)} type="button">
+							↓
+						</button>
+						<button className="signaly-button" onClick={() => put(i, undefined)} type="button">
+							{l('person.profileRemove')}
+						</button>
+					</div>
+				</fieldset>
+			))}
+			<div className="signaly-block-buttons">
+				<button className="signaly-button" onClick={() => onChange([...items, {type: 'text', text: ''}])} type="button">
+					{l('person.profileAddText')}
+				</button>
+				<button className="signaly-button" onClick={() => onChange([...items, {type: 'image', file: files.find(isImage) ?? '', caption: ''}])} type="button">
+					{l('block.addImage')}
+				</button>
+				<button className="signaly-button" onClick={() => onChange([...items, {type: 'audio', file: files.find(isAudio) ?? '', title: ''}])} type="button">
+					{l('block.addAudio')}
+				</button>
+			</div>
+		</div>
+	);
+};
+
 export const PhonePersonForm: React.FC<{
 	data: AppGame | undefined;
 	num: string;
 	usedCodes: Set<string>;
 	onChange: (data: AppGame | undefined) => void;
-}> = ({data, num, onChange, usedCodes}) => {
+	/** Файлы media/app/ папки игры (для профиля). */
+	files?: string[];
+}> = ({data, files, num, onChange, usedCodes}) => {
 	const l = usePhoneL();
 	const refs = React.useContext(AppRefsContext);
 
@@ -161,7 +250,7 @@ export const PhonePersonForm: React.FC<{
 					})}
 				</tbody>
 			</table>
-			{Array.isArray(data.items) && data.items.length > 0 && <div className="signaly-field-hint">{l('person.items', {n: data.items.length})}</div>}
+			<ProfileItems files={files} items={Array.isArray(data.items) ? data.items : []} onChange={items => set({items})} />
 		</>
 	);
 };

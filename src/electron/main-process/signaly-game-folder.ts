@@ -363,6 +363,29 @@ export async function writeAppFile(folder: string, relative: string, data: Uint8
 	return path;
 }
 
+/** Сессия 34 (вкладки «QR» и «SSTV» окна «Приложение»): картинки QR — только .jpg в QR/ папки игры,
+ *  звуки SSTV и кода звуком — только .wav в media/audio/sstv/ (их видит окно «Музыка»). */
+export async function writeOutputFile(folder: string, relative: string, data: Uint8Array) {
+	if (typeof folder !== 'string' || !isAbsolute(folder)) {
+		throw new Error(i18n.t('electron.signaly.errors.noFolder'));
+	}
+
+	const ok =
+		typeof relative === 'string' &&
+		(/^QR\/[^/\\]+\.jpg$/i.test(relative) || /^media\/audio\/sstv\/[^/\\]+\.wav$/i.test(relative)) &&
+		!relative.split('/').some(p => p === '..' || p === '.');
+
+	if (!ok || !(data instanceof Uint8Array)) {
+		throw new Error(`Only QR/*.jpg or media/audio/sstv/*.wav: ${relative}`);
+	}
+
+	const path = join(folder, ...relative.split('/'));
+
+	await mkdirp(dirname(path));
+	await writeFile(path, Buffer.from(data.buffer, data.byteOffset, data.byteLength));
+	return path;
+}
+
 /** Записать пакет приложения: только <имя>.sgpack прямо в папке игры. */
 export async function writeAppPack(folder: string, filename: string, data: Uint8Array) {
 	if (typeof folder !== 'string' || !isAbsolute(folder)) {

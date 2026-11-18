@@ -2325,14 +2325,16 @@
 				"media": "File missing from the game folder",
 				"variable": "Variable without a starting value",
 				"code": "Code does nothing",
-				"phone": "Phones: not in the app"
+				"phone": "Phones: not in the app",
+				"app": "Phone app"
 			},
 			"hints": {
 				"screen": "A link, button, dialog, insert or command leads to a passage that does not exist.",
 				"media": "The path is written in the story, but the file is not in the game folder.",
 				"variable": "The variable is used but has no starting value in the Variables window. Not always an error.",
 				"code": "The code has no actions, no answer and no destination.",
-				"phone": "Glitch and block names in «Phones: …» must match the app data in the story, or phones will skip the command."
+				"phone": "Glitch and block names in «Phones: …» must match the app data in the story, or phones will skip the command.",
+				"app": "App data in the story (App window, blocks, phone characters and codes) — like the app editor \"Check\" tab: ✗ — error, ⚠ — worth checking."
 			},
 			"copies": {
 				"title": "Radio tracks without a reversed copy",
@@ -2613,7 +2615,10 @@
 				"chapters": "Chapters & styles",
 				"apps": "Devices",
 				"events": "Network & events",
-				"voice": "Voice"
+				"voice": "Voice",
+				"blocks": "Blocks",
+				"qr": "QR",
+				"sstv": "SSTV"
 			},
 			"saveFirst": "Save the form changes first",
 			"noAccounts": "No app characters yet: in «Коды» → Employees, tick «App character on the phone».",
@@ -2757,7 +2762,7 @@
 				"removeMedia": "Remove from the block",
 				"addImage": "+ Image",
 				"addAudio": "+ Sound",
-				"mediaHint": "An image or sound line goes to the end of the text; move it where needed. Put new files into the game folder media/app/.",
+				"mediaHint": "The image or sound line goes where the cursor is in the passage text (at the start of a line — before it, otherwise after it). Put new files into the game folder media/app/.",
 				"remove": "Not an app block",
 				"confirmRemove": "Remove the block's first line and the app-block tag? The passage text stays."
 			},
@@ -2865,7 +2870,18 @@
 				"colorAny": "any time",
 				"colorPin": "Chapter {{n}}: in others' chats",
 				"colorPinNone": "in others' chats: as the chapter",
-				"items": "Profile: {{n}} entries — edited in the app editor."
+				"items": "Profile: {{n}} entries — edited in the app editor.",
+				"profile": "Profile (multipassport)",
+				"profileHint": "Entries at the top of the phone \"Data\" tab: text, images, sound — as in the app editor.",
+				"profileKind": {
+					"text": "Text",
+					"image": "Image",
+					"audio": "Sound"
+				},
+				"profileText": "Text",
+				"profileTextHint": "App markup: # heading, **bold**, _italic_, --- line.",
+				"profileRemove": "Remove entry",
+				"profileAddText": "+ Text"
 			},
 			"general": {
 				"pack": "Package",
@@ -3203,6 +3219,102 @@
 				"refresh": "Restart",
 				"hint": "This is how the app looks on a phone: codes and blocks work, no network, nothing is saved. Unsaved changes are shown too.",
 				"missing": "Files missing in the game folder: {{list}}"
+			},
+			"blocks": {
+				"title": "Blocks by folder",
+				"hint": "A block folder comes from the passage name (\"Plans/Bay 1/Map\") or the folder word. Left: folders (in brackets — blocks with subfolders) and blocks; click a block to open its passage. Renaming and new blocks go into the story at once.",
+				"root": "All blocks (no folder)",
+				"folder": "Folder \"{{name}}\"",
+				"rename": "New folder name",
+				"renameHint": "Subfolders with \"/\"; all blocks of the folder and its subfolders are renamed. Empty — blocks leave the folder.",
+				"renameDo": "Rename folder",
+				"renamed": "Blocks renamed: {{n}} (\"{{from}}\" → \"{{to}}\").",
+				"newTitle": "New block title",
+				"newTitleHint": "May include a subfolder: \"Bay 2/Map\" — the block goes into a new folder inside the selected one.",
+				"add": "+ Block in this folder",
+				"added": "Passage \"{{name}}\" created (tag app-block). Open it to write the text.",
+				"open": "Open passage (the window closes)",
+				"start": "open",
+				"chapter": "from ch. {{n}}"
+			},
+			"qr": {
+				"title": "Code to QR",
+				"hint": "The QR holds the code itself — the same one typed by hand. Put the JPG on a terminal screen (players scan it) or print it for props.",
+				"code": "Code",
+				"colors": "Colors",
+				"scheme": {
+					"gb": "Green on black (like the terminal)",
+					"bg": "Black on green",
+					"bw": "Black on white (for print)",
+					"custom": "Custom colors"
+				},
+				"bg": "background",
+				"fg": "pattern",
+				"size": "Image size",
+				"points": "{{n}} px",
+				"caption": "Caption",
+				"captions": {
+					"none": "none",
+					"code": "the code",
+					"label": "code label (master note)",
+					"own": "own text"
+				},
+				"own": "Caption text",
+				"saveOne": "Save JPG",
+				"colorsHint": "The Signaly app reads green on black; ordinary scanners sometimes do not. For print, black on white or black on green is safer.",
+				"empty": "Type a code — the QR appears here.",
+				"list": "Game codes",
+				"none": "No codes yet.",
+				"saveAll": "Save checked ({{n}}) as JPG",
+				"show": "Show",
+				"groups": {
+					"codes": "Codes (terminal and phones)",
+					"devices": "Device codes (scanned by a device)",
+					"logins": "Character login codes",
+					"chapters": "Chapter codes",
+					"master": "Master (unchecked by default)"
+				},
+				"saved": "Images saved: {{n}} — folder {{path}}.",
+				"downloaded": "Downloaded {{name}}."
+			},
+			"sstv": {
+				"title": "SSTV: image → sound",
+				"hint": "Sound for the terminal (decoder radio or a plain track), a speaker or props. Phones do not receive SSTV (P-45).",
+				"file": "Image (media/app/ and media/img/ of the game folder)",
+				"own": "from computer: {{name}}",
+				"pick": "Choose a file…",
+				"mode": "SSTV mode",
+				"fit": "Fit",
+				"fits": {
+					"cover": "fill (crop edges)",
+					"contain": "fit whole (borders)",
+					"stretch": "stretch"
+				},
+				"rate": "Sample rate",
+				"hz": "{{n}} Hz",
+				"label": "Label before the image (code, optional)",
+				"labelHint": "A short sound code before the transmission (app format).",
+				"make": "Make sound",
+				"working": "Encoding…",
+				"frame": "Frame: {{mode}}, {{w}}×{{h}}",
+				"noImage": "Choose an image first.",
+				"result": "{{name}} — {{s}} s, {{kb}} KB.",
+				"checkOk": "Terminal decoder check: {{mode}}, {{rows}} lines.",
+				"checkFail": "CHECK FAILED.",
+				"labelOk": "Label \"{{label}}\" is heard.",
+				"labelFail": "LABEL NOT RECOGNIZED.",
+				"decoded": "How the terminal decoder draws it (clean sound):",
+				"toTerminal": "To the game folder (media/audio/sstv/) — for Music",
+				"toApp": "To media/app/ — sound for an app block",
+				"download": "Download WAV",
+				"savedTerminal": "Saved: {{path}}. Add it as a track in the Music window.",
+				"savedApp": "Saved: {{path}}. Use it in a block (App block → + Sound).",
+				"codeTitle": "Code as sound",
+				"codeHint": "A short beep (1–3 s) carrying the code — a \"data transmission\" for the terminal or props.",
+				"code": "Code",
+				"makeCode": "Make code sound",
+				"codeResult": "{{name}} — {{s}} s.",
+				"codeOk": "Check: the code is heard."
 			}
 		}
 	}

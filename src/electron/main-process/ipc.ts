@@ -22,6 +22,7 @@ import {
 	showGameFolder,
 	writeAppFile,
 	writeAppPack,
+	writeOutputFile,
 	writeGameFile,
 	writeReverseFile,
 	writeSstvFile
@@ -126,6 +127,12 @@ export function initIpc() {
 	ipcMain.handle(
 		'signaly-write-app-file',
 		(event, folder: string, path: string, data: Uint8Array) => writeAppFile(folder, path, data)
+	);
+
+	// Сессия 34: картинки QR и звуки SSTV из окна «Приложение».
+	ipcMain.handle(
+		'signaly-write-output',
+		(event, folder: string, path: string, data: Uint8Array) => writeOutputFile(folder, path, data)
 	);
 
 	ipcMain.handle(

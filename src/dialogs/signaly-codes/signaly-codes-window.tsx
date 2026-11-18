@@ -47,6 +47,7 @@ import {appRefs, newPhoneCode, normCode, parseObject} from '../../util/signaly/s
 import {AppRefsContext} from '../signaly-app/signaly-app-fields';
 import {PhoneCodeForm} from './signaly-phone-code-form';
 import {PhonePersonForm} from './signaly-phone-person-form';
+import {useAppFiles} from '../passage-edit/signaly-app-block-form';
 
 export interface SignalyCodesWindowProps {
 	onClose: () => void;
@@ -71,6 +72,7 @@ export const SignalyCodesWindow: React.FC<SignalyCodesWindowProps> = props => {
 	const l = (key: string, options?: Record<string, unknown>) => t(`signaly.codes.${key}`, options);
 	const {dispatch, stories} = useStoriesContext();
 	const {media, passages} = useLists(story);
+	const appFiles = useAppFiles(story);
 	const codesPassage =
 		story.passages.find(p => p.tags.includes(codesTag)) ?? story.passages.find(p => p.name === codesPassageName);
 	const [table, setTable] = React.useState<CodeTable>(() => readCodes(codesPassage?.text ?? ''));
@@ -480,6 +482,7 @@ export const SignalyCodesWindow: React.FC<SignalyCodesWindowProps> = props => {
 				) : (
 					<PhonePersonForm
 						data={parseObject(person.phone)}
+						files={appFiles.files}
 						num={person.id}
 						onChange={data => setPerson({phone: data ? jsonText(data) : undefined})}
 						usedCodes={usedCodes}

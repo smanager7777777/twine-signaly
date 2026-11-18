@@ -118,3 +118,35 @@
 .signaly-pre {
 	white-space: pre-line;
 }
+
+/* Сессия 34: вкладки «Блоки», «QR», «SSTV»; профиль персонажа. */
+.signaly-app-tree,
+.signaly-app-tree ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.signaly-app-tree .signaly-kinds-item {
+	display: block;
+	text-align: left;
+	width: 100%;
+}
+
+.signaly-app-qr,
+.signaly-app-sstv {
+	border: 1px solid var(--gray);
+	image-rendering: pixelated;
+	max-width: 320px;
+}
+
+.signaly-app-qr-group,
+.signaly-app-profile-item {
+	border: 1px solid var(--light-gray);
+	margin: var(--grid-size) 0;
+	padding: calc(var(--grid-size) / 2) var(--grid-size);
+}
+
+.signaly-app-qr-group legend .signaly-field {
+	margin: 0;
+}

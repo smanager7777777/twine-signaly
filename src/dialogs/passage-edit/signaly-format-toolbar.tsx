@@ -1164,6 +1164,7 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 			)}
 			{panel && editor && (
 				<SignalyBlockPanel
+					cursor={() => editor.getDoc().getCursor()}
 					onAccessTag={setAccessTag}
 					onAppBlockTag={setAppBlockTag}
 					onArticleTag={setArticleTag}

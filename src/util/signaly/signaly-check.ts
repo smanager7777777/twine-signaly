@@ -6,10 +6,12 @@
 import {parseLinks} from '../parse-links';
 import {codesTag, readCodes} from './signaly-codes';
 import {hasAppData, storyToGame} from './signaly-app';
+import {storyAppProblems} from './signaly-app-check';
 import {screenMentions} from './signaly-rename';
 import {readVariables, variablesInTexts} from './signaly-variables';
 
-export type CheckKind = 'screen' | 'media' | 'variable' | 'code' | 'phone';
+// Сессия 34: app — данные приложения для телефонов (ошибки и предупреждения, как «Проверка» редактора приложения).
+export type CheckKind = 'screen' | 'media' | 'variable' | 'code' | 'phone' | 'app';
 
 export interface CheckProblem {
 	kind: CheckKind;
@@ -17,6 +19,8 @@ export interface CheckProblem {
 	passage: string;
 	/** Что именно: имя экрана, путь к файлу, имя переменной, код. */
 	detail: string;
+	/** Сессия 34: у данных приложения — ошибка или предупреждение. */
+	level?: 'error' | 'warn';
 }
 
 export interface CheckPassage {
@@ -34,6 +38,8 @@ export interface CheckInput {
 	 * не проверяются.
 	 */
 	media?: string[];
+	/** Сессия 34: файлы media/app/ папки игры; undefined — не проверяются. */
+	appFiles?: string[];
 }
 
 /** Папки media/, которые программа видит в папке игры. */
@@ -179,6 +185,8 @@ export function checkStory(input: CheckInput): CheckProblem[] {
 				});
 			}
 		});
+
+		storyAppProblems(passages, input.appFiles).forEach(p => problems.push({kind: 'app', passage: p.passage, detail: p.text, level: p.level}));
 	}
 
 	return problems;

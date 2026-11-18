@@ -44,8 +44,9 @@ import {
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-export type AppTab = 'pack' | 'general' | 'chapters' | 'apps' | 'events' | 'voice';
-export const appTabs: AppTab[] = ['pack', 'general', 'chapters', 'apps', 'events', 'voice'];
+// Сессия 34: «Блоки» (Т3-11 А), «QR» и «SSTV» (Т3-8 А) — signaly-app-blocks.tsx, signaly-app-media-tabs.tsx.
+export type AppTab = 'pack' | 'general' | 'chapters' | 'blocks' | 'apps' | 'events' | 'voice' | 'qr' | 'sstv';
+export const appTabs: AppTab[] = ['pack', 'general', 'chapters', 'blocks', 'apps', 'events', 'voice', 'qr', 'sstv'];
 export type EventsSub = 'notices' | 'alarms' | 'glitches' | 'rules' | 'votes';
 export const eventsSubs: EventsSub[] = ['notices', 'alarms', 'glitches', 'rules', 'votes'];
 

@@ -566,9 +566,27 @@ export function setBlockMedia(text: string, line: number, item: BlockMedia | und
 }
 
 /** Добавить строку картинки или звука в конец текста. */
-export function addBlockMedia(text: string, item: Pick<BlockMedia, 'type' | 'file' | 'caption'>) {
+export function addBlockMedia(
+	text: string,
+	item: Pick<BlockMedia, 'type' | 'file' | 'caption'>,
+	at?: {line: number; ch: number}
+) {
 	const line = mediaLine({...item, more: []});
 
+	// Сессия 34 (ответ Т3-10 А): туда, где курсор — перед строкой, если курсор в её начале, иначе после неё;
+	// не выше первой строки блока. Без курсора — в конец текста, как раньше.
+	if (at && text !== '') {
+		const lines = text.split('\n');
+		let index = at.ch === 0 ? at.line : at.line + 1;
+
+		if (index < 1) {
+			index = 1;
+		}
+		if (index < lines.length || (index === lines.length && !text.endsWith('\n'))) {
+			lines.splice(Math.min(index, lines.length), 0, line);
+			return lines.join('\n');
+		}
+	}
 	return text.endsWith('\n') || text === '' ? text + line + '\n' : `${text}\n${line}\n`;
 }
 
@@ -589,4 +607,173 @@ export function codesOpening(table: CodeTable, blockId: string) {
 			);
 		})
 		.map(e => (e.code || (parseObject(e.phone)?.voice ? `🎙 ${parseObject(e.phone)!.voice}` : '—')) + (e.label ? ` — ${e.label}` : ''));
+}
+
+/* ----- вкладка «Блоки»: папки блоков деревом (сессия 34, ответ Т3-11 А) ----- */
+
+export interface BlockEntry<P extends StoryPassage = StoryPassage & {id: string}> {
+	passage: P;
+	id: string;
+	/** Папка «А/Б» (из названия пассажа или слова folder). */
+	folder: string;
+	title: string;
+	/** Папка задана словом folder в первой строке (не названием пассажа). */
+	ownFolder: boolean;
+}
+
+export interface FolderNode {
+	path: string;
+	name: string;
+	folders: FolderNode[];
+	blocks: BlockEntry<StoryPassage & {id: string}>[];
+	/** Блоков в папке со всеми подпапками. */
+	count: number;
+}
+
+function restWord(rest: string[], word: string) {
+	const i = rest.indexOf(word);
+
+	return i >= 0 && i + 1 < rest.length ? String(val(rest[i + 1]) ?? '') : undefined;
+}
+
+export function blockEntries<P extends StoryPassage>(passages: P[]): BlockEntry<P>[] {
+	return passages
+		.filter(p => p.tags.includes(appBlockTag) && hasBlockHead(p.text))
+		.map(p => {
+			const head = readBlockHead(p.text)!;
+			const parts = p.name.split('/');
+			const fromName = parts.pop() ?? '';
+			const folder = restWord(head.rest, 'folder');
+			const title = restWord(head.rest, 'title');
+
+			return {
+				passage: p,
+				id: head.id,
+				folder: folder ?? parts.join('/'),
+				title: title ?? fromName,
+				ownFolder: folder !== undefined
+			};
+		});
+}
+
+/** Дерево папок; блоки внутри — по названию. */
+export function blockTree(passages: Array<StoryPassage & {id: string}>): FolderNode {
+	const root: FolderNode = {path: '', name: '', folders: [], blocks: [], count: 0};
+	const node = (path: string): FolderNode => {
+		let cur = root;
+
+		path.split('/')
+			.filter(Boolean)
+			.forEach((name, i, all) => {
+				const p = all.slice(0, i + 1).join('/');
+				let next = cur.folders.find(f => f.path === p);
+
+				if (!next) {
+					next = {path: p, name, folders: [], blocks: [], count: 0};
+					cur.folders.push(next);
+				}
+				cur = next;
+			});
+		return cur;
+	};
+
+	blockEntries(passages).forEach(b => node(b.folder).blocks.push(b));
+
+	const finish = (n: FolderNode): number => {
+		n.folders.sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+		n.blocks.sort((a, b) => a.title.localeCompare(b.title, 'ru'));
+		n.count = n.blocks.length + n.folders.reduce((s, f) => s + finish(f), 0);
+		return n.count;
+	};
+
+	finish(root);
+	return root;
+}
+
+function withWord(rest: string[], word: string, value: string) {
+	const out = rest.slice();
+	const i = out.indexOf(word);
+
+	if (i >= 0 && i + 1 < out.length) {
+		out[i + 1] = arg(value);
+	} else {
+		out.push(word, arg(value));
+	}
+	return out;
+}
+
+/** Свободное имя пассажа: «имя», «имя (2)»… */
+function freeName(name: string, taken: Set<string>) {
+	if (!taken.has(name)) {
+		return name;
+	}
+
+	let n = 2;
+
+	while (taken.has(`${name} (${n})`)) {
+		n++;
+	}
+	return `${name} (${n})`;
+}
+
+export interface PassageChange {
+	id: string;
+	name?: string;
+	text?: string;
+}
+
+/** Переименовать папку целиком (с подпапками): названия пассажей или слово folder. */
+export function renameFolder(passages: Array<StoryPassage & {id: string}>, from: string, to: string): PassageChange[] {
+	const clean = (s: string) =>
+		s
+			.split('/')
+			.map(x => x.trim())
+			.filter(Boolean)
+			.join('/');
+	const src = clean(from);
+	const dst = clean(to);
+
+	if (!src || src === dst) {
+		return [];
+	}
+
+	const inside = blockEntries(passages).filter(b => b.folder === src || b.folder.startsWith(src + '/'));
+	const moving = new Set(inside.map(b => b.passage.id));
+	const taken = new Set(passages.filter(p => !moving.has(p.id)).map(p => p.name));
+
+	return inside.map(b => {
+		const folder = dst + b.folder.slice(src.length);
+		const head = readBlockHead(b.passage.text)!;
+
+		if (b.ownFolder) {
+			taken.add(b.passage.name);
+			return {id: b.passage.id, text: writeBlockHead(b.passage.text, {...head, rest: withWord(head.rest, 'folder', folder)})};
+		}
+
+		const want = folder ? `${folder}/${b.title}` : b.title;
+		const name = freeName(want, taken);
+
+		taken.add(name);
+		if (name === want) {
+			return {id: b.passage.id, name};
+		}
+		// Имя занято — к названию « (2)», настоящие папка и название — словами (как при загрузке пакета).
+		return {
+			id: b.passage.id,
+			name,
+			text: writeBlockHead(b.passage.text, {...head, rest: withWord(withWord(head.rest, 'title', b.title), 'folder', folder)})
+		};
+	});
+}
+
+/** Новый блок в папке: имя пассажа и текст с первой строкой. */
+export function newBlockIn(passages: StoryPassage[], folder: string, title: string) {
+	const taken = new Set(passages.map(p => p.name));
+	const t = title.trim() || 'Новый блок';
+	const want = (folder ? `${folder}/` : '') + t;
+	const id = newBlockId(passages);
+	const name = freeName(want, taken);
+	const rest = name === want ? [] : withWord(withWord([], 'title', t), 'folder', folder);
+
+	return {name, id, text: blockHeadLine({id, who: [], chapter: 1, start: false, share: false, garble: 0, rest}) + '\n'};
 }

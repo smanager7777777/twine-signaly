@@ -111,6 +111,8 @@ export interface SignalyBlockPanelProps {
 	/** Создать пустые экраны (шаг 5.2, ответ 2А). */
 	onCreatePassages: (names: string[]) => void;
 	onClose: () => void;
+	/** Где курсор в тексте (сессия 34, ответ Т3-10 А). */
+	cursor?: () => {line: number; ch: number} | undefined;
 }
 
 /** Имя новой переменной картинки-переключателя: свободное, чтобы не задеть чужую. */
@@ -320,6 +322,7 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 		title = t('signaly.phone.block.title');
 		body = (
 			<AppBlockForm
+				cursor={props.cursor}
 				onRemove={() => {
 					onText(removeBlockHead(text));
 					onAppBlockTag(false);

@@ -29,3 +29,12 @@
 	color: var(--green);
 	font-weight: bold;
 }
+
+/* Сессия 34: данные приложения — ошибка и предупреждение. */
+.signaly-check-error {
+	color: var(--red);
+}
+
+.signaly-check-warn {
+	color: var(--dark-orange, var(--orange));
+}
