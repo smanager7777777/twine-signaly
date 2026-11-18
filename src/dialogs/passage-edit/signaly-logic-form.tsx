@@ -174,6 +174,50 @@ const SpecialRow: React.FC<{cond: Cond; onChange: (c: Partial<Cond>) => void}> =
 	const l = useL();
 	const lists = React.useContext(CondListsContext);
 
+	if (c.kind === 'phone') {
+		return (
+			<>
+				{choice(
+					l('cond.phoneWhat'),
+					c.phone ?? 'code',
+					(['code', 'event'] as const).map(w => ({label: l(`cond.phoneWhats.${w}`), value: w})),
+					phone => onChange({phone: phone as 'code' | 'event'})
+				)}
+				<TextField
+					hint={l(c.phone === 'event' ? 'cond.phoneEventHint' : 'cond.phoneCodeHint')}
+					label={l(c.phone === 'event' ? 'cond.phoneEvent' : 'cond.phoneCode')}
+					onChange={code => onChange({code})}
+					value={c.code ?? ''}
+				/>
+				{choice(
+					l('cond.phonePerson'),
+					c.person ?? '',
+					[{label: l('cond.phoneAny'), value: ''}, ...lists.people.map(p => ({label: p, value: p}))],
+					person => onChange({person})
+				)}
+				{choice(
+					l('cond.op'),
+					c.op,
+					(['on', 'off', 'ge', 'eq'] as const).map(op => ({label: l(`cond.phoneOps.${op}`), value: op})),
+					op => onChange({op: op as CondOp, value: op === 'ge' || op === 'eq' ? (Number(c.value) || 1) : undefined})
+				)}
+				{(c.op === 'ge' || c.op === 'eq') && (
+					<TextField
+						label={l('cond.times')}
+						onChange={input => {
+							const n = Number(input);
+
+							if (input.trim() !== '' && Number.isInteger(n) && n >= 0) {
+								onChange({value: n});
+							}
+						}}
+						value={String(c.value ?? 1)}
+					/>
+				)}
+				<div className="signaly-field-hint">{l('cond.phoneHint')}</div>
+			</>
+		);
+	}
 	if (c.kind === 'visits') {
 		return (
 			<>
@@ -245,10 +289,12 @@ export const CondRows: React.FC<{
 				? {name: '', kind: 'visits', screen: lists.passages[0] ?? '', op: 'on'}
 				: kind === 'entered'
 				? {name: '', kind: 'entered', person: lists.people[0] ?? '', code: lists.codes[0]?.code ?? '', op: 'on'}
+				: kind === 'phone'
+				? {name: '', kind: 'phone', phone: 'code', code: '', person: '', op: 'on'}
 				: {name: variables[0]?.name ?? 'x', op: 'on'}
 		);
 	};
-	const kinds = ['var', 'visits', 'entered'];
+	const kinds = ['var', 'visits', 'entered', 'phone'];
 
 	return (
 		<>

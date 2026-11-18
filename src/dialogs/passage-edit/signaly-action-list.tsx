@@ -22,7 +22,13 @@ import {
 	TimerAction,
 	MusicAction,
 	MusicOp,
-	musicOps
+	musicOps,
+	NetAction,
+	NetOp,
+	netModules,
+	netModuleStates,
+	netOps,
+	netPersonal
 } from '../../util/signaly/signaly-actions';
 import {parseExpr, writeExpr} from '../../util/signaly/signaly-logic';
 import {Value} from '../../util/signaly/signaly-screen-blocks';
@@ -100,6 +106,82 @@ const MusicActionFields: React.FC<{action: MusicAction; l: L; onChange: (patch: 
 	);
 };
 
+/** «Телефонам: …» (сессия 31): команда телефонам игроков через центр сети приложения. */
+const NetActionFields: React.FC<{action: NetAction; l: L; codes?: boolean; onChange: (patch: Partial<NetAction>) => void}> = props => {
+	const {action, l, codes, onChange} = props;
+	const lists = React.useContext(CondListsContext);
+	const op = action.op;
+	const toMode = action.to === 'self' ? 'self' : action.to.trim() ? 'list' : 'all';
+	const textA = (label: string, hint?: string) => <TextField hint={hint} label={label} onChange={a => onChange({a})} value={action.a} />;
+	const textB = (label: string, hint?: string) => <TextField hint={hint} label={label} onChange={b => onChange({b})} value={action.b} />;
+	const number = (label: string) => (
+		<TextField label={label} onChange={a => onChange({a: a.replace(/[^0-9]/g, '')})} value={action.a} />
+	);
+
+	return (
+		<>
+			<ChoiceField
+				label={l('net.op')}
+				onChange={next =>
+					onChange({
+						op: next as NetOp,
+						a: next === 'chapter' ? '2' : next === 'countdown' ? '300' : next === 'module' ? 'chat' : next === 'notify' || next === 'alarm' ? action.a || 'ТЕРМИНАЛ' : '',
+						b: next === 'module' ? 'on' : next === 'alarm' || next === 'notify' || next === 'open' || next === 'countdown' ? action.b : ''
+					})
+				}
+				options={netOps.map(o => ({label: l(`net.ops.${o}`), value: o}))}
+				value={op}
+			/>
+			{(op === 'notify' || op === 'alarm') && textA(l('net.title'))}
+			{(op === 'notify' || op === 'alarm') && textB(l('net.text'))}
+			{op === 'open' && textA(l('net.blocks'), l('net.blocksHint'))}
+			{op === 'open' && textB(l('net.openTitle'))}
+			{(op === 'glitch' || op === 'fix') && textA(l('net.glitch'), l(op === 'fix' ? 'net.fixHint' : 'net.glitchHint'))}
+			{op === 'chapter' && number(l('net.chapter'))}
+			{op === 'countdown' && number(l('net.seconds'))}
+			{op === 'countdown' && textB(l('net.title'))}
+			{op === 'module' && (
+				<ChoiceField
+					label={l('net.module')}
+					onChange={a => onChange({a})}
+					options={[...new Set([...netModules, action.a])].filter(Boolean).map(m => ({label: l(`net.modules.${m}`, {defaultValue: m}), value: m}))}
+					value={action.a}
+				/>
+			)}
+			{op === 'module' && (
+				<ChoiceField
+					label={l('net.state')}
+					onChange={b => onChange({b})}
+					options={netModuleStates.map(s => ({label: l(`net.states.${s}`), value: s}))}
+					value={action.b}
+				/>
+			)}
+			{op === 'event' && textA(l('net.event'), l('net.eventHint'))}
+			{netPersonal.includes(op) && (
+				<ChoiceField
+					label={l('net.to')}
+					onChange={mode => onChange({to: mode === 'self' ? 'self' : mode === 'list' ? lists.people[0] ?? '1' : ''})}
+					options={[
+						{label: l('net.toAll'), value: 'all'},
+						...(codes || toMode === 'self' ? [{label: l('net.toSelf'), value: 'self'}] : []),
+						{label: l('net.toList'), value: 'list'}
+					]}
+					value={toMode}
+				/>
+			)}
+			{netPersonal.includes(op) && toMode === 'list' && (
+				<TextField
+					hint={lists.people.length ? l('net.peopleHint', {people: lists.people.join(', ')}) : l('net.noPeople')}
+					label={l('net.people')}
+					onChange={to => onChange({to: to.replace(/[^0-9A-Za-zА-Яа-яЁё_, -]/g, '')})}
+					value={action.to}
+				/>
+			)}
+			<div className="signaly-field-hint">{l(`net.hints.${op}`)}</div>
+		</>
+	);
+};
+
 export const actionTypes: ActionType[] = [
 	'set',
 	'progress',
@@ -112,6 +194,7 @@ export const actionTypes: ActionType[] = [
 	'delay',
 	'back',
 	'music',
+	'net',
 	'code'
 ];
 
@@ -628,6 +711,8 @@ export const ActionList: React.FC<ActionListProps> = props => {
 				return <div className="signaly-field-hint">{l('backHint')}</div>;
 			case 'music':
 				return <MusicActionFields action={a} l={l} onChange={patch => edit(index, a, patch)} />;
+			case 'net':
+				return <NetActionFields action={a} codes={codes} l={l} onChange={patch => edit(index, a, patch)} />;
 			case 'stop':
 				return (
 					<TextField

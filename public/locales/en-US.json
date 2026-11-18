@@ -1424,7 +1424,8 @@
 				"kinds": {
 					"var": "Variable",
 					"visits": "Screen visits",
-					"entered": "Employee entered a code"
+					"entered": "Employee entered a code",
+					"phone": "Came from a phone"
 				},
 				"screen": "Screen",
 				"visitOps": {
@@ -1440,7 +1441,25 @@
 					"off": "did not enter code"
 				},
 				"codeChoice": "Code",
-				"noPeople": "Employees and codes are in the “Codes” window (Story tab)."
+				"noPeople": "Employees and codes are in the “Codes” window (Story tab).",
+				"phoneWhat": "What came",
+				"phoneWhats": {
+					"code": "code or voice phrase",
+					"event": "event"
+				},
+				"phoneCode": "Code or phrase",
+				"phoneCodeHint": "Code typed on a phone or phrase heard by a phone.",
+				"phoneEvent": "Event name",
+				"phoneEventHint": "Phone code action \"Event\".",
+				"phonePerson": "From whose phone",
+				"phoneAny": "any",
+				"phoneOps": {
+					"on": "came",
+					"off": "never came",
+					"ge": "came at least … times",
+					"eq": "came exactly … times"
+				},
+				"phoneHint": "Vote results and variables from the master console are written to variables — use the \"Variable\" condition."
 			},
 			"states": {
 				"title": "States",
@@ -1523,7 +1542,8 @@
 				"delay": "After N seconds",
 				"progress": "Progress of the person +N",
 				"back": "Return to the previous screen",
-				"music": "Music"
+				"music": "Music",
+				"net": "To phones: …"
 			},
 			"add": "Add action",
 			"addChoose": "Choose…",
@@ -1669,6 +1689,70 @@
 					"quieter": "Down to 00.",
 					"auto": "Next track when one ends.",
 					"section": "The section’s last track from where it stopped."
+				}
+			},
+			"net": {
+				"op": "What to do on phones",
+				"ops": {
+					"notify": "Notification",
+					"open": "Open blocks",
+					"glitch": "Glitch",
+					"fix": "Clear glitch",
+					"alarm": "Alarm on",
+					"alarmoff": "Alarm off",
+					"chapter": "Chapter for all",
+					"countdown": "Start countdown",
+					"countdownoff": "Stop countdown",
+					"module": "App feature",
+					"event": "Event (for center rules)"
+				},
+				"title": "Title",
+				"text": "Text",
+				"blocks": "Blocks",
+				"blocksHint": "Block names from the app editor (or ids), comma separated.",
+				"openTitle": "Window title on the phone",
+				"glitch": "Glitch",
+				"glitchHint": "Glitch name from the app editor.",
+				"fixHint": "Glitch name; empty — clear all.",
+				"chapter": "Chapter",
+				"seconds": "Seconds",
+				"module": "Feature",
+				"state": "State",
+				"modules": {
+					"chat": "Chat",
+					"anon": "Anonymous",
+					"delay": "Delayed",
+					"photo": "Camera",
+					"notes": "Notes",
+					"voice": "Voice"
+				},
+				"states": {
+					"on": "on",
+					"broken": "broken",
+					"denied": "denied",
+					"hidden": "hidden"
+				},
+				"event": "Event name",
+				"eventHint": "As in the app editor rule: the center runs its actions.",
+				"to": "To",
+				"toAll": "everyone",
+				"toSelf": "whoever entered the code",
+				"toList": "staff numbers…",
+				"people": "Staff numbers",
+				"peopleHint": "Comma separated. Staff in the code table: {{people}}.",
+				"noPeople": "Comma separated — \"terminal number\" of the character in the app editor.",
+				"hints": {
+					"notify": "Window and notification on phones.",
+					"open": "Blocks open for the recipients.",
+					"glitch": "Glitch from the app editor.",
+					"fix": "Clear the glitch.",
+					"alarm": "Alarm on all phones.",
+					"alarmoff": "Alarm off.",
+					"chapter": "All phones move to this chapter.",
+					"countdown": "Countdown on all phones.",
+					"countdownoff": "Remove the countdown.",
+					"module": "Turn an app feature on, broken or hidden.",
+					"event": "The terminal tells the center about an event; app editor rules decide what it does."
 				}
 			}
 		},

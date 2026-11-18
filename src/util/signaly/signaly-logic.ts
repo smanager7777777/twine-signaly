@@ -15,6 +15,8 @@
 //   заходил не меньше N раз  setup.visits("Экран") gte 3
 //   заходил ровно N раз      setup.visits("Экран") is 3
 //   сотрудник ввёл код       setup.entered("2", "101")   (не ввёл — not …)
+//   пришло с телефона        setup.phone("code", "4242", "3") gt 0  (код или фраза голосом; "event" — событие;
+//                            третий — номер сотрудника, без него — с любого телефона; gte N — не меньше N раз; is 0 — не приходило)
 //   значение: число заходов  <<= setup.visits("Экран")>>
 // Что формы не понимают (сложное условие, <<elseif>>), остаётся как есть.
 
@@ -34,7 +36,9 @@ export type CondOp = 'on' | 'off' | 'eq' | 'ne' | 'gt' | 'lt' | 'ge';
  * экран (on — был, off — не был, ge — не меньше N раз, eq — ровно N раз);
  * entered — сотрудник ввёл код таблицы (on — ввёл, off — не ввёл).
  */
-export type CondKind = 'visits' | 'entered';
+export type CondKind = 'visits' | 'entered' | 'phone';
+/** phone (сессия 31): что пришло с телефона — код или фраза голосом, событие. */
+export type PhoneWhat = 'code' | 'event';
 
 export interface Cond {
 	/** Имя переменной без «$». */
@@ -47,6 +51,8 @@ export interface Cond {
 	/** entered: номер или имя сотрудника и код. */
 	person?: string;
 	code?: string;
+	/** phone: код или фраза (code), событие (event); имя — в code, номер сотрудника — в person ('' — любой). */
+	phone?: PhoneWhat;
 }
 
 export interface Condition {
@@ -94,6 +100,9 @@ const opWrite: Record<Exclude<CondOp, 'on' | 'off'>, string> = {
 const str = `("(?:\\\\.|[^"\\\\])*"|'(?:\\\\.|[^'\\\\])*')`;
 const visitsRe = new RegExp(`^setup\\.visits\\(\\s*${str}\\s*\\)\\s+(gte|gt|is|eq|===|==|>=|>)\\s+(\\d+)$`);
 const enteredRe = new RegExp(`^(not\\s+|!\\s*)?setup\\.entered\\(\\s*${str}\\s*,\\s*${str}\\s*\\)$`);
+const phoneRe = new RegExp(
+	`^setup\\.phone\\(\\s*${str}\\s*,\\s*${str}\\s*(?:,\\s*${str}\\s*)?\\)\\s+(gte|gt|is|eq|===|==|>=|>)\\s+(\\d+)$`
+);
 const enteredCodeRe = new RegExp(`setup\\.entered\\(\\s*${str}\\s*,\\s*${str}\\s*\\)`, 'g');
 
 /**
@@ -172,6 +181,33 @@ function parseSpecial(part: string): Cond | undefined {
 		return undefined;
 	}
 
+	const ph = phoneRe.exec(part);
+
+	if (ph) {
+		const what = unquote(ph[1]);
+		const code = unquote(ph[2]);
+		const person = ph[3] === undefined ? '' : unquote(ph[3]);
+		const n = Number(ph[5]);
+		const op = ph[4];
+
+		if ((what !== 'code' && what !== 'event') || code === undefined || person === undefined) {
+			return undefined;
+		}
+
+		const base = {name: '', kind: 'phone' as const, phone: what as PhoneWhat, code, person};
+
+		if ((op === 'gt' || op === '>') && n === 0) {
+			return {...base, op: 'on'};
+		}
+		if (op === 'is' || op === 'eq' || op === '==' || op === '===') {
+			return n === 0 ? {...base, op: 'off'} : {...base, op: 'eq', value: n};
+		}
+		if (op === 'gte' || op === '>=') {
+			return {...base, op: 'ge', value: n};
+		}
+		return undefined;
+	}
+
 	const e = enteredRe.exec(part);
 
 	if (e) {
@@ -239,7 +275,10 @@ function writeSpecial(c: Cond) {
 		return c.op === 'off' ? `not ${call}` : call;
 	}
 
-	const call = `setup.visits(${literal(c.screen ?? '')})`;
+	const call =
+		c.kind === 'phone'
+			? `setup.phone(${literal(c.phone ?? 'code')}, ${literal(c.code ?? '')}${c.person ? `, ${literal(c.person)}` : ''})`
+			: `setup.visits(${literal(c.screen ?? '')})`;
 	const n = Math.max(0, Math.round(Number(c.value) || 0));
 
 	switch (c.op) {

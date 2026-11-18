@@ -11,6 +11,7 @@
 //   звук-сигнал          — <<sg-sound "media/audio/x.wav" volume 100 [keep]>> (шаг 3.3)
 //   если … то … иначе    — <<if $x is 1>>действия<<else>>действия<</if>> (шаг 3.3)
 //   через N секунд       — <<timed 8s>>действия<</timed>> (шаг 3.3)
+//   телефонам            — <<sg-net notify "Заголовок" "Текст" [to self | to "3, 5"]>> и др. (сессия 31, NetAction)
 // Чего форма не понимает, остаётся строкой «код» как есть. Нетронутое действие
 // записывается дословно (raw), поэтому открыть и закрыть форму ничего не меняет.
 
@@ -155,6 +156,37 @@ export interface MusicAction {
 	raw?: string;
 }
 
+/**
+ * «Телефонам: …» (сессия 31, этап Т1 — приложение СИГНАЛЫ): команда телефонам игроков через центр сети.
+ *   <<sg-net notify "Заголовок" "Текст">>        уведомление
+ *   <<sg-net open "Блок 1, Блок 2" "Заголовок">> открыть блоки (id или названия из редактора приложения)
+ *   <<sg-net glitch "Сбой">> / <<sg-net fix "Сбой">> сбой / снять сбой (пусто — все сбои)
+ *   <<sg-net alarm "Заголовок" "Текст">> / <<sg-net alarm off>> авария на телефонах
+ *   <<sg-net chapter 2>>                          глава для всех
+ *   <<sg-net countdown 300 "Заголовок">> / <<sg-net countdown off>> общий обратный отсчёт
+ *   <<sg-net module "chat" broken>>               функция приложения: on | broken | denied | hidden
+ *   <<sg-net event "имя">>                        событие для правил центра (вкладка «Сеть и события» → «Правила»)
+ * Кому (уведомление, блоки, сбой, функция): всем (по умолчанию), to self — тому, кто ввёл код, to "3, 5" — номерам сотрудников.
+ */
+export type NetOp = 'notify' | 'open' | 'glitch' | 'fix' | 'alarm' | 'alarmoff' | 'chapter' | 'countdown' | 'countdownoff' | 'module' | 'event';
+export const netOps: NetOp[] = ['notify', 'open', 'glitch', 'fix', 'alarm', 'alarmoff', 'chapter', 'countdown', 'countdownoff', 'module', 'event'];
+/** Команды, у которых есть «кому». */
+export const netPersonal: NetOp[] = ['notify', 'open', 'glitch', 'fix', 'module'];
+export const netModules = ['chat', 'anon', 'delay', 'photo', 'notes', 'voice'];
+export const netModuleStates = ['on', 'broken', 'denied', 'hidden'];
+
+export interface NetAction {
+	type: 'net';
+	op: NetOp;
+	/** Первое поле: заголовок (уведомление, авария), блоки, сбой, функция, событие; у главы и отсчёта — число. */
+	a: string;
+	/** Второе поле: текст, заголовок окна или отсчёта, состояние функции. */
+	b: string;
+	/** '' — всем, 'self' — тому, кто ввёл код, иначе номера сотрудников через запятую. */
+	to: string;
+	raw?: string;
+}
+
 /** «Через N секунд» (шаг 3.3, ответ 7А) — <<timed>>. */
 export interface DelayAction {
 	type: 'delay';
@@ -176,6 +208,7 @@ export type Action =
 	| ProgressAction
 	| BackAction
 	| MusicAction
+	| NetAction
 	| CodeAction;
 export type ActionType = Action['type'];
 
@@ -562,6 +595,96 @@ function parseMusic(piece: string): MusicAction | undefined {
 	return undefined;
 }
 
+function parseNet(piece: string): NetAction | undefined {
+	if (!/^<<sg-net\s/.test(piece)) {
+		return undefined;
+	}
+
+	const head = scanArgs(piece, '<<sg-net'.length);
+
+	if (!head || head.end !== piece.length || !head.tokens.length) {
+		return undefined;
+	}
+
+	const tokens = head.tokens.slice();
+	let to = '';
+	const at = tokens.indexOf('to');
+
+	if (at !== -1) {
+		if (at !== tokens.length - 2) {
+			return undefined;
+		}
+
+		const who = tokens[at + 1];
+
+		to = who === 'self' ? 'self' : who === 'all' ? '' : plain(who) ?? '';
+		if (who !== 'self' && who !== 'all' && plain(who) === undefined) {
+			return undefined;
+		}
+		tokens.splice(at, 2);
+	}
+
+	const [op, ...rest] = tokens;
+	const text = (t: string | undefined) => (t === undefined ? '' : plain(t));
+	const base = {type: 'net' as const, to, raw: piece};
+	const a = text(rest[0]);
+	const b = text(rest[1]);
+
+	if (rest.length > 2) {
+		return undefined;
+	}
+	switch (op) {
+		case 'notify':
+		case 'open':
+		case 'alarm':
+			if (op === 'alarm' && rest[0] === 'off' && rest.length === 1) {
+				return {...base, op: 'alarmoff', a: '', b: ''};
+			}
+			return a === undefined || b === undefined ? undefined : {...base, op, a, b};
+		case 'glitch':
+		case 'fix':
+		case 'event':
+			return rest.length > 1 || a === undefined ? undefined : {...base, op, a, b: ''};
+		case 'chapter':
+			return rest.length === 1 && /^\d+$/.test(rest[0]) ? {...base, op, a: rest[0], b: ''} : undefined;
+		case 'countdown':
+			if (rest[0] === 'off' && rest.length === 1) {
+				return {...base, op: 'countdownoff', a: '', b: ''};
+			}
+			return /^\d+$/.test(rest[0] ?? '') && b !== undefined ? {...base, op, a: rest[0], b} : undefined;
+		case 'module':
+			return rest.length === 2 && a !== undefined && netModuleStates.includes(rest[1]) ? {...base, op, a, b: rest[1]} : undefined;
+		default:
+			return undefined;
+	}
+}
+
+export function writeNetAction(action: NetAction) {
+	const q = (v: string) => arg(v);
+	const n = (v: string, fallback: number) => String(Math.max(1, Math.round(Number(v) || fallback)));
+	const to = netPersonal.includes(action.op) && action.to.trim() ? (action.to.trim() === 'self' ? ' to self' : ` to ${q(action.to.trim())}`) : '';
+
+	switch (action.op) {
+		case 'notify':
+		case 'open':
+			return `<<sg-net ${action.op} ${q(action.a)} ${q(action.b)}${to}>>`;
+		case 'alarm':
+			return `<<sg-net alarm ${q(action.a)} ${q(action.b)}>>`;
+		case 'alarmoff':
+			return '<<sg-net alarm off>>';
+		case 'chapter':
+			return `<<sg-net chapter ${n(action.a, 1)}>>`;
+		case 'countdown':
+			return `<<sg-net countdown ${n(action.a, 60)} ${q(action.b)}>>`;
+		case 'countdownoff':
+			return '<<sg-net countdown off>>';
+		case 'module':
+			return `<<sg-net module ${q(action.a)} ${netModuleStates.includes(action.b) ? action.b : 'on'}${to}>>`;
+		default:
+			return `<<sg-net ${action.op} ${q(action.a)}${to}>>`;
+	}
+}
+
 /** Одна команда (или кусок кода) внутри ссылки → действие. */
 export function parseAction(piece: string): Action {
 	return (
@@ -574,6 +697,7 @@ export function parseAction(piece: string): Action {
 		parseDelay(piece) ??
 		parseProgress(piece) ??
 		parseMusic(piece) ??
+		parseNet(piece) ??
 		(/^<<sg-back\s*>>$/.test(piece) ? {type: 'back', raw: piece} : undefined) ?? {type: 'code', code: piece, raw: piece}
 	);
 }
@@ -723,6 +847,8 @@ export function writeAction(action: Action): string {
 			return '<<sg-back>>';
 		case 'music':
 			return writeMusicAction(action);
+		case 'net':
+			return writeNetAction(action);
 		default:
 			return action.code;
 	}
@@ -1049,6 +1175,8 @@ export function newAction(type: ActionType, variable?: {name: string; type?: str
 			return {type: 'back'};
 		case 'music':
 			return {type: 'music', op: 'toggle', target: 'ambient', amount: 0};
+		case 'net':
+			return {type: 'net', op: 'notify', a: 'ТЕРМИНАЛ', b: '', to: ''};
 		default:
 			return {type: 'code', code: ''};
 	}

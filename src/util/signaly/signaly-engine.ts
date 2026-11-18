@@ -55,6 +55,9 @@
 //   файла (слова duck, to); все картинки из текста экранов загружаются при запуске.
 // - этап 6, порция 2: блок «Значение» обновляется сам; раскрытие <<sg-reveal>>
 //   запоминается до новой игры ($sgRevealed); русские служебные надписи SugarCube.
+// - сессия 31 (движок 28, этап Т1 приложения): сеть с телефонами игроков — модуль signaly-net-module.ts
+//   (окно «Сеть» Ctrl+Shift+N и огонёк в углу), действие <<sg-net …>> «Телефонам: …», условие
+//   setup.phone("code" | "event", "имя", ["номер"]) — пришло с телефона ($sgNet), переменные от пульта и итог голосования.
 //
 // Код написан без обратных кавычек и без «${», потому что хранится в шаблонной
 // строке.
@@ -62,13 +65,14 @@
 import {defaultGlitch, glitchKeyframes, glitchRules} from './signaly-glitch';
 import {signalyStrings} from './signaly-l10n';
 import {cameraDefaults, cameraKeys, hackDefaults, hackKeys, timerDefaults} from './signaly-screen-blocks';
+import {signalyNetModule} from './signaly-net-module';
 import {tipBase} from './signaly-tip';
 
 /** Глитч по умолчанию — правила с нулевой силой (их перекрывает всё остальное). */
 const glitchBase = [...glitchRules(defaultGlitch, ':where(.glitchy)'), glitchKeyframes].join('\n');
 
 /** Версия движка. Увеличивать при каждом изменении кода ниже. */
-export const signalyEngineVersion = 27;
+export const signalyEngineVersion = 28;
 
 export const signalyEngineStart =
 	'/* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */';
@@ -2682,6 +2686,105 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 
 		return Array.isArray(list) && list.indexOf(String(code).trim()) !== -1;
 	};
+
+	/* ----- Сеть: телефоны игроков (сессия 31, приложение СИГНАЛЫ, этап Т1) ----- */
+
+	function netNorm(s) {
+		return String(s === undefined || s === null ? '' : s)
+			.toLowerCase()
+			.replace(/ё/g, 'е')
+			.replace(/\s+/g, ' ')
+			.trim();
+	}
+
+	// Сколько раз пришло с телефона: код или фраза голосом ("code"), событие ("event");
+	// who — номер сотрудника («Номер на терминале» у персонажа приложения), без него — с любого телефона.
+	setup.phone = function (what, name, who) {
+		var store = State.variables.sgNet;
+		var got = store && store.got;
+
+		if (!got) {
+			return 0;
+		}
+		return Number(got[String(what) + '|' + netNorm(name) + '|' + netNorm(who)]) || 0;
+	};
+
+	// Кому: 'self' — тот, кто ввёл код (иначе не отправлять), номера через запятую, пусто или all — всем.
+	function netTo(to) {
+		if (to === 'self') {
+			var who = codePerson ? codePerson.id : State.temporary.who;
+
+			return who ? [String(who)] : null;
+		}
+		if (to === undefined || to === null || to === '' || to === 'all') {
+			return [];
+		}
+		return String(to)
+			.split(',')
+			.map(function (s) {
+				return s.trim();
+			})
+			.filter(Boolean);
+	}
+
+	// Действие «Телефонам: …» — <<sg-net notify "Заголовок" "Текст" [to self | to "3, 5"]>> и др.
+	function netRun(args) {
+		var N = window.SgTermNet;
+		var a = Array.prototype.slice.call(args);
+		var at = a.indexOf('to');
+		var list = [];
+
+		if (preview || !N) {
+			return;
+		}
+		if (at !== -1) {
+			list = netTo(a[at + 1]);
+			a.splice(at, 2);
+			if (list === null) {
+				console.warn('СИГНАЛЫ: «тому, кто ввёл код» — неизвестно, кто ввёл; команда телефонам не отправлена');
+				return;
+			}
+		}
+		switch (String(a[0])) {
+			case 'notify':
+				N.notify(a[1], a[2], list);
+				break;
+			case 'open':
+				N.open(a[1], a[2], list);
+				break;
+			case 'glitch':
+				N.glitch(a[1], list);
+				break;
+			case 'fix':
+				N.fix(a[1], list);
+				break;
+			case 'module':
+				N.module(a[1], a[2], list);
+				break;
+			case 'alarm':
+				N.alarm(a[1] !== 'off', a[1] === 'off' ? '' : a[1], a[2]);
+				break;
+			case 'chapter':
+				N.chapter(a[1]);
+				break;
+			case 'countdown':
+				N.countdown(a[1] === 'off' ? false : a[1], a[2]);
+				break;
+			case 'event':
+				N.event(a[1]);
+				break;
+			default:
+				console.warn('СИГНАЛЫ: <<sg-net>> — неизвестная команда', a[0]);
+		}
+	}
+
+	if (!Macro.has('sg-net')) {
+		Macro.add('sg-net', {
+			handler: function () {
+				netRun(this.args);
+			}
+		});
+	}
 
 	var prevPassage = '';
 
@@ -8561,6 +8664,87 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			showStartScreen(function () {});
 		}
 		return;
+	}
+
+	/* ----- Сеть с телефонами игроков (сессия 31): модуль signaly-app, только в игре ----- */
+
+	// Огонёк в углу — только если сеть есть в истории (или терминал уже подключали).
+	window.SG_TERM_NET_QUIET = !Story.filter(function (p) {
+		return /<<sg-net[\s>]|setup\.phone\(/.test(p.text);
+	}).length;
+	${signalyNetModule}
+
+	var netPending = [];
+
+	// Пришло с телефона или с пульта: переменные, итог голосования, коды, фразы и события ($sgNet.got).
+	function netApply(o) {
+		var b = o.body || {};
+		var V = State.variables;
+
+		function put(set) {
+			Object.keys(set).forEach(function (k) {
+				V[k.replace(/^\$/, '')] = set[k];
+			});
+		}
+		if (o.kind === 'term' && b.set) {
+			put(b.set);
+		} else if (o.kind === 'vote-close' && b.term) {
+			put(window.SgTermNet.voteResult(b));
+		} else if (o.kind === 'code' || o.kind === 'event') {
+			var store = V.sgNet || (V.sgNet = {});
+			var got = store.got || (store.got = {});
+			var who = netNorm(b.num || (o.from && o.from.num) || '');
+			var names = o.kind === 'event' ? [b.name] : [b.code, b.phrase, b.label];
+			var seen = {};
+
+			names.forEach(function (n) {
+				n = netNorm(n);
+				if (!n || seen[n]) {
+					return;
+				}
+				seen[n] = 1;
+				got[o.kind + '|' + n + '|'] = (got[o.kind + '|' + n + '|'] || 0) + 1;
+				if (who) {
+					got[o.kind + '|' + n + '|' + who] = (got[o.kind + '|' + n + '|' + who] || 0) + 1;
+				}
+			});
+		} else {
+			return false;
+		}
+		return true;
+	}
+
+	function netFlush() {
+		if (!started || restoring || !State.passage || !netPending.length) {
+			return;
+		}
+
+		var list = netPending;
+		var changed = false;
+
+		netPending = [];
+		list.forEach(function (o) {
+			try {
+				changed = netApply(o) || changed;
+			} catch (e) {
+				console.error('СИГНАЛЫ: сеть', e);
+			}
+		});
+		if (changed) {
+			saveVars();
+			setTimeout(checkEvents, 0);
+		}
+	}
+
+	if (window.SgTermNet) {
+		window.SgTermNet.ownVars = true;
+		window.SgTermNet.listen(function (type, o) {
+			if (type === 'msg' && o && /^(term|vote-close|code|event)$/.test(o.kind)) {
+				netPending.push(o);
+				netFlush();
+			}
+		});
+		setInterval(netFlush, 500);
 	}
 
 	/* ----- Предзагрузка картинок (этап 6, ответ 6А) ----- */
