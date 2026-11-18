@@ -141,7 +141,7 @@ export const PhoneCodeForm: React.FC<{
 					</legend>
 					<AccountsField label={l('code.variantWho')} onChange={w => setVariant(i, {who: w})} value={v.who} />
 					<ChapterField label={l('code.variantChapter')} onChange={chapter => setVariant(i, {chapter})} value={v.chapter} />
-					<AreaInput label={l('code.answer')} onChange={answer => setVariant(i, {answer})} value={v.answer} />
+					<AreaInput label={l('code.variantAnswer')} onChange={answer => setVariant(i, {answer})} value={v.answer} />
 					<StringsField
 						addLabel={l('code.addAnswer')}
 						itemLabel={k => l('code.nth', {n: k + 2})}

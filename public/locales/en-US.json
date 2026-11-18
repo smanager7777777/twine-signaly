@@ -2826,7 +2826,8 @@
 				"denied": "«No access» text",
 				"deniedOpens": "Opens blocks for them (optional)",
 				"actions": "Actions on the phone",
-				"actionsHint": "Run when the code works on the phone. «Everyone» and «selected» go through the network."
+				"actionsHint": "Run when the code works on the phone. «Everyone» and «selected» go through the network.",
+				"variantAnswer": "Answer in this variant"
 			},
 			"person": {
 				"title": "On the phone",

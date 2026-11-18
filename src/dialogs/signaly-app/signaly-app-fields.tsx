@@ -31,6 +31,15 @@ export function usePhoneL() {
 	return (key: string, options?: Record<string, unknown>) => t(`signaly.phone.${key}`, options);
 }
 
+let areaCounter = 0;
+
+/** id поля: подпись — через htmlFor (иначе в имя поля попадает набранный текст). */
+function useAreaId() {
+	const [id] = React.useState(() => `signaly-phone-area-${++areaCounter}`);
+
+	return id;
+}
+
 export const accountLabel = (a: {num: string; name: string}) => `№${a.num}${a.name ? ` ${a.name}` : ''}`;
 
 /** Число в текстовом поле: пишется, когда введено целое (или пусто — 0). */
@@ -205,15 +214,14 @@ export const StringsField: React.FC<{
 			<div className="signaly-field-label">{label}</div>
 			{list.map((s, i) => (
 				<div className="signaly-phone-string" key={i}>
-					<label className="signaly-field-label">
-						{itemLabel(i)}
-						<textarea
-							className="signaly-text signaly-area"
-							onChange={e => onChange(list.map((x, k) => (k === i ? e.target.value : x)))}
-							rows={2}
-							value={s}
-						/>
-					</label>
+					<textarea
+						aria-label={itemLabel(i)}
+						className="signaly-text signaly-area"
+						onChange={e => onChange(list.map((x, k) => (k === i ? e.target.value : x)))}
+						placeholder={itemLabel(i)}
+						rows={2}
+						value={s}
+					/>
 					<IconButton
 						icon={<IconTrash />}
 						iconOnly
@@ -235,20 +243,25 @@ export const AreaInput: React.FC<{
 	onChange: (value: string) => void;
 	rows?: number;
 	value: unknown;
-}> = ({hint, label, onChange, rows = 3, value}) => (
-	<div className="signaly-field">
-		<label className="signaly-field-label">
-			{label}
+}> = ({hint, label, onChange, rows = 3, value}) => {
+	const id = useAreaId();
+
+	return (
+		<div className="signaly-field">
+			<label className="signaly-field-label" htmlFor={id}>
+				{label}
+			</label>
 			<textarea
 				className="signaly-text signaly-area"
+				id={id}
 				onChange={e => onChange(e.target.value)}
 				rows={rows}
 				value={String(value ?? '')}
 			/>
-		</label>
-		{hint && <div className="signaly-field-hint">{hint}</div>}
-	</div>
-);
+			{hint && <div className="signaly-field-hint">{hint}</div>}
+		</div>
+	);
+};
 
 export const ColorInput: React.FC<{
 	label: string;

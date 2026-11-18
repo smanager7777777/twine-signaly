@@ -111,9 +111,8 @@
 	gap: 4px;
 }
 
-.signaly-phone-string label {
+.signaly-phone-string textarea {
 	flex: 1;
-	font-weight: normal;
 }
 
 .signaly-pre {
