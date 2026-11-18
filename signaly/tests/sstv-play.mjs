@@ -2,7 +2,8 @@
 // старая запись jam у вида), «СЛУЧАЙНО» и прогресс у всех радио, свой цвет лампочки, «РЕВЕРС
 // НЕДОСТУПЕН», приглушение общего плеера звуком-сигналом, радио с декодером (Д2): ДЕКОД, набор
 // картинки SSTV в такт звуку, шум при неточной настройке, строки помех, новая картинка при повторе,
-// окно на весь терминал, набранное живёт между экранами, после сбоя декодер выключен.
+// окно на весь терминал, набранное живёт между экранами, после сбоя декодер выключен; сессия 33 (3Б) —
+// набранная картинка переживает сбой (автокопия).
 // node sstv-play.mjs <история.twee (шаблон)> <папка с media> <playwright> <sharp> <снимки или ""> [ещё игра.html …]
 import {createRequire} from 'module';
 import {execFileSync} from 'child_process';
@@ -490,6 +491,25 @@ async function decoderChecks(page, say) {
 	const d2 = await dec(page);
 
 	say('ушли и вернулись — набранное на месте, на паузе набор стоит', d2.drawn === d.drawn && d2.key === d.key && d.drawn >= drawn, JSON.stringify({d, d2}));
+
+	// Сессия 33 (ответ автора 3Б): сбой посреди набора — набранное в автокопии, после сбоя снова в окне.
+	await page.waitForTimeout(1300);
+
+	const before = await dec(page);
+
+	await page.reload();
+	await page.waitForSelector('#sg-start');
+	await start(page);
+	await page.waitForTimeout(500);
+	say('сбой посреди набора: после сбоя декодер выключен', !(await dec(page)).on && (await page.locator('.sg-radio.sg-radio-decoder').count()) === 1);
+	await page.locator('.sg-radio .sg-r-decbtn').click();
+	await page.waitForTimeout(900);
+	d = await dec(page);
+
+	const top = await page.evaluate(() => SugarCube.setup.signaly.dec().pixel(60, 1));
+
+	say('декодер включили — набранная картинка снова в окне (та же, столько же строк)', d.on && d.key === before.key && d.drawn === before.drawn && d.drawn > 0 && d.state === 'done' && !!top && top[0] + top[1] + top[2] > 60 &&
+		/^ROBOT 36/.test(await page.locator('.sg-radio .sg-r-dec-cap').textContent()), JSON.stringify({before, d, top}));
 
 	// Неточно на 0,3 МГц — строки с шумом пропорционально (ширина 1 МГц → 0,3).
 	await page.locator('.sg-radio .sg-r-scanbtn').click();

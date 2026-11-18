@@ -73,7 +73,7 @@ import {tipBase} from './signaly-tip';
 const glitchBase = [...glitchRules(defaultGlitch, ':where(.glitchy)'), glitchKeyframes].join('\n');
 
 /** Версия движка. Увеличивать при каждом изменении кода ниже. */
-export const signalyEngineVersion = 29;
+export const signalyEngineVersion = 30;
 
 export const signalyEngineStart =
 	'/* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */';
@@ -5421,13 +5421,81 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	// звуку: строка r видна, когда место трека ≥ at + (⌊r / per⌋ + 1) · line. Источник — играющий
 	// трек каталога или самая слышная точка эфира с картинкой; настроились неточно — строки с
 	// шумом пропорционально; звучит не SSTV — строки помех; тишина — набор стоит; трек начался
-	// заново — новая картинка. Набранное живёт между экранами (до перезагрузки страницы).
+	// заново — новая картинка. Набранное живёт между экранами; сессия 33 (ответ автора 3Б): какая
+	// картинка и сколько строк набрано — в автокопии ($sgMusic.decImg), после сбоя набранное
+	// снова в окне, когда декодер включат (сам декодер после сбоя выключен, как раньше).
 	var sstvCollect = null;
 	var sstvTableCache = null;
 	var decItems = [];
 	var decFrame = null;
 	var decLast = 0;
-	var dec = {buf: null, key: '', drawn: 0, w: 320, h: 256, mode: '', gy: 0, acc: 0, noise: 0, ver: 0, state: 'idle', row: null};
+	var dec = {buf: null, key: '', drawn: 0, w: 320, h: 256, mode: '', gy: 0, acc: 0, noise: 0, ver: 0, state: 'idle', row: null, restored: false, pending: null, savedAt: 0};
+
+	// Сессия 33 (3Б): набранное — в автокопию (не чаще раза в секунду и когда картинка готова).
+	function decRemember(force) {
+		var st = musState();
+		var keep = dec.key && dec.key !== 'garbage' && dec.drawn > 0 ? {key: dec.key, drawn: dec.drawn} : null;
+		var was = st.decImg || null;
+
+		if (keep && was && was.key === keep.key && was.drawn === keep.drawn) {
+			return;
+		}
+		if (!keep && !was) {
+			return;
+		}
+		st.decImg = keep;
+
+		var now = Date.now();
+
+		if ((force || now - dec.savedAt > 1000) && setup.signaly.saveVars) {
+			dec.savedAt = now;
+			setup.signaly.saveVars();
+		}
+	}
+
+	// После сбоя (новая страница): картинка из автокопии — до первой строки нового сигнала.
+	function decRestore() {
+		dec.restored = true;
+
+		var keep = musState().decImg;
+
+		if (!keep || typeof keep.key !== 'string') {
+			return;
+		}
+
+		var at = keep.key.lastIndexOf('#');
+		var list = at > 0 ? sstvFor(keep.key.slice(0, at)) : null;
+		var e = list ? list[Number(keep.key.slice(at + 1))] : null;
+
+		if (!e) {
+			return;
+		}
+		decCanvas(e.w, e.h);
+		dec.key = keep.key;
+		dec.mode = e.mode;
+		dec.drawn = 0;
+		dec.state = 'done';
+		dec.pending = {e: e, key: keep.key, drawn: Math.max(0, Math.min(e.h, Math.round(Number(keep.drawn) || 0)))};
+	}
+
+	function decPending() {
+		var p = dec.pending;
+		var img = p ? sstvImage(p.e) : null;
+
+		if (!img) {
+			return;
+		}
+		dec.pending = null;
+		// Пока картинка грузилась, мог начаться новый сигнал — тогда она не нужна.
+		if (dec.key !== p.key || dec.drawn > 0) {
+			return;
+		}
+		if (p.drawn > 0) {
+			dec.buf.getContext('2d').drawImage(img, 0, 0, p.e.w, p.drawn, 0, 0, p.e.w, p.drawn);
+		}
+		dec.drawn = p.drawn;
+		dec.ver++;
+	}
 
 	Macro.add('sg-sstv', {
 		handler: function () {
@@ -5595,10 +5663,17 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	}
 
 	function decStep(dt) {
+		if (!dec.restored) {
+			decRestore();
+		}
+
 		var src = decSource();
 
 		if (!dec.buf) {
 			decCanvas(320, 256);
+		}
+		if (dec.pending) {
+			decPending();
 		}
 		if (!src) {
 			dec.state = dec.state === 'image' || dec.state === 'done' ? 'done' : 'idle';
@@ -5610,6 +5685,8 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 				dec.key = 'garbage';
 				dec.gy = 0;
 				dec.acc = 0;
+				dec.pending = null;
+				decRemember(true);
 			}
 			dec.state = 'garbage';
 			dec.acc += dt * 7;
@@ -5635,7 +5712,9 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			if (dec.key.indexOf(sstvClean(src.src) + '#') === 0 && dec.key !== sstvClean(src.src) + '#-1') {
 				dec.key = sstvClean(src.src) + '#-1';
 				dec.drawn = 0;
+				dec.pending = null;
 				decCanvas(dec.w, dec.h);
+				decRemember(true);
 			}
 			dec.state = 'idle';
 			return;
@@ -5650,6 +5729,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			dec.key = key;
 			dec.drawn = 0;
 			dec.mode = e.mode;
+			dec.pending = null;
 			decCanvas(e.w, e.h);
 		}
 		dec.noise = src.noise;
@@ -5671,6 +5751,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		}
 		dec.drawn = target;
 		dec.ver++;
+		decRemember(target >= e.h);
 	}
 
 	function decCaption() {
@@ -8923,6 +9004,15 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	}
 
 	function startAutocopy() {
+		// Сессия 33: переменные без перехода и без щелчка (набранная картинка декодера, 3Б).
+		setup.signaly.saveVars = function () {
+			if (!record) {
+				return;
+			}
+			record.vars = serial.stringify(State.variables);
+			record.time = Date.now();
+			writeCopy();
+		};
 		// Шаг 2.3: таймеры меняются не только при переходе — пишем их отдельно.
 		setup.signaly.saveTimers = function () {
 			if (!record) {
