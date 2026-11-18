@@ -140,6 +140,11 @@ check('Главы: третья глава с кодом, цветом для в
 
 // 5. Сеть и события: сбой и правило с действием.
 await appTab('Сеть и события');
+for (const [sub, label] of [['Уведомления', 'Через минут от начала главы'], ['Аварии', 'Сирена'], ['Голосования', 'Кто голосует']]) {
+	await appWin().getByRole('tab', {name: new RegExp(`^${sub}`)}).click();
+	await win.waitForTimeout(300);
+	check(`Сеть и события → ${sub}: форма на месте`, (await appText()).includes(label), (await appText()).slice(0, 300));
+}
 await appWin().getByRole('tab', {name: /^Сбои и состояния/}).click();
 await appWin().getByRole('button', {name: '+ Добавить'}).click();
 await field('Название (видно игроку на полосе сверху; его же выбирает терминал)').fill('Сбой формы');
