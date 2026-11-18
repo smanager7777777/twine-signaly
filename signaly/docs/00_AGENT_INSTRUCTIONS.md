@@ -346,6 +346,13 @@
 - `Engine.isIdle()` — ложно, пока SugarCube показывает экран.
 - Исходники: `git clone --depth 1 --branch v2.37.3 https://github.com/tmedwards/sugarcube-2` (`src/macro/macros/type.js`, `timed.js`, `switch.js`, `if.js`, `button-link.js`, `audio-macros.js`, `src/lib/nodetyper.js`, `src/audio/simpleaudio.js`, `src/macro/macrocontext.js`, `src/story.js`). Собранный формат — `public/story-formats/sugarcube-2.37.3/format.js` (быстро проверить, есть ли функция: `grep -o`).
 
+**Сессии 31–32 (редактор приложения в Twine, этапы Т1–Т2):**
+- Сетевой модуль приложения — `src/util/signaly/signaly-net-module.ts` (копия `signaly-app/src/terminal/sg-term-net.js`, скрипт `signaly/tools/sync-net-module.py`), вставляется в часть движка «только в игре»; перед ним — jsQR (`signaly-jsqr.ts`, собирается `signaly/tools/make-jsqr.py` из `npx terser node_modules/jsqr/dist/jsQR.js -c -m`; в `.prettierignore`). Причина: в Chrome для Windows нет `BarcodeDetector`.
+- Данные приложения в истории — `signaly-app.ts` (устройство — `signaly/docs/11_APP_IN_STORY.md`). zip — `fflate` (MIT; в `package-lock.json` добавлен руками двумя записями: `npm install` с npm 10 из песочницы переписывал весь файл).
+- Окно «Приложение» правит пассажи **прямыми** действиями `updatePassage`/`createPassage`/`deletePassages` (без thunk): thunk `updatePassage` с текстом создаёт пассажи по `[[…]]`, а проверка имени идёт по устаревшей истории. Переименование блоков — через временные имена `<имя> ~<id>`.
+- `withDefaults` — значения по умолчанию блоков и кодов (как `SG.normalize`): без него отличия пакета старого редактора с историей «видели» лишнее.
+- Проверки: `signaly-app.test.ts` (пакеты-образцы — `__tests__/fixtures/app-test-pack.sgpack`, `app-test-net-pack.sgpack`, из релиза `signaly-app` build-38; скачать — `gh api repos/smanager7777777/signaly-app/releases/tags/build-N` → `assets[].id` → `gh api -H "Accept: application/octet-stream" …/releases/assets/<id>`), `electron-app.mjs` (пакеты — `PACKS=<папка>`, по умолчанию fixtures), `net-play.mjs` — QR поддельной камерой (`qrcode-generator` из клона `signaly-app`, кадр PPM → ffmpeg → y4m).
+
 ## Как записывать решения
 В `05_AUTHOR_DECISIONS.md` — таблица: номер, дата, вопрос, решение автора, что изменено. Решение «не нужно» записывать тоже. Отменённое решение не удалять: пометить, каким решением оно отменено. Находки при проверке, которые меняют поведение для автора (как «через N секунд отменяется при переходе»), и уточнения, которые агент сделал сам в рамках ответа автора (решения 76, 81 … 143), — тоже строкой.
 
