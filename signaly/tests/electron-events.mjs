@@ -134,7 +134,7 @@ check('тег sg-event у пассажа', /tags="sg-event"/.test(await tags()),
 
 const what = () => panel().getByLabel('Что проверять');
 
-check('«Что проверять»: переменная, заходы, сотрудник ввёл код', (await what().first().locator('option').allTextContents()).join('|') === 'Переменная|Заходы на экран|Сотрудник ввёл код');
+check('«Что проверять»: переменная, заходы, сотрудник ввёл код, пришло с телефона', (await what().first().locator('option').allTextContents()).join('|') === 'Переменная|Заходы на экран|Сотрудник ввёл код|Пришло с телефона');
 await blur();
 await what().first().selectOption('visits');
 await win.waitForTimeout(300);
