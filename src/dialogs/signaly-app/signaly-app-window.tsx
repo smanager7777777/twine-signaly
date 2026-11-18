@@ -2,7 +2,11 @@
 // Пакет приложения .sgpack загружается в историю (пассаж «Приложение», блоки
 // app-block, персонажи и коды телефона в «Кодах», файлы — media/app/ папки игры) и
 // собирается из неё обратно. Повторная загрузка сначала показывает, что поменяется
-// (П-61 Т2-11). Вкладки с формами — этап Т3.
+// (П-61 Т2-11).
+// Сессия 33 (этап Т3): вкладки с формами — Общее, Главы и стили, Приборы, Сеть и события,
+// Голос (signaly-app-tabs.tsx) и предпросмотр телефона справа (signaly-app-preview.tsx).
+// Формы ничего не пишут в историю до «Сохранить»; пока есть несохранённое, «Загрузить» и
+// «Собрать» недоступны (собирается то, что в истории).
 
 import * as React from 'react';
 import {useTranslation} from 'react-i18next';
@@ -33,7 +37,27 @@ import {
 	writeSettings,
 	writeSgpack
 } from '../../util/signaly/signaly-app';
-import {codesPassageName, codesTag} from '../../util/signaly/signaly-codes';
+import {codesHeader, codesPassageName, codesTag, readCodes, writeCodes} from '../../util/signaly/signaly-codes';
+import {readSettings} from '../../util/signaly/signaly-app';
+import {appRefs, newSettings} from '../../util/signaly/signaly-app-model';
+import {AppRefsContext, usePhoneL} from './signaly-app-fields';
+import {AppPreview} from './signaly-app-preview';
+import {
+	AppTab,
+	appTabs,
+	ChaptersTab,
+	DevicesTab,
+	EventsSub,
+	EventsTab,
+	GeneralTab,
+	TabProps,
+	VoiceTab
+} from './signaly-app-tabs';
+import '../signaly-kinds/signaly-kinds.css';
+import '../signaly-keys/signaly-keys.css';
+import '../signaly-sounds/signaly-sounds.css';
+import '../passage-edit/signaly-format-toolbar.css';
+import './signaly-app.css';
 import {signalyEngineVersion} from '../../util/signaly/signaly-engine';
 import {freeSpot} from '../../util/signaly/signaly-keys';
 import {saveStoryWithUpgrade} from '../signaly-upgrade';
@@ -74,17 +98,117 @@ export const SignalyAppWindow: React.FC<SignalyAppWindowProps> = props => {
 		[story.passages]
 	);
 	const has = hasAppData(story.passages);
+	const pl = usePhoneL();
+
+	/* ----- формы (сессия 33) ----- */
+
+	const settingsPassage = settingsPassageOf(story.passages);
+	const codesPassage = codesPassageOf(story.passages);
+	const fresh = React.useCallback(
+		() => ({
+			game: settingsPassage ? readSettings(settingsPassage.text).game : newSettings(story.name),
+			table: readCodes(codesPassage?.text ?? '')
+		}),
+		[codesPassage, settingsPassage, story.name]
+	);
+	const [work, setWork] = React.useState(fresh);
+	const [dirty, setDirty] = React.useState({game: false, table: false});
+	const [tab, setTab] = React.useState<AppTab>(has ? 'general' : 'pack');
+	const [evSub, setEvSub] = React.useState<EventsSub>('notices');
+	const [sel, setSelState] = React.useState<Record<string, number>>({});
+	const [shown, setShown] = React.useState(0);
+	const [phone, setPhone] = React.useState(true);
+	const saved = !dirty.game && !dirty.table;
+	const source = `${settingsPassage?.text ?? ''}\u0000${codesPassage?.text ?? ''}`;
+
+	// Историю поменяли не формы (загрузка пакета, другое окно) — формы берут новое.
+	React.useEffect(() => {
+		if (saved) {
+			setWork(fresh());
+		}
+	}, [source]); // eslint-disable-line
+
+	const refs = React.useMemo(() => appRefs(story.passages, work.table, work.game), [story.passages, work]);
+	const tabProps: TabProps = {
+		game: work.game,
+		setGame: game => {
+			setWork(w => ({...w, game}));
+			setDirty(d => ({...d, game: true}));
+		},
+		table: work.table,
+		setTable: table => {
+			setWork(w => ({...w, table}));
+			setDirty(d => ({...d, table: true}));
+		},
+		sel,
+		setSel: (key, i) => setSelState(x => ({...x, [key]: i}))
+	};
+
+	function save() {
+		if (engineVersionIn(story.script) < signalyEngineVersion) {
+			saveStoryWithUpgrade(dispatch, stories, story, {script: withEngine(story.script)});
+		}
+		if (dirty.game) {
+			const text = writeSettings(work.game);
+
+			if (settingsPassage) {
+				dispatch({type: 'updatePassage', storyId: story.id, passageId: settingsPassage.id, props: {text}});
+			} else {
+				dispatch({
+					type: 'createPassage',
+					storyId: story.id,
+					props: {
+						name: story.passages.some(p => p.name === appSettingsName) ? `${appSettingsName} (пакет)` : appSettingsName,
+						story: story.id,
+						tags: [appSettingsTag],
+						text,
+						...freeSpot(story.passages)
+					}
+				});
+				dispatch({
+					type: 'updateStory',
+					storyId: story.id,
+					props: {
+						tagColors: {
+							...story.tagColors,
+							[appBlockTag]: story.tagColors[appBlockTag] ?? appBlockColor,
+							[appSettingsTag]: story.tagColors[appSettingsTag] ?? appSettingsColor
+						}
+					}
+				});
+			}
+		}
+		if (dirty.table) {
+			if (codesPassage) {
+				dispatch({type: 'updatePassage', storyId: story.id, passageId: codesPassage.id, props: {text: writeCodes(codesPassage.text, work.table)}});
+			} else {
+				dispatch({
+					type: 'createPassage',
+					storyId: story.id,
+					props: {name: codesPassageName, story: story.id, tags: [codesTag], text: writeCodes(codesHeader, work.table), ...freeSpot(story.passages)}
+				});
+			}
+		}
+		setDirty({game: false, table: false});
+		setShown(n => n + 1);
+	}
+
+	function close() {
+		if (saved || window.confirm(t('signaly.appearance.confirmClose'))) {
+			onClose();
+		}
+	}
 
 	React.useEffect(() => {
 		const onKey = (e: KeyboardEvent) => {
 			if (e.key === 'Escape') {
-				onClose();
+				close();
 			}
 		};
 
 		window.addEventListener('keydown', onKey);
 		return () => window.removeEventListener('keydown', onKey);
-	}, [onClose]);
+	});
 
 	function summary(game: AppGame) {
 		return appSections
@@ -355,23 +479,34 @@ export const SignalyAppWindow: React.FC<SignalyAppWindowProps> = props => {
 				<h2>
 					{l('title')} — {story.name}
 				</h2>
+				<span className="signaly-appearance-status">
+					{saved ? t('signaly.appearance.saved') : t('signaly.appearance.unsaved')}
+				</span>
+				<button className="signaly-button primary" disabled={saved} onClick={save} type="button">
+					{t('signaly.appearance.save')}
+				</button>
 				<button
 					className="signaly-button"
-					disabled={busy}
+					disabled={busy || !saved}
 					onClick={() => fileInput.current?.click()}
+					title={saved ? undefined : pl('saveFirst')}
 					type="button"
 				>
 					{l('load')}
 				</button>
 				<button
-					className="signaly-button primary"
-					disabled={busy || !has}
+					className="signaly-button"
+					disabled={busy || !has || !saved}
 					onClick={build}
+					title={saved ? undefined : pl('saveFirst')}
 					type="button"
 				>
 					{l('build')}
 				</button>
-				<button className="signaly-button" onClick={onClose} type="button">
+				<button aria-pressed={phone} className="signaly-button" onClick={() => setPhone(!phone)} type="button">
+					{pl('preview.toggle')}
+				</button>
+				<button className="signaly-button" onClick={close} type="button">
 					{t('common.close')}
 				</button>
 				<input
@@ -382,7 +517,24 @@ export const SignalyAppWindow: React.FC<SignalyAppWindowProps> = props => {
 					type="file"
 				/>
 			</header>
-			<div className="signaly-check-body">
+			<div className={phone ? 'signaly-app-body with-phone' : 'signaly-app-body'}>
+				<div className="signaly-app-main">
+				<div className="signaly-tabs" role="tablist">
+					{appTabs.map(name => (
+						<button aria-selected={tab === name} className="signaly-tab" key={name} onClick={() => setTab(name)} role="tab" type="button">
+							{pl(`tabs.${name}`)}
+						</button>
+					))}
+				</div>
+				<AppRefsContext.Provider value={refs}>
+					{tab === 'general' && <GeneralTab {...tabProps} />}
+					{tab === 'chapters' && <ChaptersTab {...tabProps} />}
+					{tab === 'apps' && <DevicesTab {...tabProps} />}
+					{tab === 'events' && <EventsTab {...tabProps} setSub={setEvSub} sub={evSub} />}
+					{tab === 'voice' && <VoiceTab {...tabProps} />}
+				</AppRefsContext.Provider>
+				{tab === 'pack' && (
+				<>
 				<p className="signaly-field-hint">{l('intro')}</p>
 				{available && !folder && (
 					<div className="signaly-notice">{l('noFolder')}</div>
@@ -460,6 +612,12 @@ export const SignalyAppWindow: React.FC<SignalyAppWindowProps> = props => {
 						</>
 					)}
 				</section>
+				</>
+				)}
+				</div>
+				{phone && (
+					<AppPreview folder={folder} game={work.game} story={story} table={work.table} version={shown} />
+				)}
 			</div>
 		</div>
 	);

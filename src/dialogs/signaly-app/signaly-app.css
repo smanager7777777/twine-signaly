@@ -1,0 +1,121 @@
+/* «Twine СИГНАЛЫ»: окно «Приложение» — вкладки форм и предпросмотр телефона (сессия 33). */
+
+.signaly-app-body {
+	display: grid;
+	grid-template-columns: 1fr;
+	min-height: 0;
+}
+
+.signaly-app-body.with-phone {
+	grid-template-columns: 1fr 400px;
+}
+
+.signaly-app-main {
+	min-height: 0;
+	overflow-y: auto;
+	padding: 0 calc(var(--grid-size) * 2) var(--grid-size);
+}
+
+.signaly-app-main h3 {
+	font-size: 105%;
+	margin: calc(var(--grid-size) * 1.5) 0 calc(var(--grid-size) / 2);
+}
+
+.signaly-phone-split {
+	display: grid;
+	gap: calc(var(--grid-size) * 2);
+	grid-template-columns: minmax(240px, 300px) minmax(0, 720px);
+}
+
+.signaly-phone-form {
+	min-width: 0;
+}
+
+.signaly-phone-table {
+	border-collapse: collapse;
+	margin: calc(var(--grid-size) / 2) 0;
+}
+
+.signaly-phone-table td {
+	border-bottom: 1px solid var(--light-gray);
+	padding: 2px 8px 2px 0;
+	vertical-align: top;
+}
+
+.signaly-phone-table .signaly-field {
+	margin: 0;
+}
+
+.signaly-phone-table .signaly-field-label {
+	clip: rect(0 0 0 0);
+	height: 1px;
+	overflow: hidden;
+	position: absolute;
+	width: 1px;
+}
+
+.signaly-phone-preview {
+	border-left: 1px solid var(--gray);
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	overflow-y: auto;
+	padding: 0 var(--grid-size) var(--grid-size);
+}
+
+.signaly-phone-frame {
+	align-self: center;
+	background: #000;
+	border: 8px solid #222;
+	border-radius: 18px;
+	flex: none;
+	height: 700px;
+	margin: var(--grid-size) 0;
+	overflow: hidden;
+	width: 360px;
+}
+
+.signaly-phone-frame iframe {
+	border: none;
+	height: 100%;
+	width: 100%;
+}
+
+.signaly-phone-sample {
+	font-family: Consolas, 'Lucida Console', 'Courier New', monospace;
+	margin: var(--grid-size) 0;
+	max-width: 360px;
+	padding: 8px 10px;
+}
+
+.signaly-phone-sample > div:first-child {
+	margin: -8px -10px 8px;
+	padding: 4px 10px;
+}
+
+.signaly-phone-color label {
+	align-items: center;
+	display: flex;
+	gap: 6px;
+}
+
+.signaly-phone-color {
+	align-items: center;
+	display: flex;
+	gap: 6px;
+}
+
+.signaly-phone-string {
+	align-items: flex-end;
+	display: flex;
+	gap: 4px;
+}
+
+.signaly-phone-string label {
+	flex: 1;
+	font-weight: normal;
+}
+
+.signaly-pre {
+	white-space: pre-line;
+}

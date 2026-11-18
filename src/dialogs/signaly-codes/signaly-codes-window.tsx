@@ -11,6 +11,7 @@ import {Story, updatePassage, useStoriesContext} from '../../store/stories';
 import {engineVersionIn, withEngine} from '../../util/signaly/signaly-appearance';
 import {
 	CodeTable,
+	CodeWhere,
 	codesPassageName,
 	codesTag,
 	duplicates,
@@ -40,6 +41,12 @@ import '../signaly-kinds/signaly-kinds.css';
 import '../signaly-sounds/signaly-sounds.css';
 import '../passage-edit/signaly-format-toolbar.css';
 import '../signaly-keys/signaly-keys.css';
+import '../signaly-app/signaly-app.css';
+import {AppGame, jsonText} from '../../util/signaly/signaly-app';
+import {appRefs, newPhoneCode, normCode, parseObject} from '../../util/signaly/signaly-app-model';
+import {AppRefsContext} from '../signaly-app/signaly-app-fields';
+import {PhoneCodeForm} from './signaly-phone-code-form';
+import {PhonePersonForm} from './signaly-phone-person-form';
 
 export interface SignalyCodesWindowProps {
 	onClose: () => void;
@@ -71,6 +78,9 @@ export const SignalyCodesWindow: React.FC<SignalyCodesWindowProps> = props => {
 	const [selected, setSelected] = React.useState({codes: 0, people: 0});
 	const [filter, setFilter] = React.useState<Filter>('all');
 	const [saved, setSaved] = React.useState(true);
+	// Сессия 33 (Т3-4 А): у кода «оба» — вкладки «На терминале» и «На телефоне».
+	const [side, setSide] = React.useState<'terminal' | 'phone'>('terminal');
+	const refs = React.useMemo(() => appRefs(story.passages, table), [story.passages, table]);
 	const variables = React.useMemo(() => knownVariables(story.passages), [story.passages]);
 	const audio = React.useMemo(
 		() => findAudioInit(story.passages.find(p => p.name === 'StoryInit')?.text ?? '').init,
@@ -132,6 +142,14 @@ export const SignalyCodesWindow: React.FC<SignalyCodesWindowProps> = props => {
 	}
 	if (table.people.some(p => p.variable !== '' && !/^[A-Za-z_]\w*$/.test(p.variable))) {
 		problems.push(l('problems.badVar'));
+	}
+	// Сессия 33: коды входа персонажей приложения не повторяются.
+	const sameLogins = duplicates(
+		table.people.map(p => normCode(parseObject(p.phone)?.login)).filter(Boolean)
+	);
+
+	if (sameLogins.length) {
+		problems.push(t('signaly.phone.problems.sameLogin', {list: sameLogins.join(', ')}));
 	}
 
 	/* ----- Сохранить ----- */
@@ -227,12 +245,71 @@ export const SignalyCodesWindow: React.FC<SignalyCodesWindowProps> = props => {
 		const insert = (piece: string) =>
 			setEntry({answer: entry.answer + (entry.answer === '' || /\s$/.test(entry.answer) ? '' : ' ') + piece});
 
+		const where = entry.where ?? '';
+		const phoneData = parseObject(entry.phone);
+		const setWhere = (next: CodeWhere) => {
+			if (next === where) {
+				return;
+			}
+			if (next === '') {
+				if (!window.confirm(t('signaly.phone.confirmTerminalOnly'))) {
+					return;
+				}
+				setEntry({where: '', phone: undefined});
+			} else {
+				setEntry({where: next, phone: entry.phone || jsonText(newPhoneCode())});
+			}
+			setSide(next === 'both' ? 'terminal' : 'phone');
+		};
+		const shownSide = where === 'phone' ? 'phone' : where === 'both' ? side : 'terminal';
+		const phoneForm = phoneData ? (
+			<PhoneCodeForm both={where === 'both'} data={phoneData} onChange={(data: AppGame) => setEntry({phone: jsonText(data)})} />
+		) : (
+			<div className="signaly-notice">{t('signaly.phone.badPhone')}</div>
+		);
+
 		return (
 			<>
-				{entry.where && <div className="signaly-notice">{l(entry.where === 'phone' ? 'phoneOnlyNote' : 'phoneBothNote')}</div>}
+				{where && <div className="signaly-notice">{l(where === 'phone' ? 'phoneOnlyNote' : 'phoneBothNote')}</div>}
 				<TextField hint={l('codeHint')} label={l('code')} onChange={code => setEntry({code})} value={entry.code} />
 				{sameCodes.includes(entry.code.trim()) && <div className="signaly-notice">{l('sameHere')}</div>}
-				<TextField hint={l('labelHint')} label={l('label')} onChange={label => setEntry({label})} value={entry.label} />
+				<TextField
+					hint={where === 'phone' ? t('signaly.phone.labelPhoneHint') : l('labelHint')}
+					label={l('label')}
+					onChange={label => setEntry({label})}
+					value={entry.label}
+				/>
+				<ChoiceField
+					hint={t('signaly.phone.whereHint')}
+					label={t('signaly.phone.where')}
+					onChange={value => setWhere(value as CodeWhere)}
+					options={[
+						{label: t('signaly.phone.whereTerminal'), value: ''},
+						{label: t('signaly.phone.wherePhone'), value: 'phone'},
+						{label: t('signaly.phone.whereBoth'), value: 'both'}
+					]}
+					value={where}
+				/>
+				{where === 'both' && (
+					<div className="signaly-tabs" role="tablist">
+						{(['terminal', 'phone'] as const).map(name => (
+							<button
+								aria-selected={side === name}
+								className="signaly-tab"
+								key={name}
+								onClick={() => setSide(name)}
+								role="tab"
+								type="button"
+							>
+								{t(`signaly.phone.side.${name}`)}
+							</button>
+						))}
+					</div>
+				)}
+				{shownSide === 'phone' ? (
+					phoneForm
+				) : (
+					<>
 				<CheckField hint={l('decoderHint')} label={l('decoderMark')} onChange={decoder => setEntry({decoder})} value={entry.decoder} />
 				{entry.decoder && entry.code.trim() !== '' && !/^\d+$/.test(entry.code.trim()) && (
 					<div className="signaly-notice">{l('decoderDigits')}</div>
@@ -366,9 +443,17 @@ export const SignalyCodesWindow: React.FC<SignalyCodesWindowProps> = props => {
 					/>
 				)}
 				<p className="signaly-field-hint">{l('order')}</p>
+					</>
+				)}
 			</>
 		);
 	}
+
+	// Занятые коды (для «Случайный» у кода входа).
+	const usedCodes = new Set<string>([
+		...table.codes.map(c => normCode(c.code)),
+		...table.people.map(p => normCode(parseObject(p.phone)?.login))
+	]);
 
 	function personEditor() {
 		if (!person) {
@@ -389,6 +474,16 @@ export const SignalyCodesWindow: React.FC<SignalyCodesWindowProps> = props => {
 				/>
 				{person.variable !== '' && !variables.some(v => v.name === person.variable) && (
 					<div className="signaly-field-hint">{l('varNew', {name: person.variable})}</div>
+				)}
+				{person.phone && !parseObject(person.phone) ? (
+					<div className="signaly-notice">{t('signaly.phone.badPhone')}</div>
+				) : (
+					<PhonePersonForm
+						data={parseObject(person.phone)}
+						num={person.id}
+						onChange={data => setPerson({phone: data ? jsonText(data) : undefined})}
+						usedCodes={usedCodes}
+					/>
 				)}
 			</>
 		);
@@ -414,7 +509,9 @@ export const SignalyCodesWindow: React.FC<SignalyCodesWindowProps> = props => {
 		tab === 'codes'
 			? table.codes.map(c => (
 					<>
-						<span className="signaly-keys-item-combo">{c.code || '—'}</span>
+						<span className="signaly-keys-item-combo">
+							{c.code || (c.where && parseObject(c.phone)?.voice ? `🎙 ${parseObject(c.phone)!.voice}` : '—')}
+						</span>
 						{c.label}
 						{c.decoder && <span className="signaly-sound-file">{l('decoder')}</span>}
 						{c.where && <span className="signaly-sound-file">{l(c.where === 'phone' ? 'phoneOnly' : 'phoneBoth')}</span>}
@@ -426,6 +523,7 @@ export const SignalyCodesWindow: React.FC<SignalyCodesWindowProps> = props => {
 					<>
 						<span className="signaly-keys-item-combo">{p.pin || '—'}</span>
 						{p.id}
+						{p.phone && parseObject(p.phone)?.name ? ` ${parseObject(p.phone)!.name}` : ''}
 						{p.variable && <span className="signaly-sound-file">${p.variable}</span>}
 						{p.phone && <span className="signaly-sound-file">{l('personPhone')}</span>}
 					</>
@@ -500,7 +598,10 @@ export const SignalyCodesWindow: React.FC<SignalyCodesWindowProps> = props => {
 										aria-pressed={i === index}
 										className="signaly-kinds-item"
 										key={i}
-										onClick={() => setSelected({...selected, [tab]: i})}
+										onClick={() => {
+											setSelected({...selected, [tab]: i});
+											setSide('terminal');
+										}}
 										type="button"
 									>
 										{item}
@@ -533,7 +634,9 @@ export const SignalyCodesWindow: React.FC<SignalyCodesWindowProps> = props => {
 							{p}
 						</div>
 					))}
-					{tab === 'codes' ? codeEditor() : tab === 'people' ? personEditor() : textsEditor()}
+					<AppRefsContext.Provider value={refs}>
+						{tab === 'codes' ? codeEditor() : tab === 'people' ? personEditor() : textsEditor()}
+					</AppRefsContext.Provider>
 				</div>
 			</div>
 		</div>

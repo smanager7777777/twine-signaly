@@ -27,7 +27,8 @@ import {
 	IconStrikethrough,
 	IconTextSize,
 	IconUnderline,
-	IconWaveSine
+	IconWaveSine,
+	IconDeviceMobile
 } from '@tabler/icons';
 import CodeMirror from 'codemirror';
 import {radioTag, readRadios} from '../../util/signaly/signaly-radio';
@@ -122,6 +123,8 @@ import {articleTag, findArticle, newArticle, setArticle} from '../../util/signal
 import {findScreenMusic, screenMusicDefaults, setScreenMusic} from '../../util/signaly/signaly-music';
 import {eventTag, findEvent, setEventHead} from '../../util/signaly/signaly-events';
 import {findTips, wrapTip} from '../../util/signaly/signaly-tip';
+import {appBlockColor, appBlockTag} from '../../util/signaly/signaly-app';
+import {blockMedia, hasBlockHead, newBlockId, writeBlockHead} from '../../util/signaly/signaly-app-model';
 import './signaly-format-toolbar.css';
 
 export interface SignalyFormatToolbarProps {
@@ -251,6 +254,17 @@ function clickTargets(value: string) {
 
 	if (article) {
 		targets.push({from: article.from, to: article.to, target: {kind: 'article'}});
+	}
+	// Сессия 33: блок приложения — первая строка и строки картинок и звука.
+	if (hasBlockHead(value)) {
+		const first = value.indexOf('\n');
+
+		targets.push({from: 0, to: first === -1 ? value.length : first, target: {kind: 'appBlock'}});
+		blockMedia(value).forEach(m => {
+			const from = value.split('\n').slice(0, m.line).join('\n').length + 1;
+
+			targets.push({from, to: from + value.split('\n')[m.line].length, target: {kind: 'appBlock'}});
+		});
 	}
 	// Шаг 5.4: подсказка — по своим командам, текст внутри правится как обычно.
 	findTips(value).forEach((tip, index) => {
@@ -611,6 +625,43 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 			setEventTag(true);
 		}
 		setPanel({kind: 'event'});
+	}
+
+	// «Блок приложения» (сессия 33, этап Т3-1): первой строкой <<app-block "id">>, тег app-block
+	// (синий на карте, П-61 Т2-8); если пассаж уже блок — открыть форму.
+	function setAppBlockTag(on: boolean) {
+		const tags = passage.tags.filter(tag => tag !== appBlockTag);
+
+		dispatch(updatePassage(story, passage, {tags: on ? [...tags, appBlockTag] : tags}));
+		if (on && !story.tagColors[appBlockTag]) {
+			dispatch(setTagColor(story, appBlockTag, appBlockColor));
+		}
+	}
+
+	function addAppBlock() {
+		if (!editor) {
+			return;
+		}
+
+		const value = editor.getDoc().getValue();
+
+		if (!hasBlockHead(value)) {
+			writeText(
+				writeBlockHead(value, {
+					id: newBlockId(story.passages),
+					who: [],
+					chapter: 1,
+					start: false,
+					share: false,
+					garble: 0,
+					rest: []
+				})
+			);
+		}
+		if (!passage.tags.includes(appBlockTag)) {
+			setAppBlockTag(true);
+		}
+		setPanel({kind: 'appBlock'});
 	}
 
 	function setKr2Tag(on: boolean) {
@@ -1040,6 +1091,12 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 				<IconButton disabled={off} icon={<IconArticle />} label={t('signaly.articles.button')} onClick={addArticle} />
 				<IconButton disabled={off} icon={<IconMusic />} label={t('signaly.screenMusic.button')} onClick={addScreenMusic} />
 				<IconButton disabled={off} icon={<IconMessage2 />} label={t('signaly.tips.button')} onClick={addTip} />
+				<IconButton
+					disabled={off}
+					icon={<IconDeviceMobile />}
+					label={t('signaly.phone.block.button')}
+					onClick={addAppBlock}
+				/>
 				<MenuButton
 					disabled={off}
 					icon={<IconSquarePlus />}
@@ -1108,6 +1165,7 @@ export const SignalyFormatToolbar: React.FC<SignalyFormatToolbarProps> = props =
 			{panel && editor && (
 				<SignalyBlockPanel
 					onAccessTag={setAccessTag}
+					onAppBlockTag={setAppBlockTag}
 					onArticleTag={setArticleTag}
 					onClose={() => setPanel(undefined)}
 					onCreatePassages={createPassages}

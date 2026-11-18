@@ -68,6 +68,9 @@ import {
 import {eventTag, findEvent, setEventHead} from '../../util/signaly/signaly-events';
 import {findTips} from '../../util/signaly/signaly-tip';
 import {TipForm} from './signaly-tip-form';
+import {AppBlockForm} from './signaly-app-block-form';
+import {appBlockTag} from '../../util/signaly/signaly-app';
+import {hasBlockHead, removeBlockHead} from '../../util/signaly/signaly-app-model';
 import {addPassageEditors, useDialogsContext} from '../context';
 
 export type PanelTarget =
@@ -82,7 +85,8 @@ export type PanelTarget =
 	| {kind: 'article'}
 	| {kind: 'music'}
 	| {kind: 'tip'; index: number}
-	| {kind: 'kr2'};
+	| {kind: 'kr2'}
+	| {kind: 'appBlock'};
 
 export interface SignalyBlockPanelProps {
 	/** Текст пассажа, как он сейчас в редакторе. */
@@ -100,6 +104,8 @@ export interface SignalyBlockPanelProps {
 	onAccessTag: (on: boolean) => void;
 	/** Включить или снять тег sg-article (шаг 4.4). */
 	onArticleTag: (on: boolean) => void;
+	/** Включить или снять тег app-block (сессия 33, блок приложения). */
+	onAppBlockTag: (on: boolean) => void;
 	/** Сделать пассаж общим пассажем блокировки (шаг 4.3). */
 	onSharedLock: (name: string) => void;
 	/** Создать пустые экраны (шаг 5.2, ответ 2А). */
@@ -181,7 +187,7 @@ export function useLists(story: Story) {
 /* ----- Панель ----- */
 
 export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
-	const {onAccessTag, onArticleTag, onClose, onCreatePassages, onEventTag, onKr2Tag, onSharedLock, onText, passage, story, target, text} = props;
+	const {onAccessTag, onAppBlockTag, onArticleTag, onClose, onCreatePassages, onEventTag, onKr2Tag, onSharedLock, onText, passage, story, target, text} = props;
 	const {t} = useTranslation();
 	const {media, passages} = useLists(story);
 	const condLists = useCondLists(story);
@@ -303,6 +309,27 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 				passage={passage}
 				story={story}
 				tagged={passage.tags.includes(articleTag)}
+				text={text}
+			/>
+		);
+	} else if (target.kind === 'appBlock') {
+		// Сессия 33 (этап Т3): блок данных приложения для телефонов.
+		if (!hasBlockHead(text)) {
+			return null;
+		}
+		title = t('signaly.phone.block.title');
+		body = (
+			<AppBlockForm
+				onRemove={() => {
+					onText(removeBlockHead(text));
+					onAppBlockTag(false);
+					onClose();
+				}}
+				onTag={() => onAppBlockTag(true)}
+				onText={onText}
+				passage={passage}
+				story={story}
+				tagged={passage.tags.includes(appBlockTag)}
 				text={text}
 			/>
 		);
