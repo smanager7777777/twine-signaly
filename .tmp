@@ -1,0 +1,1 @@
+{"epoch":"mwlybrzc66","seq":1,"state":{},"log":[{"t":"msg","seq":1,"at":1794996093004,"id":"term-mwlybrp0-0-8ix9","from":{"dev":"terminal-1","acc":null,"role":"terminal","name":"Терминал"},"to":["all"],"kind":"notify","body":{"title":"ТЕРМИНАЛ","text":"Шлюз открыт"}}],"claims":{},"rules":{"ver":0,"list":[]},"timers":{},"later":{}}

@@ -106,6 +106,9 @@ const MusicActionFields: React.FC<{action: MusicAction; l: L; onChange: (patch: 
 	);
 };
 
+const netBGroups: NetOp[][] = [['notify', 'alarm'], ['open', 'countdown']];
+const sameB = (a: NetOp, b: NetOp) => netBGroups.some(g => g.includes(a) && g.includes(b));
+
 /** «Телефонам: …» (сессия 31): команда телефонам игроков через центр сети приложения. */
 const NetActionFields: React.FC<{action: NetAction; l: L; codes?: boolean; onChange: (patch: Partial<NetAction>) => void}> = props => {
 	const {action, l, codes, onChange} = props;
@@ -126,7 +129,8 @@ const NetActionFields: React.FC<{action: NetAction; l: L; codes?: boolean; onCha
 					onChange({
 						op: next as NetOp,
 						a: next === 'chapter' ? '2' : next === 'countdown' ? '300' : next === 'module' ? 'chat' : next === 'notify' || next === 'alarm' ? action.a || 'ТЕРМИНАЛ' : '',
-						b: next === 'module' ? 'on' : next === 'alarm' || next === 'notify' || next === 'open' || next === 'countdown' ? action.b : ''
+						// текст уведомления и аварии — одно, заголовок окна блоков и отсчёта — другое
+						b: next === 'module' ? 'on' : sameB(op, next as NetOp) ? action.b : ''
 					})
 				}
 				options={netOps.map(o => ({label: l(`net.ops.${o}`), value: o}))}

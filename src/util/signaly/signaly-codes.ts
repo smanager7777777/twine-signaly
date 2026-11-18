@@ -352,7 +352,7 @@ export function needsPin(
 	return (
 		entry.who.length > 0 ||
 		entry.once === 'each' ||
-		/<<sg-progress[\s>]|\b_who\b/.test(text) ||
+		/<<sg-progress[\s>]|\b_who\b|<<sg-net\s[^>]*\bto\s+self\b/.test(text) ||
 		// Шаг 3.5: код упомянут в условии «сотрудник ввёл код» — нужно знать, кто ввёл.
 		(entry.code !== undefined && referenced?.has(entry.code.trim()) === true)
 	);

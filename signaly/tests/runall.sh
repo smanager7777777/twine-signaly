@@ -45,6 +45,7 @@ game radio-play $T $M $PW /tmp/run/shots
 game air-play $T $M $PW /tmp/run/shots
 game reverse-play $T $M $PW /tmp/run/shots
 game sstv-play $T $M $PW $SH /tmp/run/shots
+game net-play $T $M $PW /home/claude/signaly-app
 echo "--- программа" >> $S
 el() { local name=$1 tw=$2
   for try in 1 2; do
@@ -78,4 +79,5 @@ el electron-radio /tmp/run/t-4b9ae32.twee
 el electron-air $T
 el electron-reverse $T
 el electron-sstv $T
+el electron-net $T
 echo DONE >> $S

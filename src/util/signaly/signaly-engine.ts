@@ -2066,7 +2066,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 				pin:
 					who.length > 0 ||
 					a.once === 'each' ||
-					/<<sg-progress[\s>]|\b_who\b/.test(actions + answer + (a.title === undefined ? '' : a.title))
+					/<<sg-progress[\s>]|\b_who\b|<<sg-net\s[^>]*\bto\s+self\b/.test(actions + answer + (a.title === undefined ? '' : a.title))
 			});
 		}
 	});
