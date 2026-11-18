@@ -213,7 +213,7 @@ let radio = '';
 
 await waitFor(async () => (radio = text('Радио')).includes('Кассета'));
 check('записано: вид с реверсом и своим цветом кнопок, внутренний — как у каркаса', /<<sg-radio-view "Кассета" type reverse [^>]*buttons "#ff0000"/.test(radio) && !/"Кассета"[^\n]*inner/.test(radio), radio);
-check('движок 27', /Версия движка: 27/.test(storyFile()));
+check('движок 28', /Версия движка: 28/.test(storyFile()));
 
 // Шаблон: треки радио развёрнуты (пустышки 0,3 с).
 const tplCopy = reverseFile('radioRegentropfen.wav');
