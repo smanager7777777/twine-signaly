@@ -353,6 +353,14 @@
 - `withDefaults` — значения по умолчанию блоков и кодов (как `SG.normalize`): без него отличия пакета старого редактора с историей «видели» лишнее.
 - Проверки: `signaly-app.test.ts` (пакеты-образцы — `__tests__/fixtures/app-test-pack.sgpack`, `app-test-net-pack.sgpack`, из релиза `signaly-app` build-38; скачать — `gh api repos/smanager7777777/signaly-app/releases/tags/build-N` → `assets[].id` → `gh api -H "Accept: application/octet-stream" …/releases/assets/<id>`), `electron-app.mjs` (пакеты — `PACKS=<папка>`, по умолчанию fixtures), `net-play.mjs` — QR поддельной камерой (`qrcode-generator` из клона `signaly-app`, кадр PPM → ffmpeg → y4m).
 
+**Сессия 33 (этап Т3 — формы приложения):**
+- Формы приложения: модель — `signaly-app-model.ts` (значения по умолчанию из `signaly-app/src/common/logic.js`; пишется только изменённое), общие поля — `src/dialogs/signaly-app/signaly-app-fields.tsx` (`AppRefsContext`, `AccountsField`, `BlocksField`, `AppActions`…), подписи — ключи `signaly.phone.*` в `public/locales` (добавки — скриптом слияния с проверкой «ничего не потеряно, ключ не перезаписан»).
+- **Многострочное поле подписывать через `htmlFor`, а не оборачивать в `<label>`:** иначе в имя поля попадает набранный текст и `getByLabel(…, {exact: true})` в Playwright его не находит.
+- Предпросмотр телефона — плеер приложения в `public/signaly-app/player.html` (iframe `name="sg-preview"`). Обновить: в копии клона `signaly-app` — `npm ci --ignore-scripts && node tools/build.mjs`, затем `python3 signaly/tools/sync-app-player.py <копия>`. В Electron и веб-версии путь относительный (`signaly-app/player.html#preview`).
+- Движок 30 — картинка декодера в автокопии (`$sgMusic.decImg`, `setup.signaly.saveVars` — переменные в автокопию без перехода и щелчка).
+- Проверка форм — `signaly/tests/electron-app-forms.mjs` (в `runall.sh`); для строки картинки блока проверка кладёт PNG в `media/app/` папки игры.
+- `net-play` берёт `qrcode-generator` из `node_modules` клона `signaly-app` (4-й аргумент): перед `runall.sh` — `npm ci --ignore-scripts` в клоне или передать копию с `node_modules` (иначе набор падает после 28 проверок на «Cannot find module»).
+
 ## Как записывать решения
 В `05_AUTHOR_DECISIONS.md` — таблица: номер, дата, вопрос, решение автора, что изменено. Решение «не нужно» записывать тоже. Отменённое решение не удалять: пометить, каким решением оно отменено. Находки при проверке, которые меняют поведение для автора (как «через N секунд отменяется при переходе»), и уточнения, которые агент сделал сам в рамках ответа автора (решения 76, 81 … 143), — тоже строкой.
 
