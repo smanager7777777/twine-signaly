@@ -138,7 +138,7 @@ try {
 	await page.waitForSelector('.passage');
 	await page.evaluate(() => document.fullscreenElement && document.exitFullscreen());
 	await page.waitForFunction(() => window.SgTermNet && window.SgTermNet.on, null, {timeout: 6000});
-	check('движок 28: терминал подключился к центру', await page.evaluate(() => SugarCube.setup.signaly.engine === 28 && SgTermNet.on));
+	check('движок 29: терминал подключился к центру', await page.evaluate(() => SugarCube.setup.signaly.engine === 29 && SgTermNet.on));
 	check('мастер видит терминал в сети', !!(await master.wait(o => o.t === 'peers' && o.peers.some(p => p.role === 'terminal' && p.online))));
 	check('огонёк в углу виден (в истории есть сеть)', await page.evaluate(() => [...document.body.children].some(e => e.title && /^Сеть/.test(e.title))));
 
@@ -244,6 +244,47 @@ try {
 	await sleep(200);
 	check('Ctrl+Shift+N — окно «Сеть»', await page.evaluate(() => document.body.innerText.includes('СЕТЬ ТЕРМИНАЛА')));
 	check('ошибок на странице нет', errors.length === 0, errors.join('; '));
+
+	// Сессия 32 (замечание автора): QR «СЕТЬ» камерой ноутбука — в Chrome для Windows нет BarcodeDetector,
+	// камера гасла сразу; теперь в движке jsQR. Поддельная камера показывает QR с адресом центра.
+	const qr = require(path.join(appRepo, 'node_modules/qrcode-generator'))(0, 'M');
+	qr.addData(`SGNET:ws://127.0.0.1:${port}`);
+	qr.make();
+	const n = qr.getModuleCount(), cell = 8, quiet = 4, side = (n + quiet * 2) * cell, w = 640, h = 480;
+	const pix = Buffer.alloc(w * h * 3, 255);
+	for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+		if (!qr.isDark(y, x)) continue;
+		for (let dy = 0; dy < cell; dy++) for (let dx = 0; dx < cell; dx++) {
+			const px = (w - side) / 2 + (x + quiet) * cell + dx, py = (h - side) / 2 + (y + quiet) * cell + dy;
+			pix.fill(0, (py * w + px) * 3, (py * w + px) * 3 + 3);
+		}
+	}
+	fs.writeFileSync('/tmp/sg-net-qr.ppm', Buffer.concat([Buffer.from(`P6\n${w} ${h}\n255\n`), pix]));
+	execFileSync('ffmpeg', ['-loglevel', 'error', '-y', '-loop', '1', '-i', '/tmp/sg-net-qr.ppm', '-t', '3', '-r', '10', '-pix_fmt', 'yuv420p', '/tmp/sg-net-qr.y4m']);
+	const camBrowser = await chromium.launch({args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--use-file-for-fake-video-capture=/tmp/sg-net-qr.y4m']});
+	try {
+		const cam = await camBrowser.newPage({viewport: {width: 1600, height: 900}});
+		const camErrors = [];
+
+		cam.on('pageerror', e => camErrors.push(e.message));
+		await cam.goto(base + 'net-test.html');
+		await cam.waitForSelector('#sg-start');
+		await cam.click('#sg-start');
+		await cam.waitForSelector('.passage');
+		await cam.evaluate(() => document.fullscreenElement && document.exitFullscreen());
+		check('jsQR в движке, BarcodeDetector не нужен', await cam.evaluate(() => typeof window.jsQR === 'function'));
+		await cam.evaluate(() => { delete window.BarcodeDetector; });
+		await cam.keyboard.press('Control+Shift+KeyN');
+		await sleep(200);
+		await cam.getByRole('button', {name: 'QR КАМЕРОЙ'}).click();
+		await sleep(1200);
+		check('камера не гаснет сразу (идёт поиск QR или уже подключено)', await cam.evaluate(() => SgTermNet.on || [...document.querySelectorAll('video')].some(v => v.style.display === 'block' && v.srcObject)));
+		await cam.waitForFunction(() => window.SgTermNet && window.SgTermNet.on, null, {timeout: 8000}).catch(() => {});
+		check('QR «СЕТЬ» камерой ноутбука → подключено к центру', await cam.evaluate(() => SgTermNet.on && /127\.0\.0\.1/.test(SgTermNet.url)), await cam.evaluate(() => SgTermNet.url));
+		check('камера после QR выключена, ошибок нет', (await cam.evaluate(() => [...document.querySelectorAll('video')].every(v => v.style.display === 'none'))) && camErrors.length === 0, camErrors.join('; '));
+	} finally {
+		await camBrowser.close();
+	}
 } finally {
 	await browser.close();
 	server.close();

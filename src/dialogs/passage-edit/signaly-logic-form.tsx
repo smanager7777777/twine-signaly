@@ -4,6 +4,7 @@
 // условием правится в пассаже.
 
 import {musicTag, readMusic} from '../../util/signaly/signaly-music';
+import {hasAppData, storyToGame} from '../../util/signaly/signaly-app';
 import {IconArrowDown, IconArrowUp, IconTrash} from '@tabler/icons';
 import * as React from 'react';
 import {useTranslation} from 'react-i18next';
@@ -126,6 +127,8 @@ export interface CondLists {
 	/** Каталог «Музыка» (шаг 7.1): треки «Папка/Трек» и папки — для действия «Музыка». */
 	tracks?: string[];
 	folders?: string[];
+	/** Сессия 32: названия из данных приложения в истории — для «Телефонам: …». */
+	app?: {glitches: string[]; blocks: string[]; events: string[]};
 }
 
 export const CondListsContext = React.createContext<CondLists>({passages: [], people: [], codes: []});
@@ -136,6 +139,22 @@ function musicLists(story: Story) {
 	return {
 		tracks: folders.flatMap(f => f.tracks.map(t => `${f.name}/${t.name}`)),
 		folders: folders.map(f => f.name)
+	};
+}
+
+function appLists(story: Story) {
+	if (!hasAppData(story.passages)) {
+		return undefined;
+	}
+
+	const game = storyToGame(story.passages).game;
+	const names = (list: unknown, key: string) =>
+		(Array.isArray(list) ? list : []).map((x: Record<string, unknown>) => String(x[key] ?? '').trim()).filter(Boolean);
+
+	return {
+		glitches: names(game.glitches, 'name'),
+		blocks: names(game.blocks, 'title'),
+		events: [...new Set(names((game.rules ?? []).filter((r: Record<string, unknown>) => r.on === 'event'), 'event'))]
 	};
 }
 
@@ -152,7 +171,8 @@ export function useCondLists(story: Story, table?: ReturnType<typeof readCodes>)
 				.sort((a, b) => a.localeCompare(b, 'ru')),
 			people: tables.flatMap(t => t.people.map(p => p.id.trim())).filter(Boolean),
 			codes: tables.flatMap(t => t.codes.map(c => ({code: c.code.trim(), label: c.label}))).filter(c => c.code !== ''),
-			...musicLists(story)
+			...musicLists(story),
+			app: appLists(story)
 		};
 	}, [story.passages, table]);
 }

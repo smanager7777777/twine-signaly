@@ -24,7 +24,7 @@ export interface SignalyCheckWindowProps {
 	story: Story;
 }
 
-const kinds: CheckKind[] = ['screen', 'media', 'variable', 'code'];
+const kinds: CheckKind[] = ['screen', 'media', 'variable', 'code', 'phone'];
 const mediaKinds: MediaKind[] = ['img', 'audio', 'video', 'fonts'];
 
 export const SignalyCheckWindow: React.FC<SignalyCheckWindowProps> = props => {

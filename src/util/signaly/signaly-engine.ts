@@ -66,13 +66,14 @@ import {defaultGlitch, glitchKeyframes, glitchRules} from './signaly-glitch';
 import {signalyStrings} from './signaly-l10n';
 import {cameraDefaults, cameraKeys, hackDefaults, hackKeys, timerDefaults} from './signaly-screen-blocks';
 import {signalyNetModule} from './signaly-net-module';
+import {signalyJsQR} from './signaly-jsqr';
 import {tipBase} from './signaly-tip';
 
 /** Глитч по умолчанию — правила с нулевой силой (их перекрывает всё остальное). */
 const glitchBase = [...glitchRules(defaultGlitch, ':where(.glitchy)'), glitchKeyframes].join('\n');
 
 /** Версия движка. Увеличивать при каждом изменении кода ниже. */
-export const signalyEngineVersion = 28;
+export const signalyEngineVersion = 29;
 
 export const signalyEngineStart =
 	'/* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */';
@@ -1997,6 +1998,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	var codeCollect = null;
 	var codePerson = null;
 
+	// Сессия 32: слово phone '{…}' — данные телефона (персонаж приложения); терминал их не читает.
 	Macro.add('sg-person', {
 		handler: function () {
 			if (!codeCollect) {
@@ -2027,22 +2029,27 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		}
 	});
 
+	// Сессия 32 (этап Т2 приложения): where phone — код только телефонов (терминал его не знает),
+	// where both — у кода и часть телефона <<sg-phone>>…, её терминал пропускает.
 	Macro.add('sg-entry', {
-		tags: ['sg-answer', 'sg-when'],
+		tags: ['sg-answer', 'sg-phone', 'sg-when'],
 		handler: function () {
 			if (!codeCollect) {
 				return;
 			}
 
-			var a = blockArgs(this, ['code', 'label'], ['who', 'once', 'title', 'goto', 'denied', 'used', 'lock'], []);
+			var a = blockArgs(this, ['code', 'label'], ['who', 'once', 'title', 'goto', 'denied', 'used', 'lock', 'where'], []);
 			var actions = this.payload[0].contents;
 			var answer = '';
 			var when = '';
 
+			if (a.where === 'phone') {
+				return;
+			}
 			this.payload.slice(1).forEach(function (part) {
 				if (part.name === 'sg-answer') {
 					answer = trimContent(part.contents);
-				} else {
+				} else if (part.name === 'sg-when') {
 					when = part.contents.trim();
 				}
 			});
@@ -8672,6 +8679,17 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	window.SG_TERM_NET_QUIET = !Story.filter(function (p) {
 		return /<<sg-net[\s>]|setup\.phone\(/.test(p.text);
 	}).length;
+	// QR «СЕТЬ» камерой ноутбука (сессия 32): в Chrome для Windows нет BarcodeDetector — своя jsQR (Apache-2.0).
+	if (!window.jsQR) {
+		(function () {
+			var module = {exports: {}};
+			var exports = module.exports;
+			var define;
+
+			${signalyJsQR}
+			window.jsQR = module.exports;
+		})();
+	}
 	${signalyNetModule}
 
 	var netPending = [];

@@ -31,13 +31,18 @@ const codesText = writeCodes('', {
 	people: [
 		{id: '3', pin: '417', variable: 'progress3', extra: []},
 		{id: 'Иванов', pin: '101', variable: 'ivanov', extra: []},
-		{id: '7', pin: '777', variable: '', extra: []}
+		{id: '7', pin: '777', variable: '', extra: []},
+		// Сессия 32 (Т2): персонаж приложения — данные телефона терминалу не мешают.
+		{id: '9', pin: '', variable: '', phone: '{"id":"a9","name":"Персонаж >> \'девять\'"}', extra: []}
 	],
 	codes: [
 		{code: '100', label: 'Для всех', who: [], once: '', title: 'Принято', answer: 'Код <<= _code>>', goto: '', denied: '', used: '', actions: [{type: 'set', name: 'a', op: 'add', value: 1}], multiline: true, extra: []},
 		{code: '200', label: 'Конверт', who: ['3', 'Иванов'], once: 'each', title: 'Конверт', answer: 'Сотрудник <<= _who>>, откройте конверт 3-<<= $progress3>>', goto: '', denied: '', used: '', actions: [{type: 'progress', amount: 1}], multiline: true, extra: []},
 		{code: '300', label: 'Один раз', who: [], once: 'all', title: '', answer: '', goto: 'gotoPSG', denied: '', used: '', actions: [], multiline: false, extra: []},
-		{code: '400', label: 'Только Иванову', who: ['Иванов'], once: '', title: 'Иванов', answer: 'Привет, <<= _who>>', goto: '', denied: 'Только Иванову', used: '', actions: [{type: 'progress', amount: 2}], multiline: true, extra: []}
+		{code: '400', label: 'Только Иванову', who: ['Иванов'], once: '', title: 'Иванов', answer: 'Привет, <<= _who>>', goto: '', denied: 'Только Иванову', used: '', actions: [{type: 'progress', amount: 2}], multiline: true, extra: []},
+		// Сессия 32 (Т2): код только телефонов терминал не принимает; код «оба» — свой ответ на терминале.
+		{code: '500', label: 'Телефон', who: [], once: '', title: '', answer: '', goto: '', denied: '', used: '', actions: [], multiline: true, where: 'phone', phone: '{"id":"k5","answer":"ТЕЛЕФОН"}', extra: []},
+		{code: '600', label: 'Оба', who: [], once: '', title: 'Терминал', answer: 'ОТВЕТ ТЕРМИНАЛА', goto: '', denied: '', used: '', actions: [{type: 'set', name: 'a', op: 'add', value: 10}], multiline: true, where: 'both', phone: '{"id":"k6","answer":"ТЕЛЕФОН"}', extra: []}
 	]
 });
 const initRe = /(:: StoryInit[^\n]*\n)/;
@@ -175,6 +180,17 @@ async function newChecks(url, label) {
 	d = await dialog(page);
 	say('нет в таблице — «Неверный код» (общий)', d?.title === 'Ошибка' && d.body === 'Неверный код', JSON.stringify(d));
 	await closeDialog(page);
+
+	// Сессия 32: код «только телефон» — «Неверный код»; «оба» — ответ и действие терминала, без части телефона.
+	await enter(page, '500');
+	d = await dialog(page);
+	say('код «только телефон» на терминале — «Неверный код»', d?.title === 'Ошибка' && d.body === 'Неверный код', JSON.stringify(d));
+	await closeDialog(page);
+	await enter(page, '600');
+	d = await dialog(page);
+	say('код «оба» на терминале — свой ответ и действие', d?.title === 'Терминал' && d.body === 'ОТВЕТ ТЕРМИНАЛА' && (await v(page, 'a')) === 11, JSON.stringify(d));
+	await closeDialog(page);
+	await page.evaluate(() => (SugarCube.State.variables.a = 1));
 
 	await enter(page, '200');
 	const prompt = await page.innerText('.passage .sg-code-pin');

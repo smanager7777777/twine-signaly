@@ -1753,7 +1753,11 @@
 					"countdownoff": "Remove the countdown.",
 					"module": "Turn an app feature on, broken or hidden.",
 					"event": "The terminal tells the center about an event; app editor rules decide what it does."
-				}
+				},
+				"blocksFromApp": "Comma-separated. App blocks in the story: {{list}}.",
+				"allGlitches": "all glitches",
+				"unknownGlitch": "{{name}} — not in the app!",
+				"eventsFromApp": "App rule events in the story: {{list}}."
 			}
 		},
 		"keys": {
@@ -1895,7 +1899,12 @@
 			"whenHint": "Too early, the code is not used up and its actions and answer do not run. For a code leading to a closed screen, that screen's “Access” is enough.",
 			"lock": "If too early — lock passage",
 			"lockShared": "Shared: {{name}}",
-			"lockSharedNone": "Shared (not chosen) — answer “Wrong code”"
+			"lockSharedNone": "Shared (not chosen) — answer “Wrong code”",
+			"phoneOnly": "📱 phone",
+			"phoneBoth": "📱 + phone",
+			"personPhone": "📱 app character",
+			"phoneOnlyNote": "A phone app code (the terminal ignores it). Its phone answer and actions are edited in the «Phone app» window (stage T3) or the app editor; here you can change the code and label.",
+			"phoneBothNote": "This code works on the terminal (fields below) and on phones (own answer and actions — in the «Phone app» window or the app editor)."
 		},
 		"events": {
 			"button": "Event",
@@ -2315,13 +2324,15 @@
 				"screen": "Link to a missing passage",
 				"media": "File missing from the game folder",
 				"variable": "Variable without a starting value",
-				"code": "Code does nothing"
+				"code": "Code does nothing",
+				"phone": "Phones: not in the app"
 			},
 			"hints": {
 				"screen": "A link, button, dialog, insert or command leads to a passage that does not exist.",
 				"media": "The path is written in the story, but the file is not in the game folder.",
 				"variable": "The variable is used but has no starting value in the Variables window. Not always an error.",
-				"code": "The code has no actions, no answer and no destination."
+				"code": "The code has no actions, no answer and no destination.",
+				"phone": "Glitch and block names in «Phones: …» must match the app data in the story, or phones will skip the command."
 			},
 			"copies": {
 				"title": "Radio tracks without a reversed copy",
@@ -2552,6 +2563,48 @@
 			"done": "SSTV pictures: {{count}} (files read: {{files}}).",
 			"failed": "Could not read: {{files}}",
 			"noFolder": "No game folder — SSTV pictures were not searched."
+		},
+		"app": {
+			"button": "Phone app",
+			"title": "Players' phone app",
+			"intro": "The players' app content lives in this story: the «Приложение» passage (settings, chapters, devices, notices, alarms, glitches, rules, votes), data blocks — passages tagged app-block (folders in the name: «Folder/Block»), characters and phone codes — in «Коды» (a character is the employee with the same number). Images and sounds — in the game folder media/app/.",
+			"load": "Load package (.sgpack)…",
+			"build": "Build package (.sgpack)",
+			"inStory": "In the story now",
+			"empty": "No app data in this story. Load a package from the app editor.",
+			"noFolder": "No game folder chosen: app images and sounds are kept in it (media/app/). Choose it in the story details.",
+			"problems": "Unreadable",
+			"loaded": "Package «{{name}}»: {{summary}}.",
+			"diffTitle": "What will change in the story",
+			"same": "The package matches the story.",
+			"firstLoad": "The story has no app data yet — everything from the package will be added.",
+			"apply": "Load into the story",
+			"replace": "Replace with the package",
+			"cancel": "Cancel",
+			"added": "added",
+			"removed": "removed",
+			"changed": "changed",
+			"numbered": "Characters without a terminal number got numbers: {{list}}.",
+			"applied": "Loaded: {{summary}}.",
+			"filesWritten": "Files in media/app/: {{n}}.",
+			"filesSkipped": "No game folder — package files ({{n}}) were not saved.",
+			"built": "Built {{path}} (version {{version}}, {{files}} files).",
+			"builtDownload": "Downloaded {{name}} (version {{version}}, {{files}} files).",
+			"missing": "Missing in the game folder: {{list}}",
+			"badPack": "Not an app package: {{error}}",
+			"working": "Please wait…",
+			"sections": {
+				"accounts": "characters",
+				"blocks": "blocks",
+				"codes": "phone codes",
+				"chapters": "chapters",
+				"apps": "devices",
+				"notices": "notices",
+				"alarms": "alarms",
+				"glitches": "glitches",
+				"rules": "rules",
+				"votes": "votes"
+			}
 		}
 	}
 }

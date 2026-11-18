@@ -14,11 +14,14 @@ import {loadPrefs} from './prefs';
 import {openHtmlWithScratchFile} from './scratch-file';
 import {
 	chooseGameFolder,
+	listAppFiles,
 	listGameMedia,
 	mediaStamps,
 	readMediaFile,
 	reverseNeeded,
 	showGameFolder,
+	writeAppFile,
+	writeAppPack,
 	writeGameFile,
 	writeReverseFile,
 	writeSstvFile
@@ -115,6 +118,19 @@ export function initIpc() {
 		'signaly-write-sstv',
 		(event, folder: string, path: string, data: Uint8Array) =>
 			writeSstvFile(folder, path, data)
+	);
+
+	// Сессия 32 (Т2): файлы и пакет приложения для телефонов.
+	ipcMain.handle('signaly-list-app-files', (event, folder: string) => listAppFiles(folder));
+
+	ipcMain.handle(
+		'signaly-write-app-file',
+		(event, folder: string, path: string, data: Uint8Array) => writeAppFile(folder, path, data)
+	);
+
+	ipcMain.handle(
+		'signaly-write-app-pack',
+		(event, folder: string, filename: string, data: Uint8Array) => writeAppPack(folder, filename, data)
 	);
 
 	ipcMain.handle(

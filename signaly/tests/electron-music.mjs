@@ -160,7 +160,7 @@ check(
 		music.text.includes('<<sg-folder "Эфир" section radio>>'),
 	music.text
 );
-check('движок 28', file.includes('Версия движка: 28'));
+check('движок 29', file.includes('Версия движка: 29'));
 await mw.getByRole('button', {name: 'Закрыть', exact: true}).click();
 await win.waitForTimeout(500);
 

@@ -106,11 +106,13 @@ export const SignalyCodesWindow: React.FC<SignalyCodesWindowProps> = props => {
 	/* ----- Проверки ----- */
 
 	const problems: string[] = [];
-	const sameCodes = duplicates(table.codes.map(c => c.code));
+	// Сессия 32: коды «только телефон» терминал не проверяет — у них могут быть повторы (приборы) и пустой код (голос).
+	const terminalCodes = table.codes.filter(c => c.where !== 'phone');
+	const sameCodes = duplicates(terminalCodes.map(c => c.code));
 	const samePins = duplicates(table.people.map(p => p.pin));
 	const sameIds = duplicates(table.people.map(p => p.id));
 
-	if (table.codes.some(c => c.code.trim() === '')) {
+	if (terminalCodes.some(c => c.code.trim() === '')) {
 		problems.push(l('problems.emptyCode'));
 	}
 	if (sameCodes.length) {
@@ -122,7 +124,7 @@ export const SignalyCodesWindow: React.FC<SignalyCodesWindowProps> = props => {
 	if (sameIds.length) {
 		problems.push(l('problems.sameId', {list: sameIds.join(', ')}));
 	}
-	if (table.people.some(p => p.pin.trim() === '')) {
+	if (table.people.some(p => p.pin.trim() === '' && !p.phone)) {
 		problems.push(l('problems.emptyPin'));
 	}
 	if (samePins.length) {
@@ -227,6 +229,7 @@ export const SignalyCodesWindow: React.FC<SignalyCodesWindowProps> = props => {
 
 		return (
 			<>
+				{entry.where && <div className="signaly-notice">{l(entry.where === 'phone' ? 'phoneOnlyNote' : 'phoneBothNote')}</div>}
 				<TextField hint={l('codeHint')} label={l('code')} onChange={code => setEntry({code})} value={entry.code} />
 				{sameCodes.includes(entry.code.trim()) && <div className="signaly-notice">{l('sameHere')}</div>}
 				<TextField hint={l('labelHint')} label={l('label')} onChange={label => setEntry({label})} value={entry.label} />
@@ -414,6 +417,7 @@ export const SignalyCodesWindow: React.FC<SignalyCodesWindowProps> = props => {
 						<span className="signaly-keys-item-combo">{c.code || '—'}</span>
 						{c.label}
 						{c.decoder && <span className="signaly-sound-file">{l('decoder')}</span>}
+						{c.where && <span className="signaly-sound-file">{l(c.where === 'phone' ? 'phoneOnly' : 'phoneBoth')}</span>}
 						{c.once && <span className="signaly-sound-file">{l(c.once === 'all' ? 'onceShortAll' : 'onceShortEach')}</span>}
 					</>
 			  ))
@@ -423,6 +427,7 @@ export const SignalyCodesWindow: React.FC<SignalyCodesWindowProps> = props => {
 						<span className="signaly-keys-item-combo">{p.pin || '—'}</span>
 						{p.id}
 						{p.variable && <span className="signaly-sound-file">${p.variable}</span>}
+						{p.phone && <span className="signaly-sound-file">{l('personPhone')}</span>}
 					</>
 			  ))
 			: [];

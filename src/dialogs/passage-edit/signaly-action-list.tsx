@@ -128,7 +128,18 @@ const NetActionFields: React.FC<{action: NetAction; l: L; codes?: boolean; onCha
 				onChange={next =>
 					onChange({
 						op: next as NetOp,
-						a: next === 'chapter' ? '2' : next === 'countdown' ? '300' : next === 'module' ? 'chat' : next === 'notify' || next === 'alarm' ? action.a || 'ТЕРМИНАЛ' : '',
+						a:
+							next === 'chapter'
+								? '2'
+								: next === 'countdown'
+								? '300'
+								: next === 'module'
+								? 'chat'
+								: next === 'notify' || next === 'alarm'
+								? action.a || 'ТЕРМИНАЛ'
+								: next === 'glitch'
+								? lists.app?.glitches[0] ?? ''
+								: '',
 						// текст уведомления и аварии — одно, заголовок окна блоков и отсчёта — другое
 						b: next === 'module' ? 'on' : sameB(op, next as NetOp) ? action.b : ''
 					})
@@ -138,9 +149,24 @@ const NetActionFields: React.FC<{action: NetAction; l: L; codes?: boolean; onCha
 			/>
 			{(op === 'notify' || op === 'alarm') && textA(l('net.title'))}
 			{(op === 'notify' || op === 'alarm') && textB(l('net.text'))}
-			{op === 'open' && textA(l('net.blocks'), l('net.blocksHint'))}
+			{op === 'open' && textA(l('net.blocks'), lists.app?.blocks.length ? l('net.blocksFromApp', {list: lists.app.blocks.join(', ')}) : l('net.blocksHint'))}
 			{op === 'open' && textB(l('net.openTitle'))}
-			{(op === 'glitch' || op === 'fix') && textA(l('net.glitch'), l(op === 'fix' ? 'net.fixHint' : 'net.glitchHint'))}
+			{(op === 'glitch' || op === 'fix') &&
+				(lists.app?.glitches.length ? (
+					// Сессия 32: сбои — списком из данных приложения в истории (название должно совпасть).
+					<ChoiceField
+						label={l('net.glitch')}
+						onChange={a => onChange({a})}
+						options={[
+							...(op === 'fix' ? [{label: l('net.allGlitches'), value: ''}] : []),
+							...lists.app.glitches.map(g => ({label: g, value: g})),
+							...(action.a && !lists.app.glitches.includes(action.a) ? [{label: l('net.unknownGlitch', {name: action.a}), value: action.a}] : [])
+						]}
+						value={action.a}
+					/>
+				) : (
+					textA(l('net.glitch'), l(op === 'fix' ? 'net.fixHint' : 'net.glitchHint'))
+				))}
 			{op === 'chapter' && number(l('net.chapter'))}
 			{op === 'countdown' && number(l('net.seconds'))}
 			{op === 'countdown' && textB(l('net.title'))}
@@ -160,7 +186,7 @@ const NetActionFields: React.FC<{action: NetAction; l: L; codes?: boolean; onCha
 					value={action.b}
 				/>
 			)}
-			{op === 'event' && textA(l('net.event'), l('net.eventHint'))}
+			{op === 'event' && textA(l('net.event'), lists.app?.events.length ? l('net.eventsFromApp', {list: lists.app.events.join(', ')}) : l('net.eventHint'))}
 			{netPersonal.includes(op) && (
 				<ChoiceField
 					label={l('net.to')}

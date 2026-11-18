@@ -27,6 +27,12 @@ export interface TwineElectronWindow extends Window {
 		signalyMediaStamps(folder: string, paths: string[]): Promise<Record<string, string>>;
 		/** Сессия 30: записать картинку SSTV (только .png в media/img/sstv/). */
 		signalyWriteSstv(folder: string, path: string, data: Uint8Array): Promise<string>;
+		/** Сессия 32 (Т2): файлы приложения — все файлы media/app/ папки игры. */
+		signalyListAppFiles(folder: string): Promise<string[]>;
+		/** Записать файл приложения (только внутри media/app/). */
+		signalyWriteAppFile(folder: string, path: string, data: Uint8Array): Promise<string>;
+		/** Записать пакет приложения <имя>.sgpack прямо в папку игры; возвращает полный путь. */
+		signalyWriteAppPack(folder: string, filename: string, data: Uint8Array): Promise<string>;
 		signalyWriteReverse(
 			folder: string,
 			path: string,

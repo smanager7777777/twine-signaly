@@ -5,10 +5,11 @@
 
 import {parseLinks} from '../parse-links';
 import {codesTag, readCodes} from './signaly-codes';
+import {hasAppData, storyToGame} from './signaly-app';
 import {screenMentions} from './signaly-rename';
 import {readVariables, variablesInTexts} from './signaly-variables';
 
-export type CheckKind = 'screen' | 'media' | 'variable' | 'code';
+export type CheckKind = 'screen' | 'media' | 'variable' | 'code' | 'phone';
 
 export interface CheckProblem {
 	kind: CheckKind;
@@ -77,7 +78,10 @@ export function checkStory(input: CheckInput): CheckProblem[] {
 	const problems: CheckProblem[] = [];
 	const {passages} = input;
 	const names = new Set(passages.map(p => p.name));
-	const screens = passages.filter(p => !p.tags.includes('script') && !p.tags.includes('stylesheet'));
+	// Сессия 32: пассажи приложения для телефонов (app-block, app-settings) — не экраны терминала.
+	const screens = passages.filter(
+		p => !p.tags.includes('script') && !p.tags.includes('stylesheet') && !p.tags.includes('app-block') && !p.tags.includes('app-settings')
+	);
 	const push = (kind: CheckKind, passage: string, detail: string) => {
 		if (!problems.some(p => p.kind === kind && p.passage === passage && p.detail === detail)) {
 			problems.push({kind, passage, detail});
@@ -139,11 +143,43 @@ export function checkStory(input: CheckInput): CheckProblem[] {
 		.filter(p => p.tags.includes(codesTag))
 		.forEach(p => {
 			readCodes(p.text).codes.forEach(code => {
-				if (code.actions.length === 0 && code.answer.trim() === '' && code.goto.trim() === '') {
+				if (code.where !== 'phone' && code.actions.length === 0 && code.answer.trim() === '' && code.goto.trim() === '') {
 					push('code', p.name, code.code);
 				}
 			});
 		});
+
+	// Сессия 32: «Телефонам: сбой / снять сбой / открыть блоки» — названия, которых нет в данных приложения.
+	if (hasAppData(passages)) {
+		const game = storyToGame(passages).game;
+		const known = (list: unknown, key: string) =>
+			new Set(
+				(Array.isArray(list) ? list : []).flatMap((x: Record<string, unknown>) => [String(x.id ?? ''), String(x[key] ?? '').trim().toLowerCase()])
+			);
+		const glitches = known(game.glitches, 'name');
+		const blocks = known(game.blocks, 'title');
+		const re = /<<sg-net\s+(glitch|fix|open)\s+("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/g;
+
+		[...screens, ...passages.filter(p => p.tags.includes(codesTag))].forEach(p => {
+			let m: RegExpExecArray | null;
+
+			while ((m = re.exec(p.text))) {
+				const names = m[2]
+					.slice(1, -1)
+					.replace(/\\(.)/g, '$1')
+					.split(m[1] === 'open' ? ',' : '\u0000')
+					.map(x => x.trim())
+					.filter(Boolean);
+				const set = m[1] === 'open' ? blocks : glitches;
+
+				names.forEach(name => {
+					if (!set.has(name) && !set.has(name.toLowerCase())) {
+						push('phone', p.name, `${m![1] === 'open' ? 'блок' : 'сбой'} «${name}»`);
+					}
+				});
+			}
+		});
+	}
 
 	return problems;
 }

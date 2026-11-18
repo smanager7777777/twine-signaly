@@ -317,3 +317,64 @@ export async function writeSstvFile(folder: string, relative: string, data: Uint
 	await writeFile(path, Buffer.from(data.buffer, data.byteOffset, data.byteLength));
 	return path;
 }
+
+/* ----- Сессия 32 (этап Т2): приложение для телефонов ----- */
+
+/** Все файлы media/app/ папки игры (с подпапками), пути вида «media/app/plan.png». */
+export async function listAppFiles(folder: string): Promise<string[]> {
+	if (typeof folder !== 'string' || !isAbsolute(folder)) {
+		return [];
+	}
+
+	const result: string[] = [];
+
+	async function walk(relative: string, depth: number) {
+		let entries;
+
+		try {
+			entries = await readdir(join(folder, relative), {withFileTypes: true});
+		} catch {
+			return;
+		}
+		for (const entry of entries) {
+			const path = `${relative}/${entry.name}`;
+
+			if (entry.isDirectory() && depth < 6) {
+				await walk(path, depth + 1);
+			} else if (entry.isFile()) {
+				result.push(path);
+			}
+		}
+	}
+
+	await walk('media/app', 0);
+	return result.sort((a, b) => a.localeCompare(b, 'ru'));
+}
+
+/** Записать файл приложения: только внутри media/app/. */
+export async function writeAppFile(folder: string, relative: string, data: Uint8Array) {
+	const path = mediaFile(folder, relative);
+
+	if (!relative.startsWith('media/app/') || !(data instanceof Uint8Array)) {
+		throw new Error(`Only files inside media/app: ${relative}`);
+	}
+	await mkdirp(dirname(path));
+	await writeFile(path, Buffer.from(data.buffer, data.byteOffset, data.byteLength));
+	return path;
+}
+
+/** Записать пакет приложения: только <имя>.sgpack прямо в папке игры. */
+export async function writeAppPack(folder: string, filename: string, data: Uint8Array) {
+	if (typeof folder !== 'string' || !isAbsolute(folder)) {
+		throw new Error(i18n.t('electron.signaly.errors.noFolder'));
+	}
+	if (basename(filename) !== filename || extname(filename).toLowerCase() !== '.sgpack' || !(data instanceof Uint8Array)) {
+		throw new Error('Only .sgpack files directly inside the game folder.');
+	}
+	await mkdirp(folder);
+
+	const path = join(folder, filename);
+
+	await writeFile(path, Buffer.from(data.buffer, data.byteOffset, data.byteLength));
+	return path;
+}

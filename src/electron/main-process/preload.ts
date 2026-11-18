@@ -47,6 +47,15 @@ contextBridge.exposeInMainWorld('twineElectron', {
 	signalyWriteSstv(folder: string, path: string, data: Uint8Array) {
 		return ipcRenderer.invoke('signaly-write-sstv', folder, path, data);
 	},
+	signalyListAppFiles(folder: string) {
+		return ipcRenderer.invoke('signaly-list-app-files', folder);
+	},
+	signalyWriteAppFile(folder: string, path: string, data: Uint8Array) {
+		return ipcRenderer.invoke('signaly-write-app-file', folder, path, data);
+	},
+	signalyWriteAppPack(folder: string, filename: string, data: Uint8Array) {
+		return ipcRenderer.invoke('signaly-write-app-pack', folder, filename, data);
+	},
 	signalyWriteReverse(folder: string, path: string, data: Uint8Array) {
 		return ipcRenderer.invoke('signaly-write-reverse', folder, path, data);
 	},

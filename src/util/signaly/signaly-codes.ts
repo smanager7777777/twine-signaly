@@ -10,6 +10,12 @@
 //   <<sg-answer>>Сотрудник <<= _who>>, откройте конверт 3-2
 //   <<sg-when>>$chapter gte 2 (когда можно ввести; раньше — пассаж блокировки lock)
 //   <</sg-entry>>
+// Сессия 32 (этап Т2 приложения): у сотрудника — данные телефона
+//   <<sg-person "1" pin "417" var "$progress1" phone '{"id":"aA","name":"…",…}'>>
+// у кода — где срабатывает и часть телефона (два набора действий, П-59 А4):
+//   <<sg-entry "4242" "Подпись" where phone|both>>действия<<sg-answer>>ответ
+//   <<sg-phone>>{"id":"k1","answer":"…","actions":[…]}<<sg-when>>…<</sg-entry>>
+// (signaly-app.ts; без where — только терминал).
 // decoder — метка «ДЕШИФРАТОР»: только для порядка в окне (ответы 2А, 3Б), на ввод
 // не влияет.
 // Движок (с версии 9) проверяет по ней блок «Поле кода» со словом table:
@@ -34,9 +40,14 @@ export interface Person {
 	pin: string;
 	/** Имя переменной прогресса без $; '' — нет. */
 	variable: string;
+	/** Сессия 32: персонаж приложения — JSON без номера (номер — id); '' — только терминал. */
+	phone?: string;
 	extra: string[];
 	raw?: string;
 }
+
+/** Сессия 32: где срабатывает код — '' терминал, phone — только телефоны, both — оба. */
+export type CodeWhere = '' | 'phone' | 'both';
 
 /** Одноразовый: '' — нет, all — для всех, each — для каждого сотрудника. */
 export type Once = '' | 'all' | 'each';
@@ -64,6 +75,9 @@ export interface TableCode {
 	lock: string;
 	actions: Action[];
 	multiline: boolean;
+	/** Сессия 32: где срабатывает и часть телефона (JSON кода приложения без самого кода). */
+	where?: CodeWhere;
+	phone?: string;
 	extra: string[];
 	raw?: string;
 }
@@ -163,6 +177,8 @@ function parsePerson(tokens: string[], raw: string): Person | undefined {
 			person.pin = value(words.shift()) ?? '';
 		} else if (word === 'var' && words.length) {
 			person.variable = (value(words.shift()) ?? '').replace(/^\$/, '');
+		} else if (word === 'phone' && words.length) {
+			person.phone = value(words.shift()) ?? '';
 		} else {
 			person.extra.push(word);
 		}
@@ -196,7 +212,7 @@ function parseEntry(tokens: string[], body: string, raw: string): TableCode | un
 		extra: [],
 		raw
 	};
-	const keys = ['who', 'once', 'title', 'goto', 'denied', 'used', 'lock'];
+	const keys = ['who', 'once', 'title', 'goto', 'denied', 'used', 'lock', 'where'];
 
 	if (words.length && !keys.includes(words[0]) && words[0] !== 'decoder') {
 		entry.label = value(words.shift()) ?? '';
@@ -213,12 +229,25 @@ function parseEntry(tokens: string[], body: string, raw: string): TableCode | un
 				entry.who = splitWho(v);
 			} else if (word === 'once') {
 				entry.once = v === 'all' || v === 'each' ? v : '';
+			} else if (word === 'where') {
+				entry.where = v === 'phone' || v === 'both' ? v : '';
 			} else {
 				(entry as unknown as Record<string, string>)[word] = v;
 			}
 		} else {
 			entry.extra.push(word);
 		}
+	}
+
+	// Сессия 32: часть телефона — от <<sg-phone>> до <<sg-when>> (или до конца).
+	const phoneAt = body.indexOf('<<sg-phone>>');
+
+	if (phoneAt !== -1) {
+		const stop = body.indexOf('<<sg-when>>', phoneAt);
+		const end = stop === -1 ? body.length : stop;
+
+		entry.phone = body.slice(phoneAt + '<<sg-phone>>'.length, end).trim();
+		body = body.slice(0, phoneAt) + body.slice(end);
 	}
 
 	const whenAt = body.lastIndexOf('<<sg-when>>');
@@ -268,6 +297,9 @@ export function writePerson(person: Person) {
 	if (person.variable) {
 		words.push('var', `"$${person.variable}"`);
 	}
+	if (person.phone) {
+		words.push('phone', jsonArg(person.phone));
+	}
 	words.push(...person.extra);
 	return `<<sg-person ${words.join(' ')}>>`;
 }
@@ -293,6 +325,9 @@ export function writeEntry(entry: TableCode) {
 			words.push(key, arg(entry[key]));
 		}
 	});
+	if (entry.where) {
+		words.push('where', entry.where);
+	}
 	words.push(...entry.extra);
 
 	const multiline = entry.multiline || entry.actions.length > 1 || entry.answer.includes('\n');
@@ -300,8 +335,18 @@ export function writeEntry(entry: TableCode) {
 	const answer = entry.answer.trim() === '' ? '' : `<<sg-answer>>${entry.answer}${multiline ? '\n' : ''}`;
 	const condition = (entry.when ?? '').trim();
 	const when = condition === '' ? '' : `<<sg-when>>${condition}${multiline ? '\n' : ''}`;
+	// Сессия 32: часть телефона — отдельной строкой перед условием.
+	const phone = entry.phone ? `${actions || answer ? '' : '\n'}<<sg-phone>>${entry.phone}\n` : '';
 
-	return `<<sg-entry ${words.join(' ')}>>${actions}${answer}${when}<</sg-entry>>`;
+	return `<<sg-entry ${words.join(' ')}>>${actions}${answer}${phone && answer && !answer.endsWith('\n') ? '\n' : ''}${phone}${when}<</sg-entry>>`;
+}
+
+/**
+ * Сессия 32: JSON в кавычках-апострофах (читается глазами): экранируются только \ и '.
+ * Обратно — plain() и JSON.parse.
+ */
+export function jsonArg(json: string) {
+	return `'${json.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
 }
 
 export function writeTexts(texts: CodeTexts) {

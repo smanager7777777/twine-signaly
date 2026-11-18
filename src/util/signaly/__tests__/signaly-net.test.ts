@@ -69,11 +69,14 @@ describe('условие «Пришло с телефона»', () => {
 	});
 });
 
-describe('движок 28', () => {
+describe('движок 29', () => {
 	it('версия и сетевой модуль внутри части «только в игре»', () => {
 		const block = signalyEngineBlock();
 
-		expect(signalyEngineVersion).toBe(28);
+		expect(signalyEngineVersion).toBe(29);
+		// Сессия 32: jsQR для QR «СЕТЬ» камерой ноутбука — до сетевого модуля.
+		expect(block.indexOf('window.jsQR = module.exports')).toBeGreaterThan(block.indexOf('State.reset();'));
+		expect(block.indexOf('window.jsQR = module.exports')).toBeLessThan(block.indexOf('var N = W.SgTermNet'));
 		expect(block).toContain('SgTermNet');
 		expect(block.indexOf('SG_TERM_NET_QUIET')).toBeGreaterThan(block.indexOf('State.reset();'));
 		expect(block).toContain("Macro.add('sg-net'");
