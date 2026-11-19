@@ -361,6 +361,14 @@
 - Проверка форм — `signaly/tests/electron-app-forms.mjs` (в `runall.sh`); для строки картинки блока проверка кладёт PNG в `media/app/` папки игры.
 - `net-play` берёт `qrcode-generator` из `node_modules` клона `signaly-app` (4-й аргумент): перед `runall.sh` — `npm ci --ignore-scripts` в клоне или передать копию с `node_modules` (иначе набор падает после 28 проверок на «Cannot find module»).
 
+**Сессия 34 (окончание Т3 — «Блоки», «QR», «SSTV», профиль, проверка данных приложения):**
+- Перед `runall.sh`: `npx tsc -p signaly/tools/tsconfig.json` (наборы игры берут `.signaly-tools/…`; без него `logic-play`, `codes-play` и др. падают на «Cannot find module») и сборка программы (`npx vite build` → `electron-build/renderer`, `npm run build:electron-main`). В шапке `runall.sh` имя `${c/\~/_}` — с `\~` (без него bash подставляет домашнюю папку и файл `t-a8b24b6~2.twee` не переименовывается).
+- `qrcode-generator` (MIT) — зависимость программы: в `package.json` и двумя записями в `package-lock.json` руками (как `fflate`); в песочнице — скопировать папку из `node_modules` клона `signaly-app`.
+- Запись в папку игры для вкладок «QR» и «SSTV» — `signalyWriteOutput` (`signaly-write-output`, `writeOutputFile`): только `QR/*.jpg` и `media/audio/sstv/*.wav`.
+- ESLint при `vite build` не пропускает `while (true)` — писать `for (;;)`.
+- В jest (jsdom) нет `TextEncoder`/`TextDecoder` — в проверке `Object.assign(globalThis, {TextEncoder, TextDecoder})` из `util`.
+- Ожидаемые проблемы пакетов-образцов (`fixtures/*.problems.json`) дал `SG.problems` приложения: node-скрипт с `globalThis.window = globalThis`, `import('…/signaly-app/src/common/logic.js')`, JSZip из `node_modules` клона.
+
 ## Как записывать решения
 В `05_AUTHOR_DECISIONS.md` — таблица: номер, дата, вопрос, решение автора, что изменено. Решение «не нужно» записывать тоже. Отменённое решение не удалять: пометить, каким решением оно отменено. Находки при проверке, которые меняют поведение для автора (как «через N секунд отменяется при переходе»), и уточнения, которые агент сделал сам в рамках ответа автора (решения 76, 81 … 143), — тоже строкой.
 

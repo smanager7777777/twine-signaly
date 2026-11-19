@@ -1,7 +1,8 @@
 #!/bin/bash
 # Все проверки подряд (сессия 27; сессия 30 — sstv-play, electron-sstv; сессия 32 — electron-app; сессия 33 — electron-app-forms; сессия 34 — electron-app-t3b). Итог — /tmp/run/summary.txt
 # Старые шаблоны: for c in a8b24b6~2 64321cf 5e0afed 30462fa 60c483a fa0a506 b6203c6 2e57ad0 b633a9d 8b80f1a c6bc328 4b9ae32;
-#   do git show $c:signaly/template/27_03_2025.twee > /tmp/run/t-${c/~/_}.twee; done
+#   do git show $c:signaly/template/27_03_2025.twee > /tmp/run/t-${c/\~/_}.twee; done
+# Перед запуском: npx tsc -p signaly/tools/tsconfig.json (.signaly-tools — нужен наборам игры), сборка программы в electron-build.
 cd /home/claude/twine-signaly
 PW=/opt/npm-tools/node_modules/playwright
 SH=/opt/npm-tools/node_modules/sharp
