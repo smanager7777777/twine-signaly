@@ -148,7 +148,21 @@ export const PhoneCodeForm: React.FC<{
 					{l('code.whenAdd')}
 				</button>
 			)}
-			{when.length > 0 && <AreaInput hint={l('code.whenTextHint', {v: '{{имя}}', interpolation: {skipOnVariables: true}})} label={l('code.whenText')} onChange={whenText => set({whenText})} value={data.whenText} />}
+			{when.length > 0 && (
+				<ChoiceField
+					label={l('code.whenMode')}
+					onChange={whenMode => set({whenMode})}
+					options={[
+						{label: l('code.whenModeDenied'), value: ''},
+						{label: l('code.whenModeInactive'), value: 'inactive'},
+						{label: l('code.whenModeWrong'), value: 'wrong'}
+					]}
+					value={String(data.whenMode ?? '')}
+				/>
+			)}
+			{when.length > 0 && data.whenMode !== 'wrong' && (
+				<AreaInput hint={l('code.whenTextHint', {v: '{{имя}}', interpolation: {skipOnVariables: true}})} label={l('code.whenText')} onChange={whenText => set({whenText})} value={data.whenText} />
+			)}
 			<h5 className="signaly-block-subtitle">{l(needNet ? 'code.limitsNet' : 'code.limits')}</h5>
 			<NumField hint={l('code.limitHint')} label={l('code.limit')} onChange={v => set({limit: Math.round(v)})} value={limit} />
 			<CheckField label={l('code.perAcc')} onChange={perAcc => set({perAcc})} value={!!data.perAcc} />

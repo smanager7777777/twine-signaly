@@ -86,6 +86,10 @@ ${codesText}
 <<sg-event-do>><<set $evPopRan += 1>><</sg-event-do>>
 Давление падает. Проверьте отсек 3.
 
+:: EvAck [sg-event] {"position":"1100,0","size":"100,100"}
+<<sg-event popup title "ТРЕВОГА \\"А\\"" ack $evAck>>
+Пробой корпуса.
+
 :: EvCond {"position":"900,0","size":"100,100"}
 <<if setup.entered("3", "102")>>ДА<<else>>НЕТ<</if>>
 `;
@@ -295,6 +299,19 @@ async function newChecks(url, prefix) {
 	await page.evaluate(() => SugarCube.Dialog.close());
 	await page.waitForTimeout(700);
 	say('popup: один раз — окно не повторяется', !(await page.evaluate(() => SugarCube.Dialog.isOpen())) && (await v(page, 'evPopRan')) === 1 && (await passage(page)) === 'EvHome');
+
+	// Сессия 37 (Т6-2 Б): свой заголовок окна и закрытие только «Принято».
+	await page.evaluate(() => { SugarCube.State.variables.evAck = true; });
+	await page.waitForTimeout(700);
+	say('popup title/ack: свой заголовок, крестика нет', (await page.textContent('#ui-dialog-title')).trim() === 'ТРЕВОГА "А"' &&
+		(await page.evaluate(() => document.documentElement.getAttribute('data-sg-dialog'))) === 'noclose' && !(await page.isVisible('#ui-dialog-close')),
+		(await page.textContent('#ui-dialog-title')));
+	await page.mouse.click(5, 5);
+	await page.waitForTimeout(300);
+	say('popup ack: щелчок мимо окна не закрывает', await page.evaluate(() => SugarCube.Dialog.isOpen()));
+	await page.click('.sg-dialog-ok button');
+	await page.waitForTimeout(500);
+	say('popup ack: «Принято» закрывает, терминал на месте', !(await page.evaluate(() => SugarCube.Dialog.isOpen())) && (await passage(page)) === 'EvHome');
 
 	// Сбой: отметки на месте.
 	const marks = JSON.stringify(await v(page, 'sgEvents'));

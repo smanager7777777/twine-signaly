@@ -12,7 +12,7 @@ Object.assign(globalThis, {TextEncoder, TextDecoder}); // jsdom без них
 
 describe('событие «окно-сообщение» (popup)', () => {
 	it('читается и пишется; stay важнее popup', () => {
-		expect(parseEventArgs('popup repeat $a gt 1')).toEqual({expr: '$a gt 1', repeat: true, stay: false, popup: true, delay: 0, priority: 0});
+		expect(parseEventArgs('popup repeat $a gt 1')).toEqual({expr: '$a gt 1', repeat: true, stay: false, popup: true, title: '', ack: false, delay: 0, priority: 0});
 		expect(writeEventHead({expr: '$a', repeat: false, popup: true, delay: 2, priority: 0})).toBe('<<sg-event popup delay 2 $a>>');
 		expect(writeEventHead({expr: '$a', repeat: false, stay: true, popup: true, delay: 0, priority: 0})).toBe('<<sg-event stay $a>>');
 		const text = setEventHead('Давление падает.', {expr: '$p', repeat: false, popup: true, delay: 0, priority: 0});
@@ -22,12 +22,12 @@ describe('событие «окно-сообщение» (popup)', () => {
 		expect(findEvent('<<sg-event popupX>>')?.popup).toBe(false);
 	});
 
-	it('движок 32 знает слово popup и показывает окно', () => {
-		expect(signalyEngineVersion).toBe(32);
+	it('движок 33 знает слово popup и показывает окно', () => {
+		expect(signalyEngineVersion).toBe(33);
 		const engine = signalyEngineBlock();
 
-		expect(engine).toContain('(repeat|stay|popup|delay|priority)');
-		expect(engine).toContain("setup.signaly.openDialog({title: pop.name, passage: pop.name})");
+		expect(engine).toContain('(repeat|stay|popup|ack|delay|priority)');
+		expect(engine).toContain("setup.signaly.openDialog({title: pop.title || pop.name, passage: pop.name, close: pop.ack ? 'ok' : ''})");
 	});
 });
 
@@ -56,7 +56,7 @@ describe('шапка и меню телефона', () => {
 		const full = fullMenu([{tab: 'code', label: 'ВВОД'}, {tab: 'scan', hidden: true}, {tab: 'xx'}]);
 
 		expect(full.map(m => m.tab)).toEqual(['code', 'scan', 'data', 'chat', 'apps', 'photo', 'notes']);
-		expect(full[0]).toEqual({tab: 'code', label: 'ВВОД', hidden: false, def: 'КОД'});
+		expect(full[0]).toEqual({tab: 'code', label: 'ВВОД', hidden: false, chapter: 1, who: [], def: 'КОД'});
 		expect(menuValue(fullMenu([]))).toEqual([]);
 		expect(menuValue(full)).toHaveLength(7);
 	});

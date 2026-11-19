@@ -63,6 +63,7 @@
 //   у события — слово stay (не переходить на экран) и действия <<sg-event-do>>…<</sg-event-do>> при срабатывании.
 // - сессия 36 (движок 32, ответ Т4-8 Б): у события — слово popup: не переходить на экран, а показать текст пассажа
 //   окном-сообщением поверх экрана (заголовок — название пассажа); ждёт, пока закроют другое окно.
+// - сессия 37 (движок 33, ответ Т6-2 Б): у события-окна — title "…" (свой заголовок) и ack (закрыть только «Принято»).
 //
 // Код написан без обратных кавычек и без «${», потому что хранится в шаблонной
 // строке.
@@ -78,7 +79,7 @@ import {tipBase} from './signaly-tip';
 const glitchBase = [...glitchRules(defaultGlitch, ':where(.glitchy)'), glitchKeyframes].join('\n');
 
 /** Версия движка. Увеличивать при каждом изменении кода ниже. */
-export const signalyEngineVersion = 32;
+export const signalyEngineVersion = 33;
 
 export const signalyEngineStart =
 	'/* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */';
@@ -9593,15 +9594,26 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 
 	function eventArgs(args) {
 		var rest = args.trim();
-		var a = {repeat: false, stay: false, popup: false, delay: 0, priority: 0};
+		var a = {repeat: false, stay: false, popup: false, title: '', ack: false, delay: 0, priority: 0};
 		var m;
+		var t;
 
-		while ((m = /^(repeat|stay|popup|delay|priority)(?:\s+(-?\d+(?:[.,]\d+)?))?(?:\s+|$)/.exec(rest))) {
-			if (m[1] !== 'repeat' && m[1] !== 'stay' && m[1] !== 'popup' && m[2] === undefined) {
+		for (;;) {
+			// Сессия 37 (движок 33, Т6-2 Б): title "…" — заголовок окна-сообщения, ack — закрыть только «Принято».
+			t = /^title\s+"((?:[^"\\]|\\.)*)"(?:\s+|$)/.exec(rest);
+			if (t) {
+				a.title = t[1].replace(/\\(.)/g, '$1');
+				rest = rest.slice(t[0].length);
+				continue;
+			}
+			m = /^(repeat|stay|popup|ack|delay|priority)(?:\s+(-?\d+(?:[.,]\d+)?))?(?:\s+|$)/.exec(rest);
+			if (!m || (m[1] !== 'repeat' && m[1] !== 'stay' && m[1] !== 'popup' && m[1] !== 'ack' && m[2] === undefined)) {
 				break;
 			}
 			if (m[1] === 'repeat') {
 				a.repeat = true;
+			} else if (m[1] === 'ack') {
+				a.ack = true;
 			} else if (m[1] === 'stay') {
 				a.stay = true;
 			} else if (m[1] === 'popup') {
@@ -9769,7 +9781,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			changed = true;
 			eventRun(pop);
 			try {
-				setup.signaly.openDialog({title: pop.name, passage: pop.name});
+				setup.signaly.openDialog({title: pop.title || pop.name, passage: pop.name, close: pop.ack ? 'ok' : ''});
 			} catch (e) {
 				console.error('СИГНАЛЫ: окно события «' + pop.name + '»', e);
 			}

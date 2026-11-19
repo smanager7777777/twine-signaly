@@ -987,9 +987,27 @@ function diffDefaults(game: AppGame): AppGame {
 
 	return {
 		...g,
-		codes: g.codes.map((c: AppGame) => ({when: [], whenText: '', ...c})),
-		header: {title: '', sub: '', chapter: true, infoTitle: '', items: [], info: [], ...(g.header ?? {})},
-		menu: Array.isArray(g.menu) ? g.menu : []
+		codes: g.codes.map((c: AppGame) => ({when: [], whenText: '', whenMode: '', ...c})),
+		header: {
+			title: '',
+			sub: '',
+			chapter: true,
+			infoTitle: '',
+			info: [],
+			chapters: [],
+			...(g.header ?? {}),
+			// Сессия 37 (П15): новые поля показателя — по умолчанию не отличие.
+			items: (Array.isArray(g.header?.items) ? g.header.items : []).map((it: AppGame) => ({
+				low: '',
+				lowColor: '',
+				look: 'cell',
+				fit: false,
+				over: false,
+				...it
+			}))
+		},
+		menu: (Array.isArray(g.menu) ? g.menu : []).map((m: AppGame) => ({chapter: 1, who: [], ...m})),
+		limits: Array.isArray(g.limits) ? g.limits : []
 	};
 }
 

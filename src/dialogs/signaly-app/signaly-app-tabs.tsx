@@ -432,6 +432,8 @@ const eventLabel = (sub: EventsSub, x: AppGame, l: (k: string, o?: Record<string
 				? l('rules.shortEvery', {m: x.minutes})
 				: x.on === 'var'
 				? l('rules.shortVar', {name: x.var, op: l(`rules.ops.${x.op || '='}`), value: x.value})
+				: x.on === 'limit'
+				? l('rules.shortLimit', {name: x.var})
 				: l('rules.shortEvent')
 		}`;
 	}
@@ -454,9 +456,31 @@ export const PhoneRuleForm: React.FC<{rule: AppGame; set: (patch: AppGame) => vo
 			<ChoiceField
 				label={l('rules.on')}
 				onChange={v => set({on: v})}
-				options={['event', 'chapter', 'every', 'var'].map(v => ({label: l(`rules.onN.${v}`), value: v}))}
+				options={['event', 'chapter', 'every', 'var', 'limit'].map(v => ({label: l(`rules.onN.${v}`), value: v}))}
 				value={on}
 			/>
+			{on === 'limit' && (
+				<>
+					{/* Сессия 37 (П15): «общая переменная упёрлась в предел» — предел во вкладке «Шапка и меню». */}
+					<ChoiceField
+						hint={l('rules.limitHint')}
+						label={l('rules.var')}
+						onChange={v => set({var: v})}
+						options={[
+							{label: '—', value: ''},
+							...refs.shared.map(v => ({label: `${v.label || v.name} ($${v.name})`, value: v.name})),
+							...(str('var') && !refs.shared.some(v => v.name === str('var')) ? [{label: `$${str('var')} ?`, value: str('var')}] : [])
+						]}
+						value={str('var')}
+					/>
+					<ChoiceField
+						label={l('rules.side')}
+						onChange={side => set({side})}
+						options={['max', 'min', 'any'].map(v => ({label: l(`rules.sides.${v}`), value: v}))}
+						value={str('side') || 'max'}
+					/>
+				</>
+			)}
 			{on === 'event' && (
 				<TextField hint={l('rules.eventHint')} label={l('rules.event')} onChange={event => set({event})} value={str('event')} />
 			)}

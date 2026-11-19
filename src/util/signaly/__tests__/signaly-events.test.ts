@@ -10,10 +10,12 @@ describe('событие', () => {
 			repeat: false,
 			stay: false,
 			popup: false,
+			title: '',
+			ack: false,
 			delay: 0,
 			priority: 0
 		});
-		expect(parseEventArgs('repeat delay 5 priority -1 $x')).toEqual({expr: '$x', repeat: true, stay: false, popup: false, delay: 5, priority: -1});
+		expect(parseEventArgs('repeat delay 5 priority -1 $x')).toEqual({expr: '$x', repeat: true, stay: false, popup: false, title: '', ack: false, delay: 5, priority: -1});
 		expect(parseEventArgs('stay repeat $x')).toMatchObject({expr: '$x', repeat: true, stay: true});
 		expect(parseEventArgs('delay 2,5 $x')).toMatchObject({delay: 2.5, expr: '$x'});
 	});

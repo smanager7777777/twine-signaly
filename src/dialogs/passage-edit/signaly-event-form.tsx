@@ -69,9 +69,21 @@ export const EventForm: React.FC<{
 			<CheckField
 				hint={l('popupHint')}
 				label={l('popup')}
-				onChange={popup => write(popup ? {popup, stay: false} : {popup})}
+				onChange={popup => write(popup ? {popup, stay: false, ack: true} : {popup})}
 				value={head.popup && !head.stay}
 			/>
+			{head.popup && !head.stay && (
+				<>
+					{/* Сессия 37 (Т6-2 Б): свой заголовок окна и закрытие только «Принято». */}
+					<TextField
+						hint={l('popupTitleHint')}
+						label={l('popupTitle')}
+						onChange={title => write({title})}
+						value={head.title ?? ''}
+					/>
+					<CheckField hint={l('ackHint')} label={l('ack')} onChange={ack => write({ack})} value={!!head.ack} />
+				</>
+			)}
 			<TextField
 				hint={l('delayHint')}
 				label={l('delay')}

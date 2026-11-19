@@ -1931,9 +1931,13 @@
 			"hintStay": "The terminal runs the actions when the condition becomes true and stays on its screen. First line <<sg-event stay …>> and tag sg-event. All events and phone rules — Events window (Story tab).",
 			"whenStay": "When the event fires (the terminal stays on its screen)",
 			"popup": "Don't go to the screen — show a message window",
-			"popupHint": "The terminal stays on its screen and the text of this passage appears on top as a message window (titled with the passage name). If another window is open, the event waits until it is closed. The actions below run too.",
+			"popupHint": "The terminal stays on its screen and the text of this passage appears on top as a message window (with its own title or the passage name). If another window is open, the event waits until it is closed. The actions below run too.",
 			"whenPopup": "When the event fires (a message window over the screen)",
-			"hintPopup": "The terminal shows a message window with this passage's text when the condition becomes true and stays on its screen. In the text: first line <<sg-event popup …>> and the sg-event tag."
+			"hintPopup": "The terminal shows a message window with this passage's text when the condition becomes true and stays on its screen. In the text: first line <<sg-event popup …>> and the sg-event tag.",
+			"popupTitle": "Window title",
+			"popupTitleHint": "Empty — the passage name.",
+			"ack": "Close only with the “OK” button",
+			"ackHint": "No close cross; a click outside does not close it — players will read it."
 		},
 		"ticker": {
 			"button": "Event line",
@@ -2876,7 +2880,11 @@
 				"whenAdd": "+ Condition",
 				"whenValueHint": "A number as a number, yes/no, anything else as text (only «equals» and «not equal»).",
 				"whenText": "Answer when the condition is not met",
-				"whenTextHint": "Optional. The window title is «NO ACCESS». {{v}} inserts a shared variable."
+				"whenTextHint": "Optional. The window title is «NO ACCESS». {{v}} inserts a shared variable.",
+				"whenMode": "If the condition is not met",
+				"whenModeDenied": "“NO ACCESS” and the answer",
+				"whenModeInactive": "“CODE NOT ACTIVE YET” and the answer",
+				"whenModeWrong": "as a wrong code (silently)"
 			},
 			"person": {
 				"title": "On the phone",
@@ -3190,7 +3198,8 @@
 					"event": "event (terminal or code)",
 					"chapter": "N minutes after chapter start",
 					"every": "every N minutes",
-					"var": "shared variable (when the condition becomes true)"
+					"var": "shared variable (when the condition becomes true)",
+					"limit": "a shared variable hit its limit"
 				},
 				"event": "Event name",
 				"eventHint": "The terminal or a code with the «Event» action sends this name.",
@@ -3214,7 +3223,15 @@
 				"valueHint": "Fires when the condition becomes true (was false).",
 				"noShared": "No shared variables: Variables window → \"Shared with phones\".",
 				"shortVar": "${{name}} {{op}} {{value}}",
-				"inEvents": "Center rules are edited in the Events window (Story tab → Events)."
+				"inEvents": "Center rules are edited in the Events window (Story tab → Events).",
+				"limitHint": "The limit is in “App” → “Header and menu” → “Limits of shared variables”. Fires every time someone tries to go past the limit.",
+				"side": "Limit",
+				"sides": {
+					"max": "maximum (an attempt to add past it)",
+					"min": "minimum",
+					"any": "any"
+				},
+				"shortLimit": "${{name}} — limit"
 			},
 			"votes": {
 				"title": "Question for players",
@@ -3417,7 +3434,27 @@
 				"menuLabel": "Name on the phone",
 				"menuLabelHint": "Empty — «{{def}}».",
 				"menuHide": "Hide",
-				"menuReset": "Reset"
+				"menuReset": "Reset",
+				"chapters": "Header lines by chapter",
+				"chaptersHint": "From chapter N — own lines and summary title (an empty field — as in the common header). Lasts until the next such entry.",
+				"chapterLines": "From chapter {{n}}",
+				"asCommon": "Empty — as in the common header.",
+				"infoTitleCh": "Summary window title",
+				"addChapter": "+ Lines for a chapter",
+				"look": "Division style",
+				"lookCell": "squares",
+				"lookBar": "bars (narrow)",
+				"fit": "Scale across the screen width",
+				"fitHint": "Divisions shrink or stretch: a scale of 10 and of 100 have the same length.",
+				"over": "Overload",
+				"overHint": "Above the maximum — all lit and the first division glitches.",
+				"low": "Alarm below",
+				"lowHint": "Empty — no alarm. Below the threshold — alarm color, blinking.",
+				"lowColor": "Alarm color",
+				"limits": "Limits of shared variables",
+				"limitsHint": "The network center keeps the value within the limit (terminal, codes, console, rules): “+1” at the maximum keeps the maximum. What to do at that moment — the “Events” window → phone condition “hit the limit”. Empty — no limit.",
+				"limitMin": "At least",
+				"limitMax": "At most"
 			}
 		},
 		"eventsWindow": {

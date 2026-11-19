@@ -137,6 +137,27 @@ export function appProblems(game: AppGame, files?: Set<string>, blockPassage: (i
 			err(`Шапка, показатель ${i + 1}${it.label ? ` «${it.label}»` : ''}: общей переменной «${it.var ?? ''}» нет`, 'settings');
 		}
 	});
+	// Сессия 37 (П15): пределы общих переменных и правило «упёрлась в предел».
+	const limitOk = (name: unknown) =>
+		arr(game.limits).some(x => x.var === String(name ?? '').replace(/^\$/, '') && ((x.min !== '' && x.min !== undefined) || (x.max !== '' && x.max !== undefined)));
+
+	arr(game.limits).forEach(x => {
+		if (!hasShared(x.var)) {
+			err(`Предел общей переменной «${x.var ?? ''}»: такой общей переменной нет`, 'settings');
+		} else if (typeof x.min === 'number' && typeof x.max === 'number' && x.min > x.max) {
+			err(`Предел общей переменной «${x.var}»: наименьшее больше наибольшего`, 'settings');
+		}
+	});
+	rules.forEach(r => {
+		if (r.on !== 'limit') {
+			return;
+		}
+		if (!hasShared(r.var)) {
+			err(`Правило «${r.name || r.var || '?'}»: общей переменной «${r.var ?? ''}» нет`, 'settings');
+		} else if (!limitOk(r.var)) {
+			warn(`Правило «${r.name || r.var || '?'}»: у переменной «${r.var}» нет предела — правило не сработает`, 'settings');
+		}
+	});
 	if (arr(game.menu).length && ['data', 'code', 'scan', 'chat', 'apps', 'photo', 'notes'].every(t => arr(game.menu).some(m => m.tab === t && m.hidden))) {
 		err('Меню: скрыты все вкладки', 'settings');
 	}
@@ -155,6 +176,7 @@ export function appProblems(game: AppGame, files?: Set<string>, blockPassage: (i
 		[c.answer, c.whenText, ...arr(c.answers), ...arr(c.variants).map(v => v.answer)].forEach(t => varsIn(t, `Код «${label}»`, 'codes'));
 	});
 	[game.header?.title, game.header?.sub, game.header?.infoTitle].forEach(t => varsIn(t, 'Шапка', 'settings'));
+	arr(game.header?.chapters).forEach(c => [c.title, c.sub, c.infoTitle].forEach(t => varsIn(t, `Шапка главы ${c.chapter ?? 1}`, 'settings')));
 	arr(game.header?.info).forEach(s => varsIn(`${s.title ?? ''} ${s.text ?? ''}`, `Шапка, раздел «${s.title || '?'}»`, 'settings'));
 	arr(game.notices).forEach(n => varsIn(`${n.title ?? ''} ${n.text ?? ''}`, `Уведомление «${n.name || n.title || '?'}»`, 'settings'));
 	blocks.forEach(b => {

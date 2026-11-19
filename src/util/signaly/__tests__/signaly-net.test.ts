@@ -73,7 +73,7 @@ describe('движок 29', () => {
 	it('версия и сетевой модуль внутри части «только в игре»', () => {
 		const block = signalyEngineBlock();
 
-		expect(signalyEngineVersion).toBe(32);
+		expect(signalyEngineVersion).toBe(33);
 		// Сессия 32: jsQR для QR «СЕТЬ» камерой ноутбука — до сетевого модуля.
 		expect(block.indexOf('window.jsQR = module.exports')).toBeGreaterThan(block.indexOf('State.reset();'));
 		expect(block.indexOf('window.jsQR = module.exports')).toBeLessThan(block.indexOf('var N = W.SgTermNet'));
