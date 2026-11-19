@@ -6,6 +6,8 @@
 // Сессия 37 (П15): строки шапки по главам (header.chapters, Т6-3 Б), у показателя — порог тревоги
 // (low, lowColor, Т6-4 Б), вид делений (look), по ширине экрана (fit), перегрузка (over); пределы общих
 // переменных (game.limits); у вкладки меню — с главы и кому (Т6-5 Б).
+// Сессия 38 (П16): слои перезаполнения шкалы (layers — эффект и цвет; предел — деления × слои), нажатие на части
+// шапки (header.taps.who / .chapter, у показателя tap — {kind, title, text, block}, Т6-8 Б), текст окна главы (about).
 
 import * as React from 'react';
 import {AppGame} from '../../util/signaly/signaly-app';
@@ -50,6 +52,44 @@ export const HeaderTab: React.FC<TabProps> = ({game, setGame}) => {
 	};
 	const menu = fullMenu(game.menu);
 	const setMenu = (list: typeof menu) => setGame({...game, menu: menuValue(list)});
+	const taps: AppGame = header.taps ?? {};
+	const tapOptions = [
+		{label: l('header.tapAuto'), value: 'auto'},
+		{label: l('header.tapInfo'), value: 'info'},
+		{label: l('header.tapText'), value: 'text'},
+		{label: l('header.tapBlock'), value: 'block'},
+		{label: l('header.tapNone'), value: 'none'}
+	];
+	const tapFields = (t: AppGame | undefined, label: string, onChange: (t: AppGame) => void, cls: string) => {
+		const cur = {kind: 'auto', title: '', text: '', block: '', ...(t ?? {})};
+	
+		return (
+			<div className={'signaly-header-tap ' + cls}>
+				<ChoiceField label={label} onChange={kind => onChange({...cur, kind})} options={tapOptions} value={String(cur.kind)} />
+				{cur.kind === 'text' && (
+					<>
+						<TextField label={l('header.tapTitle')} onChange={title => onChange({...cur, title})} value={String(cur.title)} />
+						<AreaInput label={l('header.tapBody')} onChange={text => onChange({...cur, text})} value={cur.text} />
+					</>
+				)}
+				{cur.kind === 'block' && (
+					<ChoiceField
+						label={l('header.tapBlockSel')}
+						onChange={block => onChange({...cur, block})}
+						options={[{label: '—', value: ''}, ...refs.blocks.map(b => ({label: b.name, value: b.id}))]}
+						value={String(cur.block)}
+					/>
+				)}
+			</div>
+		);
+	};
+	const fxOptions = [
+		{label: l('header.fxFill'), value: 'fill'},
+		{label: l('header.fxColor'), value: 'color'},
+		{label: l('header.fxGlitch'), value: 'glitch'},
+		{label: l('header.fxGlow'), value: 'glow'},
+		{label: l('header.fxBlink'), value: 'blink'}
+	];
 	const varOptions = (cur: string) => [
 		{label: '—', value: ''},
 		...refs.shared.map(v => ({label: `${v.label || v.name} ($${v.name})`, value: v.name})),
@@ -76,6 +116,7 @@ export const HeaderTab: React.FC<TabProps> = ({game, setGame}) => {
 					<TextField hint={l('header.asCommon')} label={l('header.title')} onChange={title => setChapter(i, {title})} value={String(c.title ?? '')} />
 					<TextField hint={l('header.asCommon')} label={l('header.sub')} onChange={sub => setChapter(i, {sub})} value={String(c.sub ?? '')} />
 					<TextField hint={l('header.asCommon')} label={l('header.infoTitleCh')} onChange={infoTitle => setChapter(i, {infoTitle})} value={String(c.infoTitle ?? '')} />
+					<AreaInput hint={l('header.aboutHint')} label={l('header.about')} onChange={about => setChapter(i, {about})} value={c.about ?? ''} />
 				</fieldset>
 			))}
 			<button
@@ -130,7 +171,49 @@ export const HeaderTab: React.FC<TabProps> = ({game, setGame}) => {
 								value={it.look === 'bar' ? 'bar' : 'cell'}
 							/>
 							<CheckField hint={l('header.fitHint')} label={l('header.fit')} onChange={fit => setItem(i, {fit})} value={!!it.fit} />
-							<CheckField hint={l('header.overHint')} label={l('header.over')} onChange={over => setItem(i, {over})} value={!!it.over} />
+							{!(Array.isArray(it.layers) && it.layers.length) && (
+								<CheckField hint={l('header.overHint')} label={l('header.over')} onChange={over => setItem(i, {over})} value={!!it.over} />
+							)}
+							<fieldset className="signaly-header-layers">
+								<legend>{l('header.layers')}</legend>
+								<div className="signaly-field-hint">
+									{l('header.layersHint')}
+									{Array.isArray(it.layers) && it.layers.length && Number(it.max) ? ' ' + l('header.layerMax', {max: Number(it.max) * it.layers.length}) : ''}
+								</div>
+								{(Array.isArray(it.layers) ? it.layers : []).map((ly: AppGame, k: number) => {
+									const n = Number(it.max) || 0;
+									const setLy = (patch: AppGame) => setItem(i, {layers: it.layers.map((x: AppGame, j: number) => (j === k ? {...x, ...patch} : x))});
+							
+									return (
+										<div className="signaly-header-layer" key={k}>
+											<ChoiceField
+												label={l('header.layer', {n: k + 1, from: k * n + 1, to: (k + 1) * n})}
+												onChange={fx => setLy({fx, ...(fx === 'color' && !ly.color ? {color: '#ffaa00'} : {})})}
+												options={fxOptions}
+												value={String(ly.fx || 'fill')}
+											/>
+											{ly.fx === 'color' && <ColorInput label={l('header.layerColor')} onChange={color => setLy({color})} value={String(ly.color || '#ffaa00')} />}
+											<button className="signaly-button" onClick={() => setItem(i, {layers: it.layers.filter((_: AppGame, j: number) => j !== k)})} type="button">
+												{l('header.remove')}
+											</button>
+										</div>
+									);
+								})}
+								<button
+									className="signaly-button"
+									disabled={!Number(it.max) || (Array.isArray(it.layers) && it.layers.length >= 20)}
+									onClick={() => {
+										const cur: AppGame[] = Array.isArray(it.layers) ? it.layers : [];
+										const base = cur.length ? cur : [{fx: 'fill', color: ''}];
+										const fx = base.length === 1 ? 'color' : base.length === 2 ? 'glitch' : 'glow';
+							
+										setItem(i, {layers: [...base, {fx, color: fx === 'color' ? '#ffaa00' : ''}]});
+									}}
+									type="button"
+								>
+									{l('header.addLayer')}
+								</button>
+							</fieldset>
 						</>
 					)}
 					<TextField
@@ -142,6 +225,7 @@ export const HeaderTab: React.FC<TabProps> = ({game, setGame}) => {
 					{it.low !== '' && it.low !== undefined && it.low !== null && (
 						<ColorInput label={l('header.lowColor')} onChange={lowColor => setItem(i, {lowColor})} value={String(it.lowColor || '#ff3b3b')} />
 					)}
+					{tapFields(it.tap, l('header.tapItem'), tap => setItem(i, {tap}), 'signaly-tap-item')}
 					<ChapterField label={l('header.fromChapter')} onChange={chapter => setItem(i, {chapter})} value={it.chapter} />
 					<AccountsField label={l('header.who')} onChange={who => setItem(i, {who})} value={it.who} />
 				</fieldset>
@@ -156,6 +240,10 @@ export const HeaderTab: React.FC<TabProps> = ({game, setGame}) => {
 			>
 				{l('header.addItem')}
 			</button>
+			<h3>{l('header.taps')}</h3>
+			<div className="signaly-field-hint">{l('header.tapsHint')}</div>
+			{tapFields(taps.who, l('header.tapWho'), who => setHeader({taps: {...taps, who}}), 'signaly-tap-who')}
+			{tapFields(taps.chapter, l('header.tapChapter'), chapter => setHeader({taps: {...taps, chapter}}), 'signaly-tap-chapter')}
 			<h3>{l('header.limits')}</h3>
 			<div className="signaly-field-hint">{l(refs.shared.length ? 'header.limitsHint' : 'header.noShared')}</div>
 			{refs.shared.map(v => (

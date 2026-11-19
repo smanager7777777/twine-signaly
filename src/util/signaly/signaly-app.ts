@@ -982,6 +982,8 @@ export function withDefaults(game: AppGame): AppGame {
  * Для сравнения (сессия 36): ещё и поля, которые старый редактор приложения дописывает сам
  * (SG.normalize): условие «когда» у кода, пустые шапка и меню.
  */
+const TAP0 = {kind: 'auto', title: '', text: '', block: ''};
+
 function diffDefaults(game: AppGame): AppGame {
 	const g = withDefaults(game);
 
@@ -994,16 +996,20 @@ function diffDefaults(game: AppGame): AppGame {
 			chapter: true,
 			infoTitle: '',
 			info: [],
-			chapters: [],
 			...(g.header ?? {}),
-			// Сессия 37 (П15): новые поля показателя — по умолчанию не отличие.
+			// Сессия 38 (П16): нажатие на части шапки (Т6-8 Б) и текст окна главы — по умолчанию не отличие.
+			taps: {who: {...TAP0, ...(g.header?.taps?.who ?? {})}, chapter: {...TAP0, ...(g.header?.taps?.chapter ?? {})}},
+			chapters: (Array.isArray(g.header?.chapters) ? g.header.chapters : []).map((c: AppGame) => ({about: '', ...c})),
+			// Сессия 37 (П15): новые поля показателя — по умолчанию не отличие; сессия 38 — слои и нажатие.
 			items: (Array.isArray(g.header?.items) ? g.header.items : []).map((it: AppGame) => ({
 				low: '',
 				lowColor: '',
 				look: 'cell',
 				fit: false,
 				over: false,
-				...it
+				layers: [],
+				...it,
+				tap: {...TAP0, ...(it.tap ?? {})}
 			}))
 		},
 		menu: (Array.isArray(g.menu) ? g.menu : []).map((m: AppGame) => ({chapter: 1, who: [], ...m})),

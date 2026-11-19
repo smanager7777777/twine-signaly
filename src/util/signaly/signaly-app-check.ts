@@ -138,8 +138,20 @@ export function appProblems(game: AppGame, files?: Set<string>, blockPassage: (i
 		}
 	});
 	// Сессия 37 (П15): пределы общих переменных и правило «упёрлась в предел».
+	// Сессия 38 (П16): предел даёт и шкала со слоями (деления × слои).
 	const limitOk = (name: unknown) =>
-		arr(game.limits).some(x => x.var === String(name ?? '').replace(/^\$/, '') && ((x.min !== '' && x.min !== undefined) || (x.max !== '' && x.max !== undefined)));
+		arr(game.limits).some(x => x.var === String(name ?? '').replace(/^\$/, '') && ((x.min !== '' && x.min !== undefined) || (x.max !== '' && x.max !== undefined))) ||
+		arr(game.header?.items).some(it => it.var === String(name ?? '').replace(/^\$/, '') && it.show === 'cells' && Number(it.max) > 0 && arr(it.layers).length > 0);
+	// Сессия 38 (П16, Т6-8 Б): по нажатию на часть шапки открывается блок, которого нет.
+	const tapBlock = (t: AppGame | undefined, where: string) => {
+		if (t && t.kind === 'block' && !blocks.some(b => String(b.id) === String(t.block ?? ''))) {
+			err(`Шапка, ${where}: по нажатию открывается блок, которого нет`, 'settings');
+		}
+	};
+
+	tapBlock(game.header?.taps?.who, 'имя');
+	tapBlock(game.header?.taps?.chapter, 'глава');
+	arr(game.header?.items).forEach((it, i) => tapBlock(it.tap, `показатель ${i + 1}`));
 
 	arr(game.limits).forEach(x => {
 		if (!hasShared(x.var)) {

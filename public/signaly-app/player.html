@@ -51,6 +51,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 #bar .bar-top .who{flex:1 1 auto}
 #bar .bar-top>*+*{margin-left:8px}
 #bar.tap .who{cursor:pointer}
+#bar-chap.tap{cursor:pointer;text-decoration:underline dotted}
+#bar-vars .hv{cursor:pointer}
 #bar.tap #bar-prof::after{content:' ⓘ'}
 #bar-vars{display:flex;flex-wrap:wrap;align-items:center;margin-top:6px;font-size:12px;letter-spacing:.06em;cursor:pointer}
 #bar-vars .hv{display:inline-flex;align-items:center;margin:2px 14px 2px 0;white-space:nowrap}
@@ -70,6 +72,8 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 #bar-vars .hv-low .v{color:var(--low,#ff3b3b);animation:blink .8s steps(1) infinite}
 #bar-vars .hv-low b{color:var(--low,#ff3b3b)}
 #bar-vars .cells i.ov{animation:ovr .45s steps(2) infinite;position:relative}
+#bar-vars .cells i.bl{animation:blink .7s steps(1) infinite}
+#bar-vars .cells i.gw{position:relative;z-index:1}
 @keyframes ovr{0%{opacity:1;transform:translate(0,0)}25%{opacity:.2;transform:translate(-1px,1px)}50%{opacity:1;transform:translate(1px,-1px) scaleY(1.3);background:#fff}75%{opacity:.5;transform:translate(0,1px)}100%{opacity:1}}
 .tab{display:none;flex:1;overflow-y:auto;padding:14px;-webkit-overflow-scrolling:touch}
 .tab.on{display:block}
@@ -298,6 +302,18 @@ body.alarm-on{--bg:#140202;--panel:#260404;--text:#ff3b30;--dim:#9a1d17;--accent
 .peers{display:flex;flex-direction:column;gap:4px}
 .peer{display:flex;justify-content:space-between;gap:8px;color:var(--dim);font-size:13px}
 .peer.on{color:var(--text)}
+/* П16: ТЕЛЕФОНЫ и проба голоса */
+.phones{display:flex;flex-direction:column}
+.phone-row{border-top:1px solid var(--dim);padding:6px 0;color:var(--dim);font-size:13px}
+.phone-row.on{color:var(--text)}
+.phone-row.bad .pr1 .sm{color:var(--warn)}
+.phone-row .pr1{display:flex;justify-content:space-between;flex-wrap:wrap}
+.phone-row .pr1 b{font-weight:normal;margin-right:8px}
+.phone-row .pr2,.phone-row .pr3{margin-top:2px}
+.phone-row .pr3{color:var(--accent)}
+.heard-log{max-height:46vh;overflow-y:auto;border:1px solid var(--dim);padding:6px;margin-top:8px;font-size:13px;user-select:text;-webkit-user-select:text}
+.heard-log .hl{padding:2px 0;border-bottom:1px dotted var(--text-30)}
+.heard-log .hl.hit{color:var(--accent)}
 .cqr{text-align:center;background:#fff;padding:8px;margin:8px 0}
 .cqr .big{color:#000;font-size:22px;letter-spacing:.08em}
 .clog .cl{border-bottom:1px dashed var(--dim);padding:6px 0;font-size:13px;word-break:break-word}
@@ -11046,9 +11062,19 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
      infoTitle и info — окно по нажатию на шапку (разделы: заголовок, текст, кому, с главы).
      game.menu: [{tab, label, hidden}] — порядок, названия и скрытые вкладки нижнего меню (пусто — как было). */
   var MENU_TABS = [['data', 'ДАННЫЕ'], ['code', 'КОД'], ['scan', 'СКАНЕР'], ['chat', 'СВЯЗЬ'], ['apps', 'ПРИБОРЫ'], ['photo', 'КАМЕРА'], ['notes', 'ЗАМЕТКИ']];
+  /* П16 (Т6-8 Б): нажатие на часть шапки — auto (по месту: имя — досье, глава — окно главы, показатель — сведения о нём),
+     info (общая сводка), text (своё окно), block (блок данных), none (ничего). */
+  var TAP_KINDS = [['auto', 'по месту (досье / глава / сведения о показателе)'], ['info', 'общая сводка'], ['text', 'своё окно (заголовок и текст)'], ['block', 'блок данных'], ['none', 'ничего']];
+  function normTap(t) {
+    t = Object.assign({ kind: 'auto', title: '', text: '', block: '' }, t || {});
+    if (!TAP_KINDS.some(function (k) { return k[0] === t.kind; })) t.kind = 'auto';
+    return { kind: t.kind, title: String(t.title || ''), text: String(t.text || ''), block: String(t.block || '') };
+  }
   function normHeader(g) {
-    var h = g.header = Object.assign({ title: '', sub: '', chapter: true, infoTitle: '', items: [], info: [], chapters: [] }, g.header || {});
+    var h = g.header = Object.assign({ title: '', sub: '', chapter: true, infoTitle: '', items: [], info: [], chapters: [], taps: {} }, g.header || {});
     h.chapter = h.chapter !== false;
+    // П16 (Т6-8 Б): что открывается по нажатию на имя и на главу (у показателя — своё, it.tap)
+    h.taps = { who: normTap((h.taps || {}).who), chapter: normTap((h.taps || {}).chapter) };
     h.items = (Array.isArray(h.items) ? h.items : []).map(function (it) {
       it = Object.assign({ var: '', label: '', show: 'num', max: 0, chapter: 1, who: [], unit: '', low: '', lowColor: '', look: 'cell', fit: false, over: false }, it || {});
       it.id = it.id || uid('h');
@@ -11063,11 +11089,17 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
       it.look = it.look === 'bar' ? 'bar' : 'cell';
       it.fit = !!it.fit;
       it.over = !!it.over;
+      it.tap = normTap(it.tap);
+      // П16: слои перезаполнения — 1-й (значения 1…max), 2-й (max+1…2·max)…; предел переменной — max × число слоёв
+      it.layers = (Array.isArray(it.layers) ? it.layers : []).slice(0, LAYERS_MAX).map(function (l) {
+        l = Object.assign({ fx: 'fill', color: '' }, l || {});
+        return { fx: LAYER_FX.some(function (f) { return f[0] === l.fx; }) ? l.fx : 'fill', color: hexOk(l.color) || '' };
+      });
       return it;
     });
     // П15 (Т6-3 Б): у главы свои строки шапки и заголовок сводки — с главы N (пусто — как в общей шапке)
     h.chapters = (Array.isArray(h.chapters) ? h.chapters : []).map(function (c) {
-      c = Object.assign({ chapter: 1, title: '', sub: '', infoTitle: '' }, c || {});
+      c = Object.assign({ chapter: 1, title: '', sub: '', infoTitle: '', about: '' }, c || {});
       c.id = c.id || uid('hc');
       c.chapter = +c.chapter || 1;
       return c;
@@ -11088,6 +11120,9 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
       return { tab: m.tab, label: String(m.label || ''), hidden: !!m.hidden, chapter: +m.chapter || 1, who: Array.isArray(m.who) ? m.who : [] };
     });
   }
+  var LAYERS_MAX = 20;
+  /* П16: эффекты слоёв шкалы: обычный (цвет интерфейса), свой цвет, сбой, свечение растёт, мигание. */
+  var LAYER_FX = [['fill', 'обычный цвет'], ['color', 'свой цвет'], ['glitch', 'деления сбоят'], ['glow', 'растёт свечение'], ['blink', 'мигают']];
   var CELLS_MAX = 200;
   function limNum(v) {
     if (v === '' || v == null) return '';
@@ -11103,7 +11138,28 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
   /* Предел общей переменной (П15): {min, max} или null. */
   function limitOf(game, name) {
     name = String(name || '').replace(/^\$/, '');
-    return (game.limits || []).filter(function (l) { return l.var === name && (l.min !== '' || l.max !== ''); })[0] || null;
+    var l = (game.limits || []).filter(function (l) { return l.var === name && (l.min !== '' || l.max !== ''); })[0] || null;
+    var lm = layerMax(game, name);
+    if (lm === null) return l;
+    if (!l) return { var: name, min: '', max: lm, layers: true };
+    return { var: name, min: l.min, max: l.max === '' ? lm : Math.min(l.max, lm), layers: l.max === '' || lm < l.max };
+  }
+  /* П16: предел по слоям шкалы — деления × число слоёв (у нескольких шкал одной переменной — наибольший); нет слоёв — null. */
+  function layerMax(game, name) {
+    var m = null;
+    ((game.header || {}).items || []).forEach(function (it) {
+      if (it.var !== name || it.show !== 'cells' || !it.max || !(it.layers || []).length) return;
+      var x = it.max * it.layers.length;
+      if (m === null || x > m) m = x;
+    });
+    return m;
+  }
+  /* Все переменные с пределом (из «Пределов» и из слоёв шкалы). */
+  function limitedVars(game) {
+    var out = [];
+    (game.limits || []).forEach(function (l) { if (out.indexOf(l.var) < 0) out.push(l.var); });
+    ((game.header || {}).items || []).forEach(function (it) { if (it.var && (it.layers || []).length && out.indexOf(it.var) < 0) out.push(it.var); });
+    return out;
   }
   /* Значение в пределах; side — 'max' / 'min', если упёрлось (для телефона без связи — как считает центр). */
   function clampVar(game, name, v) {
@@ -11132,9 +11188,15 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
     var items = (h.items || []).filter(vis).filter(function (it) { return sharedVar(game, it.var); }).map(function (it) {
       var v = vals[it.var], sv = sharedVar(game, it.var), cells = it.show === 'cells' ? cellsOf(v, it.max) : null;
       var nv = Number(String(v == null ? '' : v).replace(',', '.'));
+      var num = cells && it.max && typeof v !== 'boolean' && isFinite(nv);
+      // П16: перегрузка — сбоит столько делений, на сколько превышено; слои — у каждого деления свой слой (-1 — погасло)
+      var ly = num && (it.layers || []).length ? layerCells(nv, it.max, it.layers) : null;
+      var overN = !ly && it.over && num && nv > it.max ? Math.min(it.max, Math.round(nv - it.max)) : 0;
+      if (ly) cells = ly.cells.map(function (k) { return k >= 0; });
       return { id: it.id, var: it.var, label: it.label, show: it.show, max: it.max, unit: it.unit || '', value: v, name: sv.label || it.var,
-        cells: cells, look: it.look || 'cell', fit: !!it.fit,
-        over: !!(it.over && cells && it.max && typeof v !== 'boolean' && isFinite(nv) && nv > it.max),
+        cells: cells, look: it.look || 'cell', fit: !!it.fit, overN: overN, layer: ly ? ly.layer : 0, layerOf: ly ? ly.cells : null,
+        layers: ly ? it.layers : null, glow: ly ? ly.glow : 0, tap: tapFill(it.tap), limit: limitOf(game, it.var), low0: it.low,
+        over: overN > 0,
         low: it.low !== '' && it.low != null && typeof v !== 'boolean' && isFinite(nv) && v !== '' && v != null && nv < it.low,
         lowColor: it.lowColor || '',
         text: v === true ? 'да' : v === false ? 'нет' : v == null ? '' : String(v) + (it.max && it.show === 'num' ? '/' + it.max : '') + (it.unit ? ' ' + it.unit : '') };
@@ -11142,11 +11204,23 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
     // П15 (Т6-3 Б): строки главы (последняя «с главы» не позже нынешней); пустое поле — из общей шапки
     var hc = (h.chapters || []).filter(function (c) { return (c.chapter || 1) <= n; }).sort(function (x, y) { return x.chapter - y.chapter; });
     var own = {};
-    hc.forEach(function (c) { ['title', 'sub', 'infoTitle'].forEach(function (k) { if (c[k]) own[k] = c[k]; }); });
+    hc.forEach(function (c) { ['title', 'sub', 'infoTitle', 'about'].forEach(function (k) { if (c[k]) own[k] = c[k]; }); });
+    function tapFill(t) { t = t || normTap(); return { kind: t.kind, title: fill(t.title), text: fill(t.text), block: t.block }; }
+    var taps = h.taps || {};
     var tt = own.title || h.title, st = own.sub || h.sub, it2 = own.infoTitle || h.infoTitle;
     return { title: fill(tt) || a.name || '—', sub: tt || st ? fill(st) : (a.profession || ''), chapter: h.chapter !== false ? (ch ? ch.name : '') : '',
-      items: items, infoTitle: fill(it2) || 'СВОДКА',
+      items: items, infoTitle: fill(it2) || 'СВОДКА', about: fill(own.about), chapterName: ch ? ch.name : '',
+      taps: { who: tapFill(taps.who), chapter: tapFill(taps.chapter) }, profile: (a.items || []).length > 0,
       info: (h.info || []).filter(vis).map(function (s) { return { title: fill(s.title), text: fill(s.text) }; }) };
+  }
+  /* П16: слои шкалы. Значение v при делениях max: слой L = ⌈v/max⌉−1 (не больше последнего), в нём заполнено c делений;
+     остальные — полностью в предыдущем слое (у первого — погасшие). glow — доля заполнения слоя (для «свечение растёт»). */
+  function layerCells(v, max, layers) {
+    var n = layers.length, total = max * n;
+    v = Math.max(0, Math.min(total, Math.round(v)));
+    var L = v <= 0 ? 0 : Math.min(n - 1, Math.ceil(v / max) - 1), c = v - L * max, out = [];
+    for (var i = 0; i < max; i++) out.push(i < c ? L : L - 1);
+    return { cells: out, layer: L, glow: c / max };
   }
   /* Квадратики: [true, true, false…] — горящие по значению (да/нет — один квадратик); max 0 — по значению, не больше 10. */
   function cellsOf(v, max) {
@@ -11477,12 +11551,17 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
       else if (r.on === 'limit' && r.var) list.push({ id: r.id, on: 'limit', key: 'var:' + r.var, side: r.side || 'max', chapters: r.chapters, emit: emit(r.actions) });
     });
     // П15: пределы общих переменных — центр не даёт выйти за них (и сообщает правилам «упёрлась в предел»)
-    (game.limits || []).forEach(function (l) {
-      if (l.min === '' && l.max === '') return;
+    limitedVars(game).forEach(function (name) {
+      var l = limitOf(game, name);
+      if (!l || (l.min === '' && l.max === '')) return;
       var o = { id: 'lim-' + l.var, on: 'bounds', key: 'var:' + l.var, emit: [] };
       if (l.min !== '') o.min = l.min;
       if (l.max !== '') o.max = l.max;
       list.push(o);
+    });
+    // П16 (Т7-2): начальные значения общих переменных — центру, чтобы «{{имя}}» в уведомлении было числом и до первой записи
+    (game.shared || []).forEach(function (v) {
+      if (v.value !== undefined && v.value !== null && v.value !== '') list.push({ id: 'init-' + v.name, on: 'init', key: 'var:' + v.name, value: termValue(v.value), emit: [] });
     });
     game.notices.forEach(function (n) {
       if (!n.chapter) return;
@@ -11600,6 +11679,7 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
     });
     ((game.header || {}).items || []).forEach(function (it, i) {
       if (!sharedVar(game, it.var)) err('Шапка, показатель ' + (i + 1) + (it.label ? ' «' + it.label + '»' : '') + ': общей переменной «' + (it.var || '') + '» нет');
+      if (it.tap && it.tap.kind === 'block' && !byId(game.blocks, it.tap.block)) err('Шапка, показатель ' + (i + 1) + ': по нажатию открывается блок, которого нет');
     });
     var hidAll = game.menu && game.menu.length && MENU_TABS.every(function (t) { return game.menu.some(function (m) { return m.tab === t[0] && m.hidden; }); });
     if (hidAll) err('Меню: скрыты все вкладки');
@@ -11932,6 +12012,12 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
     limitOf: limitOf,
     clampVar: clampVar,
     CELLS_MAX: CELLS_MAX,
+    LAYER_FX: LAYER_FX,
+    TAP_KINDS: TAP_KINDS,
+    normTap: normTap,
+    LAYERS_MAX: LAYERS_MAX,
+    layerCells: layerCells,
+    layerMax: layerMax,
     WHEN_OPS: WHEN_OPS,
     sharedValues: sharedValues,
     fillVars: fillVars,
@@ -15030,7 +15116,8 @@ var qrcode = function() {
     else if (o.t === 'later') { N.later = o.list || []; emit('later', N.later); }
     else if (o.t === 'dropped') emit('dropped', o);
     else if (o.t === 'pong') N.offset = o.now - Date.now();
-    else if (o.t === 'voice' || o.t === 'voice-status') emit('voice', o);   // служба: услышана фраза / состояние микрофона (П-58)
+    else if (o.t === 'voice' || o.t === 'voice-status') emit('voice', o);
+    else if (o.t === 'heard') emit('heard', o);   // П16: проба голоса — что услышал телефон (только мастеру)   // служба: услышана фраза / состояние микрофона (П-58)
   }
   function status(up) {
     if (!up && N.up) { N.up = false; emit('status', false); }
@@ -15356,15 +15443,17 @@ var qrcode = function() {
     hd.items.forEach(function (it) {
       var el = document.createElement('span');
       // П15: черточки (look bar), по ширине экрана (fit), перегрузка — первая горит со сбоем (over), ниже порога — тревога (low)
-      el.className = 'hv' + (it.cells ? ' hv-cells' + (it.look === 'bar' ? ' hv-bar' : '') + (it.fit ? ' hv-fit' : '') + (it.over ? ' hv-over' : '') : '') + (it.low ? ' hv-low' : '');
+      el.className = 'hv' + (it.cells ? ' hv-cells' + (it.look === 'bar' ? ' hv-bar' : '') + (it.fit ? ' hv-fit' : '') + (it.over ? ' hv-over' : '') + (it.layerOf ? ' hv-layers' : '') : '') + (it.low ? ' hv-low' : '');
       el.setAttribute('data-var', it.var);
+      el.setAttribute('data-id', it.id || '');
+      if (it.layerOf) el.setAttribute('data-layer', it.layer + 1);
       if (it.low && it.lowColor) el.style.setProperty('--low', it.lowColor);
       if (it.label) { var lb = document.createElement('b'); lb.textContent = it.label; el.appendChild(lb); }
       if (it.cells) {
         var cs = document.createElement('span');
         cs.className = 'cells';
         if (it.cells.length > 40) cs.className += ' dense';
-        it.cells.forEach(function (on, i) { var c = document.createElement('i'); if (on) c.className = 'on' + (it.over && i === 0 ? ' ov' : ''); cs.appendChild(c); });
+        it.cells.forEach(function (on, i) { var c = document.createElement('i'); if (on) paintCell(c, it, i); cs.appendChild(c); });
         el.appendChild(cs);
       } else {
         var v = document.createElement('span');
@@ -15375,8 +15464,23 @@ var qrcode = function() {
       box.appendChild(el);
     });
     box.hidden = !hd.items.length;
-    $('bar').classList.toggle('tap', !!(hd.items.length || hd.info.length));
+    var anyInfo = !!(hd.items.length || hd.info.length);
+    $('bar').classList.toggle('tap', anyInfo || tapActive(hd, 'who'));
+    $('bar-chap').classList.toggle('tap', tapActive(hd, 'chapter'));
     renderNetDot();
+  }
+  /* П16: деление шкалы — обычное, перегрузка (первые overN сбоят) или по своему слою (цвет, сбой, свечение, мигание). */
+  function paintCell(c, it, i) {
+    var cls = 'on';
+    if (!it.layerOf) { if (i < it.overN) cls += ' ov'; c.className = cls; return; }
+    var k = it.layerOf[i], L = it.layers, fx = L[k] ? L[k].fx : 'fill', col = '';
+    for (var j = k; j >= 0; j--) if (L[j].fx === 'color' && L[j].color) { col = L[j].color; break; }
+    if (col) { c.style.background = col; c.style.borderColor = col; c.style.boxShadow = '0 0 4px ' + col; }
+    if (fx === 'glitch') cls += ' ov';
+    if (fx === 'blink') cls += ' bl';
+    if (fx === 'glow') { var gw = Math.round(2 + 7 * (k === it.layer ? it.glow : 1)); c.style.boxShadow = '0 0 ' + gw + 'px ' + (col || 'var(--text)') + ', 0 0 ' + Math.round(gw / 2) + 'px #fff'; cls += ' gw'; }
+    c.setAttribute('data-l', k + 1);
+    c.className = cls;
   }
   P.headerInfo = function () {
     if (!acc()) return false;
@@ -15385,7 +15489,7 @@ var qrcode = function() {
     var L = [];
     hd.items.forEach(function (it) {
       var cells = it.cells && it.cells.length <= 40 ? ' ' + it.cells.map(function (on) { return on ? '■' : '□'; }).join('') : '';
-      L.push((it.label || it.name) + ': **' + it.text + '**' + cells + (it.over ? ' — ПЕРЕГРУЗКА' : '') + (it.low ? ' — НИЖЕ НОРМЫ' : ''));
+      L.push((it.label || it.name) + ': **' + it.text + '**' + cells + (it.over ? ' — ПЕРЕГРУЗКА' : '') + (it.layerOf && it.layer > 0 ? ' — СЛОЙ ' + (it.layer + 1) : '') + (it.low ? ' — НИЖЕ НОРМЫ' : ''));
     });
     hd.info.forEach(function (s) {
       if (L.length) L.push('');
@@ -15396,8 +15500,60 @@ var qrcode = function() {
     dialog({ title: hd.infoTitle, cls: 'hinfo', text: L.join('\n') });
     return true;
   };
+  /* П16 (Т6-8 Б): в шапке несколько мест нажатия — имя (досье), глава (окно главы), показатель (сведения о нём). */
+  function tapActive(hd, zone) {
+    var t = hd.taps[zone];
+    if (t.kind === 'none') return false;
+    if (t.kind !== 'auto') return true;
+    if (zone === 'who') return hd.profile || !!(hd.items.length || hd.info.length);
+    return !!hd.about || !!(hd.items.length || hd.info.length);
+  }
+  function runTap(t, auto) {
+    if (!t || t.kind === 'none') return false;
+    if (t.kind === 'info') return P.headerInfo();
+    if (t.kind === 'text') { P.sound('key'); dialog({ title: t.title || 'СВЕДЕНИЯ', cls: 'hinfo', text: t.text }); return true; }
+    if (t.kind === 'block') { var b = SG.byId(game.blocks, t.block); if (!b) return P.headerInfo(); P.sound('key'); openBlock(b); return true; }
+    return auto();
+  }
+  P.headerTap = function (zone, varId) {
+    if (!acc()) return false;
+    var hd = SG.headerFor(game, flatState()), a = acc();
+    if (zone === 'item') {
+      var it = hd.items.filter(function (x) { return x.id === varId; })[0];
+      if (!it) return P.headerInfo();
+      return runTap(it.tap, function () {
+        var L = ['Сейчас: **' + it.text + '**' + (it.cells && it.max ? ' из ' + it.max + (it.layers ? ' · слой ' + (it.layer + 1) + ' из ' + it.layers.length : '') : '')];
+        var lm = it.limit;
+        if (lm && (lm.min !== '' || lm.max !== '')) L.push('Пределы: ' + (lm.min !== '' ? 'от ' + lm.min + ' ' : '') + (lm.max !== '' ? 'до ' + lm.max : ''));
+        if (it.over) L.push('**ПЕРЕГРУЗКА:** больше нормы на ' + it.overN);
+        if (it.low) L.push('**НИЖЕ НОРМЫ** (порог ' + it.low0 + ')');
+        P.sound('key');
+        dialog({ title: it.label || it.name, cls: 'hinfo', text: L.join('\n') });
+        return true;
+      });
+    }
+    if (zone === 'chapter') return runTap(hd.taps.chapter, function () {
+      if (!hd.about) return P.headerInfo();
+      P.sound('key');
+      dialog({ title: hd.chapterName || 'ГЛАВА', cls: 'hinfo', text: hd.about });
+      return true;
+    });
+    return runTap(hd.taps.who, function () {
+      if (!hd.profile) return P.headerInfo();
+      P.sound('key');
+      var box = document.createElement('div');
+      box.className = 'profile';
+      box.appendChild(renderItems(a.items));
+      dialog({ title: 'ДОСЬЕ: ' + (a.name || ''), cls: 'hinfo', html: box });
+      return true;
+    });
+  };
   $('bar').addEventListener('click', function (e) {
     if (e.target.closest && e.target.closest('#bar-net, #bar-voice, #bar-color, button')) return;
+    var hv = e.target.closest && e.target.closest('#bar-vars .hv');
+    if (hv) { P.headerTap('item', hv.getAttribute('data-id')); return; }
+    if (e.target.closest && e.target.closest('#bar-chap')) { P.headerTap('chapter'); return; }
+    if (e.target.closest && e.target.closest('.who')) { P.headerTap('who'); return; }
     P.headerInfo();
   });
   function renderNetDot() {
@@ -15918,11 +16074,18 @@ var qrcode = function() {
     hook('state', key, value);
   }
 
+  /* hello центру; П16: пакет (название и версия) и режим голоса — для пульта «ТЕЛЕФОНЫ». */
+  function helloObj() {
+    var a = acc();
+    return { role: state.masterDev ? 'master' : 'phone', dev: state.dev, acc: state.account || null,
+      num: a && a.num ? a.num : null, name: a ? a.name : (state.masterDev ? 'Мастер' : ''), ver: window.SG_APP_VERSION || '',
+      pack: game ? { t: game.title || '', v: game.version || 0 } : null,
+      vmode: a ? ((a.modules || []).indexOf('voice') >= 0 ? (a.voiceMode || 'button') : 'off') : null };
+  }
+  P.helloObj = helloObj;
   function helloNet() {
     if (!Net.url) return;
-    var a = acc();
-    Net.setHello({ role: state.masterDev ? 'master' : 'phone', dev: state.dev, acc: state.account || null,
-      num: a && a.num ? a.num : null, name: a ? a.name : (state.masterDev ? 'Мастер' : ''), ver: window.SG_APP_VERSION || '' });
+    Net.setHello(helloObj());
   }
   /* П-62: адреса центра нет (QR «СЕТЬ» не сканировали) — после входа телефон ищет центр сам. */
   function autoNet() {
@@ -15931,9 +16094,7 @@ var qrcode = function() {
   function startNet() {
     if ((!state.net || !state.net.url) && autoNet()) state.net = { url: Net.AUTO, epoch: state.net && state.net.epoch || null, seq: state.net && state.net.seq || 0 };
     if (!state.net || !state.net.url) return;
-    var a = acc();
-    Net.start(state.net.url, { role: state.masterDev ? 'master' : 'phone', dev: state.dev, acc: state.account || null,
-      num: a && a.num ? a.num : null, name: a ? a.name : (state.masterDev ? 'Мастер' : ''), ver: window.SG_APP_VERSION || '' }, state.net);
+    Net.start(state.net.url, helloObj(), state.net);
   }
   Net.on('msg', onMsg);
   Net.on('state', onState);
@@ -17953,7 +18114,17 @@ var qrcode = function() {
   P.on('vars', function () { if ($('console').classList.contains('on') && tab === 'game' && !document.activeElement.matches('#console input, #console textarea')) render(); });
   P.on('net', function () { if ($('console').classList.contains('on')) { dot(); if (tab === 'net') render(); } });
   Net.on('later', function () { if ($('console').classList.contains('on') && tab === 'log' && !typing()) render(); });
-  Net.on('peers', function () { if ($('console').classList.contains('on') && tab === 'net') { render(); refreshCenter(); } });
+  Net.on('peers', function () { if ($('console').classList.contains('on') && (tab === 'net' || tab === 'phones') && !typing()) { render(); refreshCenter(); } });
+  Net.on('state', function (k) { if (k === 'probe' && $('console').classList.contains('on') && tab === 'phones' && !typing()) render(); });
+  // П16: проба голоса — что услышал каждый телефон (центр шлёт только мастеру)
+  var heardLog = [];
+  Net.on('heard', function (o) {
+    heardLog.push(o);
+    if (heardLog.length > 300) heardLog.shift();
+    var pr = (Net.peers || []).filter(function (p) { return p.dev === o.dev; })[0];
+    if (pr) pr.heard = o;
+    if ($('console').classList.contains('on') && tab === 'phones' && !typing()) render();
+  });
   Net.on('link', function () { if ($('console').classList.contains('on') && tab === 'net' && !typing()) render(); });
   // счёт «подключено» и проверка сети обновляются сами, пока открыта вкладка СЕТЬ (раньше застывал на 0)
   setInterval(function () { if ($('console').classList.contains('on') && tab === 'net') refreshCenter(); }, 3000);
@@ -17964,13 +18135,13 @@ var qrcode = function() {
     dot();
     var tabs = $('console-tabs');
     tabs.innerHTML = '';
-    [['net', 'СЕТЬ'], ['game', 'ИГРА'], ['log', 'ПЕРЕПИСКА']].forEach(function (t) {
+    [['net', 'СЕТЬ'], ['phones', 'ТЕЛЕФОНЫ'], ['game', 'ИГРА'], ['log', 'ПЕРЕПИСКА']].forEach(function (t) {
       tabs.appendChild(h('button', { class: tab === t[0] ? 'on' : '', text: t[1], on: { click: function () { tab = t[0]; render(); } } }));
     });
     var body = $('console-body');
     var keep = body.scrollTop;
     body.innerHTML = '';
-    ({ net: pNet, game: pGame, log: pLog })[tab](body);
+    ({ net: pNet, phones: pPhones, game: pGame, log: pLog })[tab](body);
     body.scrollTop = keep;
   }
 
@@ -18050,6 +18221,84 @@ var qrcode = function() {
         return h('div', { class: 'peer' + (p.online ? ' on' : '') }, h('span', { text: (p.online ? '● ' : '○ ') + (p.role === 'terminal' ? 'ТЕРМИНАЛ' : p.role === 'master' ? 'МАСТЕР' : accName(p.acc)) }),
           h('span', { class: 'sm', text: (p.name && p.role !== 'phone' ? p.name : '') + ago }));
       })) : h('p', { class: 'hint', text: 'Пока никого.' })) : h('p', { class: 'hint', text: 'Список виден на мастерском телефоне (галочка выше).' })));
+  }
+
+  /* ---------- П16: ТЕЛЕФОНЫ — наблюдение за телефонами и проба голоса (основа 1, раздел 6в) ---------- */
+  var VMODES = { off: 'выкл', button: 'по кнопке', screen: 'при разблокированном экране', always: 'всегда в фоне' };
+  function ago(t) {
+    if (!t) return '';
+    var m = Math.round((Net.now() - t) / 60000);
+    return m < 1 ? 'сейчас' : m < 60 ? m + ' мин назад' : Math.floor(m / 60) + ' ч ' + (m % 60) + ' мин назад';
+  }
+  function hhmmss(t) { var d = new Date(t || Date.now()); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ':' + ('0' + d.getSeconds()).slice(-2); }
+  /* Пакет телефона против своего: '' — тот же, 'old' — старее, 'other' — другой пакет, 'new' — новее, '?' — не сообщил. */
+  P.packCmp = function (pk) {
+    var g = P.game;
+    if (!pk) return '?';
+    if ((pk.t || '') !== (g.title || '')) return 'other';
+    return +pk.v < +g.version ? 'old' : +pk.v > +g.version ? 'new' : '';
+  };
+  var heardFilter = '';
+  function pPhones(box) {
+    var st = P.state, g = P.game;
+    if (!st.masterDev) { box.appendChild(card('ТЕЛЕФОНЫ', h('p', { class: 'hint', text: 'Список виден на мастерском телефоне (вкладка «СЕТЬ» → галочка «Этот телефон — мастерский»).' }))); return; }
+    var all = (Net.peers || []).filter(function (p) { return p.role !== 'master' || p.dev !== st.dev; });
+    // не в сети: только персонажи, которых нет на другом телефоне, и один терминал (старые записи центра не мешают)
+    var seen = {};
+    var peers = all.slice().sort(function (a, b) { return (b.online ? 1 : 0) - (a.online ? 1 : 0) || (b.last || 0) - (a.last || 0); }).filter(function (p) {
+      var key = p.role === 'terminal' ? 'term' : p.acc ? 'acc:' + p.acc : '';
+      if (p.online) { if (key) seen[key] = true; return true; }
+      if (!key || seen[key]) return false;
+      seen[key] = true;
+      return true;
+    }).sort(function (a, b) {
+      return (b.online ? 1 : 0) - (a.online ? 1 : 0) || String(accName(a.acc)).localeCompare(String(accName(b.acc)));
+    });
+    var phones = peers.filter(function (p) { return p.role !== 'terminal'; });
+    var bad = phones.filter(function (p) { var c = P.packCmp(p.pack); return c === 'old' || c === 'other'; });
+    var low = phones.filter(function (p) { return p.online && p.bat && p.bat.l >= 0 && p.bat.l < 20 && !p.bat.c; });
+    var warn = [];
+    if (bad.length) warn.push('⚠ Старый или другой пакет: ' + bad.map(function (p) { return accName(p.acc) || p.name || p.dev; }).join(', ') + ' — загрузите «' + (g.title || '') + '» v' + g.version + '.');
+    if (low.length) warn.push('⚠ Заряд меньше 20 %: ' + low.map(function (p) { return accName(p.acc); }).join(', ') + '.');
+    var off = phones.filter(function (p) { return !p.online && p.acc; });
+    if (off.length) warn.push('○ Нет связи: ' + off.map(function (p) { return accName(p.acc) + ' (' + ago(p.last) + ')'; }).join(', ') + '.');
+    box.appendChild(card('ТЕЛЕФОНЫ (' + phones.filter(function (p) { return p.online; }).length + ' из ' + phones.length + ' в сети) · пакет мастера: «' + (g.title || '') + '» v' + g.version,
+      warn.length ? h('div', { class: 'ph-warn' }, warn.map(function (t) { return h('p', { class: 'warn', text: t }); })) : h('p', { class: 'hint', text: phones.length ? 'Все телефоны с этим пакетом.' : 'Пока никого.' }),
+      h('div', { class: 'phones' }, peers.map(function (p) {
+        var cmp = P.packCmp(p.pack), v = p.voice || {}, hd = p.heard || (v.at ? { text: v.last, what: v.what, at: v.at } : null);
+        var who = p.role === 'terminal' ? 'ТЕРМИНАЛ' : p.role === 'master' ? 'МАСТЕР' + (p.name ? ' · ' + p.name : '') : accName(p.acc) || 'без персонажа';
+        var pack = p.role === 'terminal' ? '' : p.pack ? 'пакет v' + p.pack.v + (cmp === 'old' ? ' — СТАРЫЙ' : cmp === 'other' ? ' — ДРУГОЙ («' + p.pack.t + '»)' : cmp === 'new' ? ' — новее, чем у мастера' : '') : 'пакет: не сообщил (старое приложение)';
+        var bat = p.bat && p.bat.l >= 0 ? '🔋 ' + p.bat.l + ' %' + (p.bat.c ? ' ⚡' : '') : '';
+        var vm = p.vmode || v.mode;
+        var voice = vm && vm !== 'off' ? 'голос: ' + (VMODES[vm] || vm) + (p.voice ? (v.on ? ' · 🎙 слушает' : ' · 🎙 не слушает' + (v.err ? ' (' + v.err + ')' : '')) + (v.free ? ' · свободное' : '') : '') : vm === 'off' ? 'голос: выкл' : '';
+        return h('div', { class: 'phone-row' + (p.online ? ' on' : '') + (cmp === 'old' || cmp === 'other' ? ' bad' : ''), 'data-dev': p.dev },
+          h('div', { class: 'pr1' }, h('b', { text: (p.online ? '● ' : '○ ') + who }), h('span', { class: 'sm', text: [pack, bat].filter(Boolean).join(' · ') })),
+          h('div', { class: 'pr2 sm', text: [voice, 'связь: ' + (p.online ? ago(p.last) : 'нет, ' + ago(p.last)), p.apk || p.ver ? 'прил. ' + (p.apk || p.ver) : ''].filter(Boolean).join(' · ') }),
+          hd && hd.text ? h('div', { class: 'pr3 sm', text: 'последнее: «' + hd.text + '» → ' + (hd.what || '—') + ' · ' + ago(hd.at) }) : null);
+      }))));
+    // проба голоса
+    var pr = Net.state.probe || {};
+    var freeC = h('input', { type: 'checkbox', checked: !!pr.free });
+    freeC.addEventListener('change', function () { if (pr.on && need()) { Net.set('probe', { on: true, free: freeC.checked, at: Net.now() }); setTimeout(render, 300); } });
+    var flt = sel([['', 'все телефоны']].concat(phones.filter(function (p) { return p.acc; }).map(function (p) { return [p.dev, accName(p.acc)]; })), heardFilter);
+    flt.addEventListener('change', function () { heardFilter = flt.value; render(); });
+    var lines = heardLog.filter(function (o) { return !heardFilter || o.dev === heardFilter; }).slice(-120).reverse();
+    var area = h('div', { class: 'heard-log' }, lines.length ? lines.map(function (o) {
+      return h('div', { class: 'hl' + (/^сработала/.test(o.what || '') ? ' hit' : '') }, h('span', { class: 'sm', text: hhmmss(o.at) + ' ' + (accName(o.acc) || o.name || o.dev) + (o.free ? ' · своб.' : '') + ': ' }),
+        '«' + (o.text || '') + '» → ' + (o.what || '—') + (o.conf != null && o.conf !== 1 ? ' (' + Math.round(o.conf * 100) + ' %)' : ''));
+    }) : h('p', { class: 'hint', text: pr.on ? 'Говорите рядом с телефонами — здесь появится всё, что они распознали.' : 'Проба выключена.' }));
+    box.appendChild(card('ПРОБА ГОЛОСА' + (pr.on ? ' — ИДЁТ' : ''),
+      h('p', { class: 'hint', text: 'Все телефоны с голосом присылают сюда всё, что распознали (и не-фразы: «не разобрано», «не фраза»). Так видно, какие пароли и какой длины ещё узнаются. Коды при этом срабатывают как обычно.' }),
+      h('label', { class: 'field chk' }, freeC, 'Свободное распознавание (весь текст, а не только фразы кодов; ошибается чаще)'),
+      h('div', { class: 'row2' },
+        btn(pr.on ? 'Остановить пробу' : 'Начать пробу', function () {
+          if (!need()) return;
+          Net.set('probe', pr.on ? null : { on: true, free: freeC.checked, at: Net.now() });
+          setTimeout(render, 300);
+        }, pr.on ? 'dim' : ''),
+        btn('Очистить', function () { heardLog = []; render(); }, 'dim')),
+      h('label', { class: 'field' }, 'Показывать', flt),
+      area));
   }
 
   /* ---------- ИГРА ---------- */
@@ -18355,6 +18604,37 @@ var qrcode = function() {
   /* Услышано (браузер и проверки). Разбор — как у службы Android (SgVoiceCore). */
   P.voiceHeard = function (text, bg) {
     if (!P.game || realMode() === 'off') return null;
+    var r = heard(text, bg);
+    report(text, r, bg);
+    return r;
+  };
+
+  /* П16: проба голоса с пульта (состояние центра «probe»): всё услышанное — мастеру. В APK это делает служба. */
+  var lastHeard = null;
+  function probeOn() { var p = Net.state && Net.state.probe; return !!(p && p.on); }
+  function report(text, m, bg) {
+    var what = !m ? 'не фраза' : m.digits ? 'цифры ' + m.digits : m.cool ? 'пауза: ' + m.cool : 'сработала: ' + m.phrase.text;
+    lastHeard = { last: SG.voiceNorm(text), what: what, at: Net.now() };
+    if (plugin || !probeOn() || !Net.up) return;
+    Net.send({ t: 'stat', heard: { text: SG.voiceNorm(text), conf: 1, what: what, free: !!Net.state.probe.free, bg: !!bg, at: Net.now() } });
+  }
+  /* П16: пульт «ТЕЛЕФОНЫ» — в браузере заряд и голос шлёт страница (в APK — служба, раз в минуту и в фоне). */
+  P.sendStat = function () {
+    if (plugin || !Net.up || !P.acc()) return;
+    function go(bat) {
+      var v = { mode: realMode(), on: mode === 'screen' || mode === 'always' || (mode === 'button' && on), err: '', free: !!(Net.state.probe && Net.state.probe.free) };
+      if (lastHeard) Object.assign(v, lastHeard);
+      Net.send({ t: 'stat', bat: bat, voice: v, apk: '' });
+    }
+    if (navigator.getBattery) navigator.getBattery().then(function (b) { go({ l: Math.round(b.level * 100), c: !!b.charging }); }).catch(function () { go(null); });
+    else go(null);
+  };
+  if (!plugin) {
+    setInterval(P.sendStat, 60000);
+    Net.on('welcome', function () { setTimeout(P.sendStat, 800); });
+  }
+
+  function heard(text, bg) {
     var m = SG.voiceMatch(cfg(), text);
     if (!m) return null;
     if (m.digits) { digits(m.digits, bg); return m; }
