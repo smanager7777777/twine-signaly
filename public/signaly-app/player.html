@@ -15234,7 +15234,7 @@ var qrcode = function() {
     applyTheme();
     $('login-logo').textContent = game.title || 'СИГНАЛЫ';
     $('login-title').textContent = game.texts.loginTitle;
-    $('login-net').textContent = Net.url ? (Net.up ? '● СЕТЬ: ' : '○ НЕТ СВЯЗИ: ') + Net.url.replace(/^ws:\/\//, '') : '';
+    $('login-net').textContent = Net.url ? (Net.up ? '● СЕТЬ: ' : '○ НЕТ СВЯЗИ: ') + (Net.url === Net.AUTO ? 'поиск центра' : Net.url.replace(/^ws:\/\//, '')) : '';
     hook('route');
     if (!acc()) { show('scr-login'); if (state.masterDev) hook('masterHome'); return; }
     show('scr-main');
@@ -17109,7 +17109,7 @@ var qrcode = function() {
     var ln = $('login-net');
     if (!ln) return;
     if (!Net.url) { ln.textContent = ''; return; }
-    var host = Net.url.replace(/^ws:\/\//, '');
+    var host = Net.url === Net.AUTO ? 'поиск центра' : Net.url.replace(/^ws:\/\//, '');
     ln.textContent = Net.up ? '● СЕТЬ: ' + host : '○ НЕТ СВЯЗИ: ' + host + (Net.info ? ' — ' + Net.info : '') + ' · ПРОВЕРИТЬ';
   }
   P.on('net', loginNet);

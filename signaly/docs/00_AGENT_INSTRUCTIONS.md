@@ -377,6 +377,14 @@
 - `net-play` запускает центр без файла — в корне клона меняется отслеживаемый `.tmp` (состояние центра); перед коммитом — `git checkout .tmp`.
 - Проверки: `signaly-session35.test.ts` (8), `signaly/tests/electron-app-t4.mjs` (17), `net-play` (+8: общая переменная туда и обратно, stay с действиями, действия до перехода, после перезагрузки — значение центра, изменение без связи уходит при связи). `prettier` в `node_modules` нет (`npx prettier` ставит новую версию) — формат держать руками, проверка — ESLint.
 
+**Сессия 36 (= П14: окно-сообщение события, «Шапка и меню», «когда» у кода телефона; движок 32):**
+- Движок 32: слово `popup` в `eventArgs` (и в `parseEventArgs` / `writeEventHead` `signaly-events.ts`; `stay` важнее); в `checkEvents` popup-событие (не `stay`, не текущий экран) — одно за проход, когда `!Dialog.isOpen()`: отметка, `eventRun`, `setup.signaly.openDialog({title: pop.name, passage: pop.name})`; переход других событий после этого ждёт закрытия окна (как раньше). Шаблон перенесён `migrate-twee` (иначе наборы игры не видят popup).
+- Заголовок окна SugarCube — `#ui-dialog-title` с `text-transform`: в проверках сравнивать `textContent`, не `innerText`.
+- Подсказки с `{{имя}}` в `public/locales`: i18next подставляет `{{…}}` сам — в строке `{{v}}`, в коде `l(key, {v: '{{имя}}', interpolation: {skipOnVariables: true}})` (без `skipOnVariables` подстановка пустая).
+- Окно «Приложение» → вкладка «Шапка и меню» — `src/dialogs/signaly-app/signaly-app-header.tsx` (`HeaderTab`), «когда» — в `signaly-phone-code-form.tsx` (`.signaly-when-row`); `withDefaults` не менялся (проверка `signaly-app.test` сравнивает с ним), для отличий — `diffDefaults`.
+- Плеер предпросмотра обновлён `sync-app-player.py` из `signaly-app` П14.
+- Проверки: `signaly-session36.test.ts` (8), `signaly/tests/electron-app-t5.mjs` (16, в `runall.sh`), `events-play` (+4).
+
 ## Как записывать решения
 В `05_AUTHOR_DECISIONS.md` — таблица: номер, дата, вопрос, решение автора, что изменено. Решение «не нужно» записывать тоже. Отменённое решение не удалять: пометить, каким решением оно отменено. Находки при проверке, которые меняют поведение для автора (как «через N секунд отменяется при переходе»), и уточнения, которые агент сделал сам в рамках ответа автора (решения 76, 81 … 143), — тоже строкой.
 
