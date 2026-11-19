@@ -2705,7 +2705,9 @@
 					"event": "Event (for rules and the terminal)",
 					"countdown": "Countdown",
 					"vote": "Vote",
-					"color": "Interface colour"
+					"color": "Interface colour",
+					"torch": "Flash (torch)",
+					"beep": "Short signal"
 				},
 				"to": "To whom",
 				"toSelf": "whoever entered the code",
@@ -2764,7 +2766,15 @@
 				},
 				"termAdd": "How much to add (e.g. 1 or -2)",
 				"termHint": "Terminal only.",
-				"termSharedHint": "Shared variable: the center sets it for everyone."
+				"termSharedHint": "Shared variable: the center sets it for everyone.",
+				"torchN": "How many blinks",
+				"torchHint": "Phone torch (in the preview — a screen flash). While the app is open.",
+				"beepSound": "Sound",
+				"beepSounds": {
+					"beep": "signal",
+					"ok": "success",
+					"err": "error"
+				}
 			},
 			"block": {
 				"button": "App block",
@@ -3199,7 +3209,8 @@
 					"chapter": "N minutes after chapter start",
 					"every": "every N minutes",
 					"var": "shared variable (when the condition becomes true)",
-					"limit": "a shared variable hit its limit"
+					"limit": "a shared variable hit its limit",
+					"phone": "on the phone itself: shaken, turned over, screen… (run by the phone)"
 				},
 				"event": "Event name",
 				"eventHint": "The terminal or a code with the «Event» action sends this name.",
@@ -3231,7 +3242,25 @@
 					"min": "minimum",
 					"any": "any"
 				},
-				"shortLimit": "${{name}} — limit"
+				"shortLimit": "${{name}} — limit",
+				"sensor": "What happened",
+				"sensors": {
+					"shake": "shaken",
+					"facedown": "put face down",
+					"faceup": "turned face up",
+					"flip": "turned over (down or up)",
+					"locked": "screen locked longer than N s (fires on unlock)",
+					"unlocked": "screen not locked for longer than N s",
+					"photo": "photo taken",
+					"scan": "QR scanned"
+				},
+				"longer": "Longer than, s",
+				"longerHint": "For «face down», «locked», «not locked»: 0 — at once.",
+				"every": "Not more often than once per, s",
+				"everyHint": "0 — every time.",
+				"phoneWho": "On whose phones",
+				"phoneHint": "Run by the phone itself while the app is open. «To whoever entered the code» — this phone; «all» and «selected» — via the centre.",
+				"shortPhone": "📱 {{what}}"
 			},
 			"votes": {
 				"title": "Question for players",

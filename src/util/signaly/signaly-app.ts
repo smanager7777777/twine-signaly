@@ -1013,6 +1013,8 @@ function diffDefaults(game: AppGame): AppGame {
 			}))
 		},
 		menu: (Array.isArray(g.menu) ? g.menu : []).map((m: AppGame) => ({chapter: 1, who: [], ...m})),
+		// Сессия 38 (П16, основа 2): правило «на телефоне» — поля по умолчанию не отличие.
+		rules: (Array.isArray(g.rules) ? g.rules : []).map((r: AppGame) => (r.on === 'phone' ? {sensor: 'shake', seconds: 0, every: 0, who: [], ...r} : r)),
 		limits: Array.isArray(g.limits) ? g.limits : []
 	};
 }

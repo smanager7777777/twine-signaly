@@ -48,3 +48,13 @@ describe('слои шкалы и нажатие на шапку', () => {
 		]);
 	});
 });
+
+describe('правило «на телефоне» (основа 2)', () => {
+	it('поля по умолчанию — не отличие; сам датчик — отличие', () => {
+		const r = {id: 'r', name: 'Вниз', on: 'phone', sensor: 'facedown', actions: [{type: 'torch', n: 3, to: 'self'}]};
+		const a = {rules: [r]};
+
+		expect(diffGames(a, {rules: [{...r, seconds: 0, every: 0, who: []}]})).toEqual([]);
+		expect(diffGames(a, {rules: [{...r, sensor: 'shake'}]}).length).toBe(1);
+	});
+});

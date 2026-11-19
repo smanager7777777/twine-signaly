@@ -148,6 +148,9 @@ export const appModules = ['chat', 'anon', 'delay', 'photo', 'notes', 'voice'];
 export const moduleOff = ['hidden', 'denied', 'broken'];
 export const voiceModes = ['off', 'button', 'screen', 'always'];
 /** Действия кода и правила (ACTIONS). */
+/** Сессия 38 (П16, основа 2): события самого телефона (правило on: 'phone', как SG.PHONE_SENSORS приложения). */
+export const phoneSensors = ['shake', 'facedown', 'faceup', 'flip', 'locked', 'unlocked', 'photo', 'scan'];
+
 export const actionTypes = [
 	'open',
 	'notify',
@@ -161,7 +164,10 @@ export const actionTypes = [
 	'event',
 	'countdown',
 	'vote',
-	'color'
+	'color',
+	// Сессия 38 (П16, основа 2): вспышка и короткий сигнал
+	'torch',
+	'beep'
 ];
 /** Эффекты сбоя «искажение экрана». */
 export const glitchEffects = [

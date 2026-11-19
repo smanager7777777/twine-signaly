@@ -1,4 +1,4 @@
-// Проверка программы (Electron), сессия 38 (= П16): «Шапка и меню» — слои перезаполнения шкалы (предел — деления × слои),
+// Проверка программы (Electron), сессия 38 (= П16): «События» — правило «на самом телефоне» (основа 2); «Шапка и меню» — слои перезаполнения шкалы (предел — деления × слои),
 // нажатие на части шапки (Т6-8 Б: имя, глава, показатель), окно главы; предпросмотр телефона — слои и нажатия.
 // Запуск: TWEE=<шаблон> PACKS=<папка с app-test-net-pack.sgpack> SHOT=<снимок.png>
 //   xvfb-run -a -s "-screen 0 1600x1000x24" node signaly/tests/electron-app-t7.mjs <playwright>
@@ -110,6 +110,28 @@ await win.waitForTimeout(1500);
 await varWin.getByRole('button', {name: 'Закрыть'}).click();
 await win.waitForTimeout(500);
 
+// 2а. «События» → условие на телефонах «на самом телефоне» (основа 2): экраном вниз дольше 3 с → вспышка.
+await win.getByRole('tab', {name: 'История'}).click();
+await win.locator('button.icon-button', {hasText: /^События$/}).first().click();
+await evWin().waitFor();
+await evWin().getByRole('button', {name: '+ Условие на телефонах'}).click();
+await win.waitForTimeout(300);
+await field('Название (для мастера)', evWin()).fill('Экраном вниз');
+await field('Когда', evWin()).selectOption('phone');
+await win.waitForTimeout(200);
+await field('Что случилось', evWin()).selectOption('facedown');
+await field('Дольше, с', evWin()).fill('3');
+await field('Дольше, с', evWin()).blur();
+await evWin().locator('select').filter({hasText: 'Вспышка (фонарик)'}).last().selectOption('torch');
+await win.waitForTimeout(300);
+await win.screenshot({path: shot('events-phone')});
+check('в списке — «📱 положили экраном вниз»', (await evWin().innerText()).includes('📱 положили экраном вниз'));
+await evWin().getByRole('button', {name: 'Сохранить'}).click();
+await win.waitForTimeout(2500);
+const prule = [...passageText('Приложение').matchAll(/<<app-rule>>(.*?)<<\/app-rule>>/g)].map(m => JSON.parse(m[1].replace(/&lt;/g, '<'))).find(x => x.name === 'Экраном вниз') || {};
+check('правило: on phone, facedown, 3 с, вспышка этому телефону', prule.on === 'phone' && prule.sensor === 'facedown' && prule.seconds === 3 && prule.actions?.[0]?.type === 'torch' && prule.actions[0].to === 'self' && prule.actions[0].n === 3, JSON.stringify(prule));
+await evWin().getByRole('button', {name: 'Закрыть'}).click();
+await win.waitForTimeout(500);
 // 3. «Шапка и меню»: шкала 2 деления, 3 слоя (обычный, цвет, сбой); нажатия; окно главы 1.
 await openApp();
 await appTab('Шапка и меню');
@@ -179,7 +201,7 @@ if (await appWin().getByRole('button', {name: 'Собрать всё равно'
 await win.waitForFunction(() => /\.sgpack/.test(document.querySelector('.signaly-app-message')?.textContent || ''), null, {timeout: 20000});
 const built = fs.readdirSync(game).find(f => f.endsWith('.sgpack'));
 const pack = JSON.parse(strFromU8(unzipSync(fs.readFileSync(path.join(game, built)))['game.json']));
-check('в пакете: слои, нажатия, окно главы', pack.header?.items?.[0]?.layers?.length === 3 && pack.header?.taps?.who?.kind === 'none' && pack.header?.chapters?.[0]?.about?.startsWith('ОКНО ГЛАВЫ'), JSON.stringify(pack.header));
+check('в пакете: слои, нажатия, окно главы, правило «на телефоне»', pack.rules.some(x => x.on === 'phone' && x.sensor === 'facedown') && pack.header?.items?.[0]?.layers?.length === 3 && pack.header?.taps?.who?.kind === 'none' && pack.header?.chapters?.[0]?.about?.startsWith('ОКНО ГЛАВЫ'), JSON.stringify(pack.header));
 await app.close();
 console.log(results.every(Boolean) ? `ВСЁ ХОРОШО (${results.length})` : `ОШИБКИ: ${results.filter(r => !r).length} из ${results.length}`);
 process.exit(results.every(Boolean) ? 0 : 1);

@@ -17,6 +17,7 @@ import {
 	newItem,
 	normCode,
 	parseObject,
+	phoneSensors,
 	randomDigits,
 	themeColors,
 	uid,
@@ -434,6 +435,8 @@ const eventLabel = (sub: EventsSub, x: AppGame, l: (k: string, o?: Record<string
 				? l('rules.shortVar', {name: x.var, op: l(`rules.ops.${x.op || '='}`), value: x.value})
 				: x.on === 'limit'
 				? l('rules.shortLimit', {name: x.var})
+				: x.on === 'phone'
+				? l('rules.shortPhone', {what: l(`rules.sensors.${x.sensor || 'shake'}`).replace(/ \(.*$/, '')})
 				: l('rules.shortEvent')
 		}`;
 	}
@@ -456,7 +459,7 @@ export const PhoneRuleForm: React.FC<{rule: AppGame; set: (patch: AppGame) => vo
 			<ChoiceField
 				label={l('rules.on')}
 				onChange={v => set({on: v})}
-				options={['event', 'chapter', 'every', 'var', 'limit'].map(v => ({label: l(`rules.onN.${v}`), value: v}))}
+				options={['event', 'chapter', 'every', 'var', 'limit', 'phone'].map(v => ({label: l(`rules.onN.${v}`), value: v}))}
 				value={on}
 			/>
 			{on === 'limit' && (
@@ -479,6 +482,21 @@ export const PhoneRuleForm: React.FC<{rule: AppGame; set: (patch: AppGame) => vo
 						options={['max', 'min', 'any'].map(v => ({label: l(`rules.sides.${v}`), value: v}))}
 						value={str('side') || 'max'}
 					/>
+				</>
+			)}
+			{on === 'phone' && (
+				<>
+					{/* Сессия 38 (П16, основа 2): событие самого телефона — выполняет телефон. */}
+					<ChoiceField
+						label={l('rules.sensor')}
+						onChange={sensor => set({sensor})}
+						options={phoneSensors.map(v => ({label: l(`rules.sensors.${v}`), value: v}))}
+						value={str('sensor') || 'shake'}
+					/>
+					<NumField hint={l('rules.longerHint')} label={l('rules.longer')} onChange={seconds => set({seconds: Math.max(0, Math.round(seconds))})} value={Number(x.seconds) || 0} />
+					<NumField hint={l('rules.everyHint')} label={l('rules.every')} onChange={every => set({every: Math.max(0, Math.round(every))})} value={Number(x.every) || 0} />
+					<AccountsField label={l('rules.phoneWho')} onChange={who => set({who})} value={x.who} />
+					<div className="signaly-field-hint">{l('rules.phoneHint')}</div>
 				</>
 			)}
 			{on === 'event' && (
@@ -512,7 +530,7 @@ export const PhoneRuleForm: React.FC<{rule: AppGame; set: (patch: AppGame) => vo
 			)}
 			{on !== 'chapter' && <ChaptersChecks label={l('rules.chapters')} onChange={chapters => set({chapters})} value={x.chapters} />}
 			<h3>{l('code.actions')}</h3>
-			<AppActions actions={x.actions} onChange={actions => set({actions})} self={false} />
+			<AppActions actions={x.actions} onChange={actions => set({actions})} self={on === 'phone'} />
 		</>
 	);
 };

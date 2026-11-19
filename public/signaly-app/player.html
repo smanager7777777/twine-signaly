@@ -408,6 +408,10 @@ table.meter{border-collapse:collapse;font-size:12px;width:100%}
 table.meter td,table.meter th{border-bottom:1px solid var(--text-30);padding:2px 4px;text-align:left}
 #bar #bar-vars{margin-left:0}
 
+/* П16: вспышка экраном (браузер; в APK — фонарик) */
+#flash{position:fixed;top:0;right:0;bottom:0;left:0;z-index:80;pointer-events:none;background:#fff;opacity:0}
+#flash.on{opacity:.9}
+
 </style>
 <style id="sg-theme"></style>
 <script>
@@ -10930,6 +10934,13 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
       if (r.on === 'var') { r.var = String(r.var || '').replace(/^\$/, ''); r.op = r.op || '='; if (r.value === undefined) r.value = ''; }
       // П15: «общая переменная упёрлась в предел» (game.limits): side — max / min / any
       if (r.on === 'limit') { r.var = String(r.var || '').replace(/^\$/, ''); r.side = r.side === 'min' || r.side === 'any' ? r.side : 'max'; }
+      // П16 (основа 2): событие на самом телефоне — встряхнули, экраном вниз/вверх, экран заблокирован дольше N с…; выполняет телефон
+      if (r.on === 'phone') {
+        r.sensor = PHONE_SENSORS.some(function (x) { return x[0] === r.sensor; }) ? r.sensor : 'shake';
+        r.seconds = Math.max(0, +r.seconds || 0);
+        r.every = Math.max(0, +r.every || 0);
+        r.who = Array.isArray(r.who) ? r.who : [];
+      }
       r.chapter = +r.chapter || 1;
       r.minutes = +r.minutes || 0;
       r.chapters = Array.isArray(r.chapters) ? r.chapters : [];
@@ -11380,8 +11391,12 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
   var ACTIONS = {
     open: 'Открыть блоки', notify: 'Уведомление', alarm: 'Аварийный режим', glitch: 'Сбой / состояние', fix: 'Убрать сбой',
     module: 'Функция приложения', app: 'Открыть прибор', chapter: 'Глава для всех', term: 'Переменная терминала',
-    event: 'Событие (для правил и терминала)', countdown: 'Обратный отсчёт', vote: 'Голосование', color: 'Цвет интерфейса'
+    event: 'Событие (для правил и терминала)', countdown: 'Обратный отсчёт', vote: 'Голосование', color: 'Цвет интерфейса',
+    torch: 'Вспышка (фонарик)', beep: 'Короткий сигнал'
   };
+  /* П16 (основа 2): события телефона — условие правила «на телефоне» (выполняет сам телефон). seconds — «дольше N с». */
+  var PHONE_SENSORS = [['shake', 'встряхнули'], ['facedown', 'положили экраном вниз'], ['faceup', 'перевернули экраном вверх'], ['flip', 'перевернули (вниз или вверх)'],
+    ['locked', 'экран заблокирован дольше N с (срабатывает при разблокировке)'], ['unlocked', 'экран не блокировали дольше N с'], ['photo', 'сделан снимок камерой'], ['scan', 'отсканирован QR']];
 
   /* Разворачивает действия в сообщения протокола (docs/06_NETWORK.md).
      ctx: {self: id аккаунта или null (правила центра), now: время центра или '{{now}}'}.
@@ -11410,6 +11425,8 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
       else if (a.type === 'fix') { if ((a.to == null || a.to === 'self') && ctx.self) out.local.push({ kind: 'fix', body: { id: a.glitch || '' } }); else route(a, 'fix', { id: a.glitch || '' }); }
       else if (a.type === 'module') route(a, 'module', { id: a.module, on: a.on || 'on' });
       else if (a.type === 'app') route(a, 'app', { id: a.app });
+      else if (a.type === 'torch') route(a, 'torch', { n: Math.max(1, Math.min(20, +a.n || 3)) });   // П16: мигнуть вспышкой N раз
+      else if (a.type === 'beep') route(a, 'beep', { sound: a.sound || 'beep', vibrate: a.vibrate !== false });   // П16: короткий сигнал
       else if (a.type === 'color') route(a, 'color', a.mode === 'set' ? { set: a.color || '' } : a.mode === 'any-on' ? { any: true } : a.mode === 'any-off' ? { any: false } : { offer: true });
       else if (a.type === 'alarm') {
         var al = byId(game.alarms, a.alarm) || {};
@@ -11696,6 +11713,7 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
       if (r.on === 'limit' && !sharedVar(game, r.var)) err('Правило «' + (r.name || r.var || '?') + '»: общей переменной «' + (r.var || '') + '» нет');
       else if (r.on === 'limit' && !limitOf(game, r.var)) warn('Правило «' + (r.name || r.var || '?') + '»: у переменной «' + r.var + '» нет предела — правило не сработает');
       if (r.on === 'var' && !sharedVar(game, r.var)) err('Правило «' + (r.name || r.var || '?') + '»: общей переменной «' + (r.var || '') + '» нет');
+      if (r.on === 'phone' && !r.actions.length) warn('Правило «' + (r.name || '?') + '» (на телефоне): нет действий');
     });
     function varsIn(text, owner) {
       String(text || '').replace(/\{\{\s*\$?([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g, function (all, n) {
@@ -12013,6 +12031,7 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
     clampVar: clampVar,
     CELLS_MAX: CELLS_MAX,
     LAYER_FX: LAYER_FX,
+    PHONE_SENSORS: PHONE_SENSORS,
     TAP_KINDS: TAP_KINDS,
     normTap: normTap,
     LAYERS_MAX: LAYERS_MAX,
@@ -15299,6 +15318,7 @@ var qrcode = function() {
     (P.hooks[name] || []).forEach(function (fn) { try { fn.apply(null, args); } catch (e) { console.error(e); } });
   }
   P.on = function (name, fn) { (P.hooks[name] = P.hooks[name] || []).push(fn); };
+  P.hook = function () { hook.apply(null, arguments); };   // П16: другие файлы сообщают о событиях (встряхнули, снимок)
 
   /* ---------- хранилище (IndexedDB; в предпросмотре — память) ---------- */
   var DB = 'signaly-player';
@@ -16011,6 +16031,7 @@ var qrcode = function() {
     var b = byName(o.kind, o.body || {});
     var m = state.account ? mine() : null;
     if (o.kind === 'notify') { P.notice(b.title, b.text, o); return; }
+    if (o.kind === 'torch' || o.kind === 'beep') { if (P.phoneFx) P.phoneFx(o.kind, b); return; }   // П16: вспышка, короткий сигнал
     if (!m) return;
     if (o.kind === 'open') {
       var ids = (b.blocks || []).filter(function (id) { return SG.byId(game.blocks, id) && m.unlocked.indexOf(id) < 0; });
@@ -16308,6 +16329,7 @@ var qrcode = function() {
   var lastCode = { v: '', t: 0 };
   function found(text) {
     var code = text.replace(/^SG:/i, '');
+    hook('scan', code);   // П16: событие телефона «отсканирован QR»
     if (acc()) enter(code, 'scan');
     else { stopScan(); enter(code, 'scan'); }
   }
@@ -17181,6 +17203,7 @@ var qrcode = function() {
   // встряхнуть: 3 сильных рывка за 2 секунды
   var jolts = [];
   P.shake = function () {
+    P.hook('shake');   // П16: событие телефона «встряхнули»
     var fixed = active().filter(function (a) { return a.g.fix === 'shake'; });
     if (!fixed.length) return;
     var m = P.mine();
@@ -17835,6 +17858,7 @@ var qrcode = function() {
     m.photos.unshift(ph);
     if (m.photos.length > 20) m.photos.length = 20;
     P.save();
+    P.hook('photo', ph.id);   // П16: событие телефона «сделан снимок»
     return ph;
   }
   function sendPhoto(ch, ph, o) { return Promise.resolve(sendChat(ch, '', ph.src, o)); }
@@ -18700,6 +18724,125 @@ var qrcode = function() {
         plugin.voiceMeter({ on: !st.metering }).then(function (s) { st = s; setTimeout(P.voiceDiag, 30); }).catch(function () {});
       } } : null,
       { label: 'Закрыть', cls: 'dim' }].filter(Boolean) });
+  };
+})();
+
+</script>
+<script>
+/* СИГНАЛЫ — события самого телефона (П16, основа 2, раздел 6в): правило «на телефоне» (game.rules, on: 'phone')
+   срабатывает на этом телефоне, когда его встряхнули, положили экраном вниз или перевернули вверх, экран был
+   заблокирован дольше N с (при разблокировке) или не блокировался дольше N с, сделан снимок, отсканирован QR.
+   Действия — как у кода (тому, кто «ввёл» — этому телефону; другим — через центр), в том числе новые:
+   «Вспышка» (фонарик мигает N раз) и «Короткий сигнал» (звук и вибрация). Работает, пока приложение открыто.
+   Проверки: P.phoneEvent(вид) и поддельные devicemotion / visibilitychange (tests/net-e2e.mjs). */
+(function () {
+  'use strict';
+  var P = window.SGP, SG = window.SG, Net = window.SGNet;
+  var plugin = Net.plugin;
+  var last = {};          // правило → время срабатывания (пауза every)
+  var face = 'up', faceAt = 0, faceTimer = 0, faceWant = '';
+  var hiddenAt = 0, visibleAt = Date.now(), visTimer = 0;
+
+  function rules(kind) {
+    var g = P.game, st = P.state;
+    if (!g || !st || !st.account) return [];
+    return (g.rules || []).filter(function (r) {
+      if (r.on !== 'phone' || r.sensor !== kind) return false;
+      if (r.who && r.who.length && r.who.indexOf(st.account) < 0) return false;
+      if (r.chapters && r.chapters.length && r.chapters.indexOf(st.chapter || 1) < 0) return false;
+      return true;
+    });
+  }
+  /* Событие телефона: kind — вид, dur — сколько длилось (мс) для «дольше N с». Возвращает число сработавших правил. */
+  P.phoneEvent = function (kind, dur) {
+    var n = 0, now = Date.now();
+    rules(kind).forEach(function (r) {
+      if (r.seconds && (dur || 0) < r.seconds * 1000) return;
+      if (r.every && last[r.id] && now - last[r.id] < r.every * 1000) return;
+      last[r.id] = now;
+      n++;
+      P.doActions(r.actions);
+    });
+    if (kind === 'facedown' || kind === 'faceup') n += P.phoneEvent('flip', dur);
+    return n;
+  };
+
+  /* ---------- датчики ---------- */
+  P.on('shake', function () { P.phoneEvent('shake'); });
+  window.addEventListener('devicemotion', function (e) {
+    var a = e.accelerationIncludingGravity;
+    if (!a || a.z == null) return;
+    var want = a.z < -7 ? 'down' : a.z > 7 ? 'up' : '';
+    if (!want || want === face) { if (want === face) faceWant = ''; return; }
+    if (faceWant === want) return;
+    faceWant = want;
+    clearTimeout(faceTimer);
+    // положение держится 0,8 с — не дрожание в руке
+    faceTimer = setTimeout(function () {
+      if (faceWant !== want) return;
+      var dur = Date.now() - faceAt;
+      face = want;
+      faceAt = Date.now();
+      faceWant = '';
+      P.phoneEvent(want === 'down' ? 'facedown' : 'faceup', dur);
+      if (want === 'down') checkDown();
+    }, 800);
+  });
+  // «экраном вниз дольше N с» — правило facedown с seconds срабатывает, пока телефон лежит
+  function checkDown() {
+    rules('facedown').forEach(function (r) {
+      if (!r.seconds) return;
+      var at = faceAt;
+      setTimeout(function () { if (face === 'down' && faceAt === at) P.phoneEvent('facedown', Date.now() - at); }, r.seconds * 1000 + 50);
+    });
+  }
+
+  /* ---------- экран: заблокирован дольше N / не блокировали дольше N ---------- */
+  function planVisible() {
+    clearTimeout(visTimer);
+    var list = rules('unlocked').filter(function (r) { return r.seconds > 0; });
+    if (!list.length) return;
+    var at = visibleAt;
+    var next = Math.min.apply(null, list.map(function (r) { return r.seconds * 1000; }));
+    visTimer = setTimeout(function () {
+      if (document.hidden || visibleAt !== at) return;
+      P.phoneEvent('unlocked', Date.now() - at);
+      visibleAt = Date.now();   // следующий раз — снова через N с
+      planVisible();
+    }, next + 50);
+  }
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { hiddenAt = Date.now(); clearTimeout(visTimer); return; }
+    var dur = hiddenAt ? Date.now() - hiddenAt : 0;
+    hiddenAt = 0;
+    visibleAt = Date.now();
+    if (dur) P.phoneEvent('locked', dur);
+    planVisible();
+  });
+  ['login', 'route'].forEach(function (k) { P.on(k, function () { visibleAt = Date.now(); planVisible(); }); });
+  P.on('photo', function () { P.phoneEvent('photo'); });
+  P.on('scan', function () { P.phoneEvent('scan'); });
+
+  /* ---------- действия: вспышка и короткий сигнал ---------- */
+  P.phoneFx = function (kind, b) {
+    b = b || {};
+    if (kind === 'beep') {
+      P.sound(b.sound === 'err' ? 'err' : b.sound === 'ok' ? 'ok' : 'note');
+      if (b.vibrate !== false && navigator.vibrate) navigator.vibrate(150);
+      return;
+    }
+    if (kind === 'torch') {
+      var n = Math.max(1, Math.min(20, +b.n || 3));
+      if (plugin && plugin.flash) { plugin.flash({ count: n }).catch(function () {}); return; }
+      // браузер (и старая служба): вспышка экраном
+      var el = document.getElementById('flash') || document.body.appendChild(Object.assign(document.createElement('div'), { id: 'flash' }));
+      var k = 0;
+      (function step() {
+        el.className = k % 2 === 0 ? 'on' : '';
+        if (++k < n * 2) setTimeout(step, 180); else el.className = '';
+      })();
+      el.setAttribute('data-n', n);
+    }
   };
 })();
 

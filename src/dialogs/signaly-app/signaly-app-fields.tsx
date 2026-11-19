@@ -365,8 +365,11 @@ export const ItemList: React.FC<{
 export function newAction(type: string, self: boolean, refs: AppRefs): AppGame {
 	const a: AppGame = {type};
 
-	if (['open', 'notify', 'glitch', 'fix', 'module', 'app', 'color'].includes(type)) {
+	if (['open', 'notify', 'glitch', 'fix', 'module', 'app', 'color', 'torch', 'beep'].includes(type)) {
 		a.to = self ? 'self' : [];
+	}
+	if (type === 'torch') {
+		a.n = 3;
 	}
 	if (type === 'open') {
 		a.blocks = [];
@@ -579,6 +582,26 @@ const ActionBody: React.FC<{a: AppGame; self: boolean; set: (patch: AppGame) => 
 					/>
 					<NumField label={l('act.seconds')} onChange={seconds => set({seconds})} value={Number(a.seconds) || 0} />
 					{text('title', l('act.countTitle'))}
+				</>
+			);
+		// Сессия 38 (П16, основа 2): вспышка и короткий сигнал
+		case 'torch':
+			return (
+				<>
+					<NumField hint={l('act.torchHint')} label={l('act.torchN')} max={20} min={1} onChange={n => set({n: Math.round(n)})} value={Number(a.n) || 3} />
+					{to}
+				</>
+			);
+		case 'beep':
+			return (
+				<>
+					<ChoiceField
+						label={l('act.beepSound')}
+						onChange={sound => set({sound})}
+						options={['beep', 'ok', 'err'].map(v => ({label: l(`act.beepSounds.${v}`), value: v}))}
+						value={String(a.sound ?? 'beep')}
+					/>
+					{to}
 				</>
 			);
 		case 'vote':
