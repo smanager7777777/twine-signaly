@@ -138,7 +138,7 @@ check('«Что проверять»: переменная, заходы, сот
 await blur();
 await what().first().selectOption('visits');
 await win.waitForTimeout(300);
-await panel().getByLabel('Экран').selectOption('Start');
+await panel().getByLabel('Экран', {exact: true}).selectOption('Start');
 await panel().getByLabel('Когда').first().selectOption('ge');
 await win.waitForTimeout(300);
 await panel().getByLabel('Сколько раз').fill('3');
@@ -175,7 +175,7 @@ await win.waitForTimeout(600);
 await blur();
 await what().first().selectOption('visits');
 await win.waitForTimeout(300);
-await panel().getByLabel('Экран').selectOption('Start');
+await panel().getByLabel('Экран', {exact: true}).selectOption('Start');
 await win.waitForTimeout(600);
 
 /* 2. Действие «Вернуться на экран, где были» */
@@ -199,7 +199,7 @@ await win.waitForTimeout(600);
 await blur();
 await panel().getByLabel('Что показывать').selectOption('visits');
 await win.waitForTimeout(300);
-await panel().getByLabel('Экран').selectOption('Start');
+await panel().getByLabel('Экран', {exact: true}).selectOption('Start');
 await panel().getByLabel('Подпись').fill('Заходов');
 await win.waitForTimeout(600);
 value = await cmValue();
@@ -212,7 +212,7 @@ await win.waitForTimeout(600);
 await blur();
 await what().first().selectOption('visits');
 await win.waitForTimeout(300);
-await panel().getByLabel('Экран').selectOption('Start');
+await panel().getByLabel('Экран', {exact: true}).selectOption('Start');
 await panel().getByLabel('Когда').first().selectOption('off');
 await win.waitForTimeout(600);
 value = await cmValue();

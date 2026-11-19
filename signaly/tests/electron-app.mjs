@@ -147,8 +147,9 @@ check('в истории движок 31', story.includes('Версия движ
 check('цвет тега app-block на карте — синий', story.includes('<tw-tag name="app-block" color="blue">'), (story.match(/<tw-tag[^>]*>/g) || []).join(' '));
 
 // 2. Собрать пакет — тот же пакет, версия +1.
-await btn(/^Собрать пакет/).click();
-await win.waitForFunction(() => document.querySelector('.signaly-app-message')?.textContent.includes('Собран пакет'), null, {timeout: 15000});
+await btn(/^Опубликовать пакет/).click();
+await win.waitForFunction(() => document.querySelector('.signaly-app-message')?.textContent.includes('Собран пакет'), null, {timeout: 20000});
+check('«Опубликовать»: сначала проверка истории, ошибок нет', (await appText()).includes('Проверка истории: ошибок нет'), await appText());
 const builtPath = path.join(game, 'ТЕСТ-v3.sgpack');
 check('пакет собран в папку игры: ТЕСТ-v3.sgpack', fs.existsSync(builtPath), await appText());
 const built = unzipSync(fs.readFileSync(builtPath));

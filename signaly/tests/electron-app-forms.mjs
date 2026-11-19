@@ -124,7 +124,7 @@ await win.screenshot({path: shot('preview')});
 await appTab('Общее');
 await field('Название (видно на экране входа)').fill('СЕТЬ-ФОРМЫ');
 await field('Имя мастера в чатах').fill('Капитан');
-check('несохранённое: «Загрузить» и «Собрать» недоступны', await appWin().getByRole('button', {name: /Собрать пакет/}).isDisabled());
+check('несохранённое: «Загрузить» и «Опубликовать» недоступны', await appWin().getByRole('button', {name: /Опубликовать пакет/}).isDisabled());
 await appSave();
 check('Общее → в пассаже «Приложение»: название и имя мастера', settingsOf().general.title === 'СЕТЬ-ФОРМЫ' && settingsOf().general.chat.master === 'Капитан', JSON.stringify(settingsOf().general).slice(0, 400));
 
@@ -149,13 +149,23 @@ await appWin().getByRole('tab', {name: /^Сбои и состояния/}).click
 await appWin().getByRole('button', {name: '+ Добавить'}).click();
 await field('Название (видно игроку на полосе сверху; его же выбирает терминал)').fill('Сбой формы');
 await appWin().getByRole('checkbox', {name: 'темнота'}).check();
-await appWin().getByRole('tab', {name: /^Правила/}).click();
-await appWin().getByRole('button', {name: '+ Добавить'}).click();
-await field('Название события').fill('forms_event');
-await field('Добавить действие телефона').selectOption({label: 'Сбой / состояние'});
-await win.waitForTimeout(300);
-await appWin().locator('.signaly-phone-actions fieldset').last().getByLabel('Сбой / состояние', {exact: true}).selectOption({label: 'Сбой формы'});
 await appSave();
+// Сессия 35 (Т4-4 А): правила центра — в окне «События».
+await appWin().getByRole('button', {name: 'Закрыть'}).click();
+await win.waitForTimeout(500);
+await win.locator('button.icon-button', {hasText: /^События$/}).first().click();
+const evWin = win.locator('.signaly-events-window');
+await evWin.waitFor();
+await evWin.getByRole('button', {name: '+ Условие на телефонах'}).click();
+await evWin.getByLabel('Название события', {exact: true}).fill('forms_event');
+await evWin.getByLabel('Добавить действие телефона', {exact: true}).selectOption({label: 'Сбой / состояние'});
+await win.waitForTimeout(300);
+await evWin.locator('.signaly-phone-actions fieldset').last().getByLabel('Сбой / состояние', {exact: true}).selectOption({label: 'Сбой формы'});
+await evWin.getByRole('button', {name: 'Сохранить'}).click();
+await win.waitForTimeout(2500);
+await evWin.getByRole('button', {name: 'Закрыть'}).click();
+await win.waitForTimeout(500);
+await openApp();
 const st = settingsOf();
 const fg = st.glitches.find(g => g.name === 'Сбой формы');
 const rule = st.rules.find(r => r.event === 'forms_event');
@@ -260,8 +270,13 @@ while ((await win.locator('.dialog-card-header-controls button[aria-label="За�
 }
 await openApp();
 await appTab('Пакет');
-await appWin().getByRole('button', {name: /^Собрать пакет/}).click();
-await win.waitForFunction(() => document.querySelector('.signaly-app-message')?.textContent.includes('Собран пакет'), null, {timeout: 15000});
+await appWin().getByRole('button', {name: /^Опубликовать пакет/}).click();
+await win.waitForFunction(() => document.querySelector('.signaly-app-message')?.textContent.includes('Собран пакет') || document.querySelector('.signaly-app-publish'), null, {timeout: 20000});
+if (await appWin().locator('.signaly-app-publish').count()) {
+	console.log('проверка перед публикацией: ' + (await appWin().locator('.signaly-app-publish').innerText()));
+	await appWin().getByRole('button', {name: 'Собрать всё равно'}).click();
+	await win.waitForFunction(() => document.querySelector('.signaly-app-message')?.textContent.includes('Собран пакет'), null, {timeout: 15000});
+}
 const built = fs.readdirSync(game).filter(f => f.endsWith('.sgpack')).sort().pop();
 const zip = unzipSync(fs.readFileSync(path.join(game, built)));
 const g = JSON.parse(strFromU8(zip['game.json']));
