@@ -114,6 +114,29 @@ export function appProblems(game: AppGame, files?: Set<string>, blockPassage: (i
 				arr(c.actions).some(a => a.type === 'open' && arr(a.blocks).includes(id as never))
 		) || rules.some(r => arr(r.actions).some(a => a.type === 'open' && arr(a.blocks).includes(id as never)));
 
+	// Сессия 35 (Т4-3): правило «общая переменная» без такой переменной (как SG.problems приложения).
+	const shared = arr(game.shared);
+
+	rules.forEach(r => {
+		if (r.on === 'var' && !shared.some(v => v.name === String(r.var ?? '').replace(/^\$/, ''))) {
+			err(`Правило «${r.name || r.var || '?'}»: общей переменной «${r.var ?? ''}» нет`, 'settings');
+		}
+	});
+	const varsIn = (text: unknown, owner: string, where: string) => {
+		for (const m of String(text ?? '').matchAll(/\{\{\s*\$?([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g)) {
+			if (!shared.some(v => v.name === m[1])) {
+				warn(`${owner}: {{${m[1]}}} — нет такой общей переменной (окно «Переменные», галочка «общая»)`, where);
+			}
+		}
+	};
+
+	blocks.forEach(b => arr(b.items).forEach(it => it.type === 'text' && varsIn(it.text, `Блок «${b.title || '?'}»`, blockPassage(String(b.id)))));
+	codes.forEach(c => {
+		const label = String(c.comment || c.note || c.code || c.voice || '?');
+
+		[c.answer, ...arr(c.answers), ...arr(c.variants).map(v => v.answer)].forEach(t => varsIn(t, `Код «${label}»`, 'codes'));
+	});
+	arr(game.notices).forEach(n => varsIn(`${n.title ?? ''} ${n.text ?? ''}`, `Уведомление «${n.name || n.title || '?'}»`, 'settings'));
 	blocks.forEach(b => {
 		const name = String(b.title || '(без названия)');
 		const where = blockPassage(String(b.id));

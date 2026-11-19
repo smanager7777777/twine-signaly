@@ -423,13 +423,78 @@ export const DevicesTab: React.FC<TabProps> = ({game, sel, setGame, setSel, setT
 
 const eventLabel = (sub: EventsSub, x: AppGame, l: (k: string, o?: Record<string, unknown>) => string) => {
 	if (sub === 'rules') {
-		return `${x.name || x.event || '—'} · ${x.on === 'chapter' ? l('rules.shortChapter', {n: x.chapter, m: x.minutes}) : x.on === 'every' ? l('rules.shortEvery', {m: x.minutes}) : l('rules.shortEvent')}`;
+		return `${x.name || x.event || '—'} · ${
+			x.on === 'chapter'
+				? l('rules.shortChapter', {n: x.chapter, m: x.minutes})
+				: x.on === 'every'
+				? l('rules.shortEvery', {m: x.minutes})
+				: x.on === 'var'
+				? l('rules.shortVar', {name: x.var, op: l(`rules.ops.${x.op || '='}`), value: x.value})
+				: l('rules.shortEvent')
+		}`;
 	}
 	if (sub === 'glitches') {
 		return `${x.state ? '◆' : '⚠'} ${x.name ?? ''}`;
 	}
 	return String(x.name || x.title || x.id);
 };
+
+/** Сессия 35 (Т4-4 А): правило центра (условие на телефонах) — форма для окна «События». */
+export const PhoneRuleForm: React.FC<{rule: AppGame; set: (patch: AppGame) => void}> = ({rule: x, set}) => {
+	const l = usePhoneL();
+	const refs = React.useContext(AppRefsContext);
+	const str = (key: string) => String(x?.[key] ?? '');
+	const on = str('on') || 'event';
+
+	return (
+		<>
+			<TextField label={l('events.name')} onChange={name => set({name})} value={str('name')} />
+			<ChoiceField
+				label={l('rules.on')}
+				onChange={v => set({on: v})}
+				options={['event', 'chapter', 'every', 'var'].map(v => ({label: l(`rules.onN.${v}`), value: v}))}
+				value={on}
+			/>
+			{on === 'event' && (
+				<TextField hint={l('rules.eventHint')} label={l('rules.event')} onChange={event => set({event})} value={str('event')} />
+			)}
+			{on === 'chapter' && <ChapterField label={l('rules.chapter')} onChange={chapter => set({chapter})} value={x.chapter} />}
+			{(on === 'chapter' || on === 'every') && (
+				<NumField label={l('rules.minutes')} onChange={minutes => set({minutes})} value={Number(x.minutes) || 0} />
+			)}
+			{on === 'var' && (
+				<>
+					<ChoiceField
+						hint={refs.shared.length ? undefined : l('rules.noShared')}
+						label={l('rules.var')}
+						onChange={v => set({var: v})}
+						options={[
+							{label: '—', value: ''},
+							...refs.shared.map(v => ({label: `${v.label || v.name} ($${v.name})`, value: v.name})),
+							...(str('var') && !refs.shared.some(v => v.name === str('var')) ? [{label: `$${str('var')} ?`, value: str('var')}] : [])
+						]}
+						value={str('var')}
+					/>
+					<ChoiceField
+						label={l('rules.op')}
+						onChange={op => set({op})}
+						options={['=', '!=', '>', '>=', '<', '<='].map(v => ({label: l(`rules.ops.${v}`), value: v}))}
+						value={str('op') || '='}
+					/>
+					<TextField hint={l('rules.valueHint')} label={l('rules.value')} onChange={value => set({value})} value={str('value')} />
+				</>
+			)}
+			{on !== 'chapter' && <ChaptersChecks label={l('rules.chapters')} onChange={chapters => set({chapters})} value={x.chapters} />}
+			<h3>{l('code.actions')}</h3>
+			<AppActions actions={x.actions} onChange={actions => set({actions})} self={false} />
+		</>
+	);
+};
+
+/** Подпись правила центра в списке. */
+export function ruleLabel(x: AppGame, l: (k: string, o?: Record<string, unknown>) => string) {
+	return eventLabel('rules', x, l);
+}
 
 export const EventsTab: React.FC<TabProps & {sub: EventsSub; setSub: (s: EventsSub) => void}> = props => {
 	const {game, sel, setGame, setSel, setSub, setTable, sub, table} = props;
@@ -535,27 +600,8 @@ export const EventsTab: React.FC<TabProps & {sub: EventsSub; setSub: (s: EventsS
 				);
 			}
 			case 'rules':
-				return (
-					<>
-						<TextField label={l('events.name')} onChange={name => set({name})} value={str('name')} />
-						<ChoiceField
-							label={l('rules.on')}
-							onChange={on => set({on})}
-							options={['event', 'chapter', 'every'].map(v => ({label: l(`rules.onN.${v}`), value: v}))}
-							value={str('on') || 'event'}
-						/>
-						{(str('on') || 'event') === 'event' && (
-							<TextField hint={l('rules.eventHint')} label={l('rules.event')} onChange={event => set({event})} value={str('event')} />
-						)}
-						{x.on === 'chapter' && <ChapterField label={l('rules.chapter')} onChange={chapter => set({chapter})} value={x.chapter} />}
-						{(x.on === 'chapter' || x.on === 'every') && (
-							<NumField label={l('rules.minutes')} onChange={minutes => set({minutes})} value={Number(x.minutes) || 0} />
-						)}
-						{x.on !== 'chapter' && <ChaptersChecks label={l('rules.chapters')} onChange={chapters => set({chapters})} value={x.chapters} />}
-						<h3>{l('code.actions')}</h3>
-						<AppActions actions={x.actions} onChange={actions => set({actions})} self={false} />
-					</>
-				);
+				// Сессия 35 (Т4-4 А): правила правятся в окне «События» — здесь только список.
+				return <div className="signaly-field-hint">{l('rules.inEvents')}</div>;
 			case 'votes':
 				return (
 					<>
@@ -591,6 +637,7 @@ export const EventsTab: React.FC<TabProps & {sub: EventsSub; setSub: (s: EventsS
 			<div className="signaly-phone-split">
 				<div className="signaly-phone-list">
 					<ItemList
+						readOnly={sub === 'rules'}
 						addLabel={l('events.add')}
 						confirmDelete={y => l('confirmDelete', {name: y.name || y.id})}
 						items={items}

@@ -22,7 +22,8 @@ export const AppRefsContext = React.createContext<AppRefs>({
 	apps: [],
 	votes: [],
 	palette: defaultPalette,
-	voice: defaultVoice
+	voice: defaultVoice,
+	shared: []
 });
 
 export function usePhoneL() {
@@ -294,7 +295,9 @@ export const ItemList: React.FC<{
 	selected: number;
 	confirmDelete: (item: AppGame) => string;
 	canDelete?: (item: AppGame, i: number) => boolean;
-}> = ({addLabel, canDelete, confirmDelete, items, label, onAdd, onChange, onSelect, selected}) => {
+	/** Только список, без кнопок (сессия 35: правила — в окне «События»). */
+	readOnly?: boolean;
+}> = ({addLabel, canDelete, confirmDelete, items, label, onAdd, onChange, onSelect, readOnly, selected}) => {
 	const {t} = useTranslation();
 	const move = (d: number) => {
 		const next = items.slice();
@@ -320,7 +323,7 @@ export const ItemList: React.FC<{
 					</button>
 				))}
 			</div>
-			<div className="signaly-sound-actions">
+			<div className="signaly-sound-actions" hidden={readOnly}>
 				<button className="signaly-button" onClick={onAdd} type="button">
 					{addLabel}
 				</button>
@@ -524,13 +527,37 @@ const ActionBody: React.FC<{a: AppGame; self: boolean; set: (patch: AppGame) => 
 			);
 		case 'chapter':
 			return <ChapterField label={l('act.chapter')} onChange={n => set({n})} value={a.n} />;
-		case 'term':
+		case 'term': {
+			const name = String(a.name ?? '').replace(/^\$/, '');
+			const shared = refs.shared.some(v => v.name === name);
+
 			return (
 				<>
-					{text('name', l('act.termName'))}
-					{text('value', l('act.termValue'))}
+					<ChoiceField
+						label={l('act.termName')}
+						onChange={n => set({name: n})}
+						options={[
+							...refs.shared.map(v => ({label: `${v.label || v.name} ($${v.name}) — ${l('act.shared')}`, value: v.name})),
+							...(name && !shared ? [{label: `$${name}`, value: name}] : []),
+							{label: l('act.termOther'), value: ''}
+						]}
+						value={name}
+					/>
+					{!shared && text('name', l('act.termNameOwn'))}
+					<ChoiceField
+						label={l('act.termOp')}
+						onChange={op => set({op: op || undefined})}
+						options={[
+							{label: l('act.termOps.set'), value: ''},
+							{label: l('act.termOps.add'), value: 'add'}
+						]}
+						value={a.op === 'add' ? 'add' : ''}
+					/>
+					{text('value', l(a.op === 'add' ? 'act.termAdd' : 'act.termValue'))}
+					<div className="signaly-field-hint">{l(shared ? 'act.termSharedHint' : 'act.termHint', {example: `{{${name}}}`})}</div>
 				</>
 			);
+		}
 		case 'event':
 			return (
 				<>

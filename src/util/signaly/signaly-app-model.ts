@@ -8,6 +8,7 @@
 import {CodeTable} from './signaly-codes';
 import {arg, plain} from './signaly-link-form';
 import {scanArgs} from './signaly-screen-blocks';
+import {sharedVariables} from './signaly-variables';
 import {
 	AppGame,
 	appBlockTag,
@@ -297,6 +298,8 @@ export interface AppRefs {
 	votes: AppGame[];
 	palette: AppGame[];
 	voice: AppGame;
+	/** Сессия 35 (Т4-3): общие с телефонами переменные (StoryInit). */
+	shared: Array<{name: string; label: string; value: unknown}>;
 }
 
 /** Персонажи приложения из таблицы «Коды»: id аккаунта (или n<номер>), номер, имя. */
@@ -332,7 +335,8 @@ export function appRefs(passages: StoryPassage[], table: CodeTable, settings?: A
 		apps: list('apps'),
 		votes: list('votes'),
 		palette: Array.isArray(game.palette) && game.palette.length ? game.palette : defaultPalette,
-		voice: {...defaultVoice, ...(game.voice ?? {})}
+		voice: {...defaultVoice, ...(game.voice ?? {})},
+		shared: sharedVariables(passages.find(p => p.name === 'StoryInit')?.text ?? '')
 	};
 }
 

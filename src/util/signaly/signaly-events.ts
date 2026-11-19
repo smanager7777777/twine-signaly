@@ -7,8 +7,12 @@
 //                стало верным); без него — один раз;
 //   delay N    — через N секунд после того, как условие стало верным;
 //   priority N — важность: из нескольких готовых событий первым идёт то, у
-//                кого число больше.
+//                кого число больше;
+//   stay       — (сессия 35) не переходить на экран события, только действия.
 // Движок терминала сам переходит на такой пассаж, когда условие станет верным.
+// Сессия 35 (Т4-4 А): действия при срабатывании — строкой после первой:
+//   <<sg-event-do>>действия (как у ссылки)<</sg-event-do>>
+// движок выполняет их один раз, когда событие сработало (на экране их не видно).
 
 import {Cond, parseExpr} from './signaly-logic';
 
@@ -21,6 +25,8 @@ export interface EventHead {
 	/** Условие, как написано. */
 	expr: string;
 	repeat: boolean;
+	/** Не переходить на экран события — только действия (сессия 35). */
+	stay: boolean;
 	/** Секунды задержки (0 — сразу). */
 	delay: number;
 	/** Важность (0 по умолчанию). */
@@ -56,17 +62,20 @@ function headEnd(text: string, from: number) {
 export function parseEventArgs(args: string) {
 	let rest = args.trim();
 	let repeat = false;
+	let stay = false;
 	let delay = 0;
 	let priority = 0;
 
 	for (;;) {
-		const m = /^(repeat|delay|priority)(?:\s+(-?\d+(?:[.,]\d+)?))?(?:\s+|$)/.exec(rest);
+		const m = /^(repeat|stay|delay|priority)(?:\s+(-?\d+(?:[.,]\d+)?))?(?:\s+|$)/.exec(rest);
 
-		if (!m || (m[1] !== 'repeat' && m[2] === undefined)) {
+		if (!m || (m[1] !== 'repeat' && m[1] !== 'stay' && m[2] === undefined)) {
 			break;
 		}
 		if (m[1] === 'repeat') {
 			repeat = true;
+		} else if (m[1] === 'stay') {
+			stay = true;
 		} else if (m[1] === 'delay') {
 			delay = Math.max(0, Number(m[2].replace(',', '.')));
 		} else {
@@ -74,7 +83,7 @@ export function parseEventArgs(args: string) {
 		}
 		rest = rest.slice(m[0].length);
 	}
-	return {expr: rest.trim(), repeat, delay, priority};
+	return {expr: rest.trim(), repeat, stay, delay, priority};
 }
 
 /** Команда события в тексте пассажа (первая). */
@@ -107,9 +116,12 @@ function num(n: number) {
 	return String(Number(n.toFixed(3)));
 }
 
-export function writeEventHead(e: Pick<EventHead, 'expr' | 'repeat' | 'delay' | 'priority'>) {
+type HeadFields = Pick<EventHead, 'expr' | 'repeat' | 'delay' | 'priority'> & {stay?: boolean};
+
+export function writeEventHead(e: HeadFields) {
 	const words = [
 		e.repeat ? 'repeat' : '',
+		e.stay ? 'stay' : '',
 		e.delay > 0 ? `delay ${num(e.delay)}` : '',
 		e.priority !== 0 && isFinite(e.priority) ? `priority ${num(e.priority)}` : ''
 	].filter(Boolean);
@@ -123,7 +135,7 @@ export function writeEventHead(e: Pick<EventHead, 'expr' | 'repeat' | 'delay' | 
  */
 export function setEventHead(
 	text: string,
-	head: Pick<EventHead, 'expr' | 'repeat' | 'delay' | 'priority'> | undefined
+	head: HeadFields | undefined
 ) {
 	const found = findEvent(text);
 
@@ -143,4 +155,55 @@ export function setEventHead(
 		return text.slice(0, found.from) + written + text.slice(found.to);
 	}
 	return text === '' ? written : `${written}\n${text}`;
+}
+
+/* ----- Сессия 35 (Т4-4 А): действия при срабатывании ----- */
+
+const doOpen = '<<sg-event-do>>';
+const doClose = '<</sg-event-do>>';
+
+/** Действия события: где строка <<sg-event-do>>…<</sg-event-do>> и что внутри. */
+export function findEventDo(text: string) {
+	const from = text.indexOf(doOpen);
+
+	if (from === -1) {
+		return undefined;
+	}
+
+	const end = text.indexOf(doClose, from + doOpen.length);
+
+	if (end === -1) {
+		return undefined;
+	}
+	return {from, to: end + doClose.length, body: text.slice(from + doOpen.length, end)};
+}
+
+/**
+ * Поставить, заменить или убрать действия события. Новые — строкой сразу после первой строки
+ * события (или в начало текста); пустое тело — строка убирается вместе с переводом строки.
+ */
+export function setEventDo(text: string, body: string) {
+	const found = findEventDo(text);
+	const empty = !/\S/.test(body);
+
+	if (found) {
+		if (empty) {
+			return text.slice(0, found.from) + text.slice(found.to).replace(/^\r?\n/, '');
+		}
+		return text.slice(0, found.from) + doOpen + body + doClose + text.slice(found.to);
+	}
+	if (empty) {
+		return text;
+	}
+
+	const head = findEvent(text);
+	const line = doOpen + body + doClose;
+
+	if (!head) {
+		return text === '' ? line : `${line}\n${text}`;
+	}
+
+	const rest = text.slice(head.to);
+
+	return text.slice(0, head.to) + '\n' + line + (rest.startsWith('\n') || rest === '' ? rest : '\n' + rest);
 }

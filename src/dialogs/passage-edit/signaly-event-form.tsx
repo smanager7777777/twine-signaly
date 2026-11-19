@@ -1,10 +1,14 @@
 // «Twine СИГНАЛЫ»: форма «Событие» (шаг 3.5, ответы 1А–6А). Пассаж становится
 // событием: первой строкой <<sg-event условие>> и тег sg-event. Каждое
 // изменение сразу переписывает команду в тексте.
+// Сессия 35 (Т4-4 А): «не переходить на экран» (stay) и действия при срабатывании —
+// строка <<sg-event-do>>…<</sg-event-do>> (если форме дали списки для действий).
 
 import * as React from 'react';
 import {useTranslation} from 'react-i18next';
-import {EventHead, setEventHead} from '../../util/signaly/signaly-events';
+import {EventHead, findEventDo, setEventDo, setEventHead} from '../../util/signaly/signaly-events';
+import {parseAction, splitBody, writeActions} from '../../util/signaly/signaly-actions';
+import {ActionContext, ActionList} from './signaly-action-list';
 import {writeExpr} from '../../util/signaly/signaly-logic';
 import {KnownVariable} from '../../util/signaly/signaly-variables';
 import {CheckField, TextField} from '../signaly-appearance/signaly-appearance-fields';
@@ -24,7 +28,9 @@ export const EventForm: React.FC<{
 	onTag: () => void;
 	onRemove: () => void;
 	variables: KnownVariable[];
-}> = ({head, onRemove, onTag, onText, tagged, text, variables}) => {
+	/** Списки для действий при срабатывании (без них — только условие). */
+	actions?: Omit<ActionContext, 'variables'>;
+}> = ({actions, head, onRemove, onTag, onText, tagged, text, variables}) => {
 	const {t} = useTranslation();
 	const l = (key: string) => t(`signaly.events.${key}`);
 	const write = (patch: Partial<EventHead>) => onText(setEventHead(text, {...head, ...patch}));
@@ -39,7 +45,7 @@ export const EventForm: React.FC<{
 					</button>
 				</div>
 			)}
-			<h5 className="signaly-block-subtitle">{l('when')}</h5>
+			<h5 className="signaly-block-subtitle">{l(head.stay ? 'whenStay' : 'when')}</h5>
 			{head.conds && head.conds.length > 0 ? (
 				<CondRows
 					conds={head.conds}
@@ -54,6 +60,7 @@ export const EventForm: React.FC<{
 				</>
 			)}
 			<CheckField hint={l('repeatHint')} label={l('repeat')} onChange={repeat => write({repeat})} value={head.repeat} />
+			<CheckField hint={l('stayHint')} label={l('stay')} onChange={stay => write({stay})} value={head.stay} />
 			<TextField
 				hint={l('delayHint')}
 				label={l('delay')}
@@ -78,7 +85,19 @@ export const EventForm: React.FC<{
 				}}
 				value={String(head.priority)}
 			/>
-			<div className="signaly-field-hint">{l('hint')}</div>
+			{actions && (
+				<>
+					<h5 className="signaly-block-subtitle">{l('do')}</h5>
+					<div className="signaly-field-hint">{l('doHint')}</div>
+					<ActionList
+						{...actions}
+						actions={splitBody(findEventDo(text)?.body ?? '').map(parseAction)}
+						onChange={list => onText(setEventDo(text, list.length ? writeActions(list, true) : ''))}
+						variables={variables}
+					/>
+				</>
+			)}
+			<div className="signaly-field-hint">{l(head.stay ? 'hintStay' : 'hint')}</div>
 			<div className="signaly-block-buttons">
 				<button
 					className="signaly-button"

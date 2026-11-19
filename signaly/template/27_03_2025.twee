@@ -668,7 +668,7 @@ setup.signalySounds = {
 
 
 /* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */
-/* Версия движка: 30. Обновляется программой «Twine СИГНАЛЫ».
+/* Версия движка: 31. Обновляется программой «Twine СИГНАЛЫ».
    Настройки — в окне «Оформление терминала» (они лежат в таблице стилей).
    Свой код пишите ниже конца этого блока. */
 (function () {
@@ -713,7 +713,7 @@ setup.signalySounds = {
 	// Предпросмотр в программе: без стартового экрана, автокопии и защиты.
 	var preview = window.SIGNALY_PREVIEW;
 
-	setup.signaly = {engine: 30, preview: !!preview};
+	setup.signaly = {engine: 31, preview: !!preview};
 
 	// Русские служебные надписи SugarCube (этап 6, ответ 4А). Код автора стоит
 	// ниже движка, поэтому его надписи главнее.
@@ -3254,6 +3254,12 @@ setup.signalySounds = {
 	// В самом экране команда события ничего не показывает.
 	Macro.add('sg-event', {
 		skipArgs: true,
+		handler: function () {}
+	});
+	// Сессия 35 (Т4-4): действия события выполняются, когда оно срабатывает, — на экране их нет.
+	Macro.add('sg-event-do', {
+		skipArgs: true,
+		tags: null,
 		handler: function () {}
 	});
 
@@ -9447,6 +9453,7 @@ setup.signalySounds = {
       var b = o.body || {};
       // движок Twine (N.ownVars) сам пишет переменные — когда игра запущена (сессия П9)
       if (o.kind === 'term' && b.set && !N.ownVars) setVars(b.set);
+      if (o.kind === 'term' && b.add && !N.ownVars) setVars(N.added(b.add));
       if (o.kind === 'vote-close' && b.term && !N.ownVars) setVars(voteResult(b));
       N.last.unshift(o); N.last.length = Math.min(N.last.length, 8);
       fire('msg', o);
@@ -9465,6 +9472,16 @@ setup.signalySounds = {
     return r;
   }
   N.voteResult = voteResult;
+  // П13: «прибавить» к переменной терминала (не общей): {add: {имя: N}}
+  N.added = function (add, V) {
+    var SC = W.SugarCube; V = V || (SC && SC.State ? SC.State.variables : (N.vars = N.vars || {}));
+    var r = {};
+    Object.keys(add).forEach(function (k) { var n = k.replace(/^\$/, ''); r[n] = (Number(V[n]) || 0) + (Number(add[k]) || 0); });
+    return r;
+  };
+  // П13 (Т4-3): общие переменные — состояние центра «var:имя»; прибавить — центр считает сам
+  N.share = function (name, value) { return N.set('var:' + String(name).replace(/^\$/, ''), value); };
+  N.shareAdd = function (name, n, base) { return N.send({ t: 'set', key: 'var:' + String(name).replace(/^\$/, ''), add: Number(n) || 0, base: base }); };
   function setVars(set) {
     var SC = W.SugarCube, V = SC && SC.State ? SC.State.variables : (N.vars = N.vars || {});
     Object.keys(set).forEach(function (k) { V[k.replace(/^\$/, '')] = set[k]; });
@@ -9628,8 +9645,13 @@ setup.signalySounds = {
 				V[k.replace(/^\$/, '')] = set[k];
 			});
 		}
-		if (o.kind === 'term' && b.set) {
-			put(b.set);
+		if (o.kind === 'term' && (b.set || b.add)) {
+			if (b.set) {
+				put(b.set);
+			}
+			if (b.add) {
+				put(window.SgTermNet.added(b.add, V));
+			}
 		} else if (o.kind === 'vote-close' && b.term) {
 			put(window.SgTermNet.voteResult(b));
 		} else if (o.kind === 'code' || o.kind === 'event') {
@@ -9678,15 +9700,110 @@ setup.signalySounds = {
 		}
 	}
 
+	/* Сессия 35 (Т4-3): общие с телефонами переменные. Значение хранит центр («var:имя»): терминал
+	   шлёт свои изменения, берёт чужие (телефоны, правила, пульт). $sgNet.shared — что уже отправлено
+	   или взято: при новой связи своё изменение (без связи) уходит центру, иначе берётся значение центра. */
+	var shareNames = {};
+	var shareWelcome = false;
+	var shareIn = [];
+
+	setup.signaly.shared = shareNames;
+	Macro.add('sg-shared', {
+		handler: function () {
+			this.args.forEach(function (n) {
+				shareNames[String(n).replace(/^\$/, '')] = 1;
+			});
+		}
+	});
+
+	function shareJson(v) {
+		return v === undefined ? undefined : JSON.stringify(v);
+	}
+
+	function shareSync() {
+		var N = window.SgTermNet;
+		var names = Object.keys(shareNames);
+
+		if (!N || !names.length || !started || restoring || !State.passage) {
+			return;
+		}
+
+		var V = State.variables;
+		var store = V.sgNet || (V.sgNet = {});
+		var sent = store.shared || (store.shared = {});
+		var changed = false;
+		var took = false;
+		var welcome = shareWelcome && N.on;
+
+		if (welcome) {
+			shareWelcome = false;
+		}
+		shareIn.splice(0).forEach(function (o) {
+			var n = o.key.slice(4);
+
+			if (shareNames[n] && o.value !== null && o.value !== undefined) {
+				V[n] = o.value;
+				sent[n] = shareJson(o.value);
+				changed = took = true;
+			}
+		});
+		names.forEach(function (n) {
+			var key = 'var:' + n;
+			var local = shareJson(V[n]);
+
+			if (local === undefined) {
+				return;
+			}
+			if (welcome) {
+				var has = Object.prototype.hasOwnProperty.call(N.state, key) && N.state[key] !== null;
+				var center = has ? shareJson(N.state[key]) : undefined;
+
+				if (sent[n] !== undefined && local !== sent[n]) {
+					N.set(key, V[n]);
+					sent[n] = local;
+				} else if (has && center !== local) {
+					V[n] = N.state[key];
+					sent[n] = center;
+					took = true;
+				} else {
+					if (!has) {
+						N.set(key, V[n]);
+					}
+					sent[n] = local;
+				}
+				changed = true;
+			} else if (N.on && local !== sent[n]) {
+				N.set(key, V[n]);
+				sent[n] = local;
+				changed = true;
+			}
+		});
+		if (changed) {
+			saveVars();
+		}
+		if (took) {
+			setTimeout(checkEvents, 0);
+		}
+	}
+
 	if (window.SgTermNet) {
 		window.SgTermNet.ownVars = true;
 		window.SgTermNet.listen(function (type, o) {
 			if (type === 'msg' && o && /^(term|vote-close|code|event)$/.test(o.kind)) {
 				netPending.push(o);
 				netFlush();
+			} else if ((type === 'status' && o && o.t === 'welcome') || type === 'reset') {
+				shareWelcome = true;
+				shareSync();
+			} else if (type === 'state' && o && /^var:/.test(o.key) && o.by !== window.SgTermNet.dev) {
+				shareIn.push(o);
+				shareSync();
 			}
 		});
-		setInterval(netFlush, 500);
+		setInterval(function () {
+			netFlush();
+			shareSync();
+		}, 500);
 	}
 
 	/* ----- Предзагрузка картинок (этап 6, ответ 6А) ----- */
@@ -10325,15 +10442,17 @@ setup.signalySounds = {
 
 	function eventArgs(args) {
 		var rest = args.trim();
-		var a = {repeat: false, delay: 0, priority: 0};
+		var a = {repeat: false, stay: false, delay: 0, priority: 0};
 		var m;
 
-		while ((m = /^(repeat|delay|priority)(?:\s+(-?\d+(?:[.,]\d+)?))?(?:\s+|$)/.exec(rest))) {
-			if (m[1] !== 'repeat' && m[2] === undefined) {
+		while ((m = /^(repeat|stay|delay|priority)(?:\s+(-?\d+(?:[.,]\d+)?))?(?:\s+|$)/.exec(rest))) {
+			if (m[1] !== 'repeat' && m[1] !== 'stay' && m[2] === undefined) {
 				break;
 			}
 			if (m[1] === 'repeat') {
 				a.repeat = true;
+			} else if (m[1] === 'stay') {
+				a.stay = true;
 			} else if (m[1] === 'delay') {
 				a.delay = Math.max(0, Number(m[2].replace(',', '.')) || 0);
 			} else {
@@ -10363,6 +10482,9 @@ setup.signalySounds = {
 			var a = eventArgs(p.text.slice(m.index + '<<sg-event'.length, end));
 
 			if (a.expr !== '') {
+				var run = /<<sg-event-do>>([\s\S]*?)<<\/sg-event-do>>/.exec(p.text);
+
+				a.run = run ? run[1] : '';
 				a.name = p.title;
 				eventList.push(a);
 			}
@@ -10371,6 +10493,18 @@ setup.signalySounds = {
 			return y.priority - x.priority || (x.name < y.name ? -1 : x.name > y.name ? 1 : 0);
 		});
 		return eventList;
+	}
+
+	// Сессия 35 (Т4-4): действия события (<<sg-event-do>>) — один раз, когда событие сработало.
+	function eventRun(ev) {
+		if (!ev.run || !/\S/.test(ev.run)) {
+			return;
+		}
+		try {
+			Wikifier.wikifyEval(ev.run);
+		} catch (e) {
+			console.error('СИГНАЛЫ: действия события «' + ev.name + '»', e);
+		}
 	}
 
 	function eventTrue(ev) {
@@ -10444,6 +10578,7 @@ setup.signalySounds = {
 		var current = State.passage;
 		var here = Story.has(current) && Story.get(current).tags.indexOf('sg-event') !== -1;
 		var next = null;
+		var ran = [];
 
 		list.forEach(function (ev) {
 			var m = marks[ev.name];
@@ -10451,17 +10586,19 @@ setup.signalySounds = {
 			if (!m || !m.ready) {
 				return;
 			}
-			if (ev.name === current) {
-				// Игроки уже на экране события.
+			if (ev.stay || ev.name === current) {
+				// Сессия 35: «не переходить на экран» — только действия; или игроки уже на экране события.
 				delete m.ready;
 				if (!ev.repeat) {
 					m.done = 1;
 				}
 				changed = true;
+				ran.push(ev);
 			} else if (!next && !here) {
 				next = ev;
 			}
 		});
+		ran.forEach(eventRun);
 
 		if (!next) {
 			if (changed) {
@@ -10488,6 +10625,7 @@ setup.signalySounds = {
 		State.variables.sgEventFrom = current;
 		eventBusy = true;
 		try {
+			eventRun(next);
 			accessGo(next.name, 'event', '');
 		} finally {
 			eventBusy = false;

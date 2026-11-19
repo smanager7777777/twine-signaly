@@ -66,7 +66,7 @@ const codesText = writeCodes('', {
 	]
 });
 const test =
-	story.replace(/(:: StoryInit[^\n]*\n)/, '$1<<set $netVar to 0>>\n<<set $netAlbum to "">>\n').replace(/\s*$/, '\n') +
+	story.replace(/(:: StoryInit[^\n]*\n)/, '$1<<set $netVar to 0>>\n<<set $netAlbum to "">>\n<<set $power to 5>>\n<<sg-shared "power">>\n').replace(/\s*$/, '\n') +
 	`
 :: Коды [sg-codes] {"position":"0,0","size":"100,100"}
 ${codesText}
@@ -82,6 +82,7 @@ ${codesText}
 <<link "Функция">><<sg-net module "chat" broken to "3">><</link>>
 <<link "Событие">><<sg-net event "breach">><</link>>
 <<link "Самому">><<sg-net notify "А" "Б" to self>><</link>>
+<<link "Энергия +1">><<set $power += 1>><</link>>
 <<sg-code button "OK" table>>
 <</sg-code>>
 
@@ -92,6 +93,16 @@ ${codesText}
 :: NetThree [sg-event] {"position":"300,0","size":"100,100"}
 <<sg-event setup.phone("code", "4242", "3") gte 2>>
 ДВАЖДЫ С ТРЕТЬЕГО <<link "Назад">><<sg-back>><</link>>
+
+:: NetLow [sg-event] {"position":"500,0","size":"100,100"}
+<<sg-event repeat stay $power lte 0>>
+<<sg-event-do>><<sg-net notify "РЕАКТОР" "Энергия кончилась">><<set $power to 3>><</sg-event-do>>
+НЕ ПОКАЗЫВАЕТСЯ
+
+:: NetFull [sg-event] {"position":"600,0","size":"100,100"}
+<<sg-event $power gte 10>>
+<<sg-event-do>><<sg-net notify "ЭНЕРГИЯ" "Полный заряд">><</sg-event-do>>
+ПОЛНЫЙ ЗАРЯД <<link "Назад">><<sg-back>><</link>>
 
 :: NetEvent [sg-event] {"position":"400,0","size":"100,100"}
 <<sg-event setup.phone("event", "Шлюз") gt 0>>
@@ -138,7 +149,7 @@ try {
 	await page.waitForSelector('.passage');
 	await page.evaluate(() => document.fullscreenElement && document.exitFullscreen());
 	await page.waitForFunction(() => window.SgTermNet && window.SgTermNet.on, null, {timeout: 6000});
-	check('движок 30: терминал подключился к центру', await page.evaluate(() => SugarCube.setup.signaly.engine === 30 && SgTermNet.on));
+	check('движок 31: терминал подключился к центру', await page.evaluate(() => SugarCube.setup.signaly.engine === 31 && SgTermNet.on));
 	check('мастер видит терминал в сети', !!(await master.wait(o => o.t === 'peers' && o.peers.some(p => p.role === 'terminal' && p.online))));
 	check('огонёк в углу виден (в истории есть сеть)', await page.evaluate(() => [...document.body.children].some(e => e.title && /^Сеть/.test(e.title))));
 
@@ -219,6 +230,22 @@ try {
 	await page.waitForFunction(() => SugarCube.State.variables.netAlbum === 'Альбом Б', null, {timeout: 4000}).catch(() => {});
 	check('итог голосования → $netAlbum = «Альбом Б»', (await page.evaluate(() => SugarCube.State.variables.netAlbum)) === 'Альбом Б');
 
+	// Сессия 35 (Т4-3, Т4-4): общая переменная $power — у центра «var:power»; событие stay с действиями
+	check('общая переменная: при связи терминал прислал начальное 5', !!(await master.wait(o => o.t === 'state' && o.key === 'var:power' && o.value === 5)));
+	await page.evaluate(() => SugarCube.Engine.play('NetHome'));
+	await page.waitForTimeout(300);
+	await link('Энергия +1');
+	check('терминал: $power += 1 → центр и телефоны: 6', !!(await p5.wait(o => o.t === 'state' && o.key === 'var:power' && o.value === 6)));
+	p5.ws.send(JSON.stringify({t: 'set', key: 'var:power', add: -6, base: 5}));
+	check('телефон «−6» → $power = 0 у терминала, событие stay: «Телефонам» и $power = 3', !!(await p3.wait(o => o.kind === 'notify' && o.body.title === 'РЕАКТОР')) && !!(await master.wait(o => o.t === 'state' && o.key === 'var:power' && o.value === 3)));
+	check('событие stay — терминал остался на своём экране', (await page.evaluate(() => SugarCube.State.passage)) === 'NetHome' && (await page.evaluate(() => SugarCube.State.variables.power)) === 3);
+	master.ws.send(JSON.stringify({t: 'set', key: 'var:power', value: 10}));
+	await page.waitForFunction(() => SugarCube.State.passage === 'NetFull', null, {timeout: 5000}).catch(() => {});
+	check('пульт: $power = 10 → событие с экраном, действие «Телефонам» до перехода', (await page.evaluate(() => SugarCube.State.passage)) === 'NetFull' && !!(await p5.wait(o => o.kind === 'notify' && o.body.title === 'ЭНЕРГИЯ')));
+	check('экран события: строки <<sg-event-do>> не видно', !(await page.evaluate(() => document.querySelector('.passage').innerText)).includes('sg-event-do') && (await page.evaluate(() => document.querySelector('.passage').innerText)).includes('ПОЛНЫЙ ЗАРЯД'));
+	await page.click('.passage a:text-is("Назад")');
+	await page.waitForTimeout(300);
+
 	// перезагрузка: старое не повторяется, счёт — в автокопии
 	await page.reload();
 	await page.waitForSelector('#sg-start');
@@ -227,6 +254,9 @@ try {
 	await page.waitForFunction(() => window.SgTermNet && window.SgTermNet.on, null, {timeout: 6000});
 	await sleep(800);
 	check('после перезагрузки счёт тот же (автокопия), старые сообщения не посчитаны снова', await page.evaluate(() => SugarCube.setup.phone('code', '4242', '3') === 2 && SugarCube.setup.phone('event', 'шлюз') === 1));
+	master.ws.send(JSON.stringify({t: 'set', key: 'var:power', value: 8}));
+	await page.waitForFunction(() => SugarCube.State.variables.power === 8, null, {timeout: 4000}).catch(() => {});
+	check('после перезагрузки общая переменная — значение центра (8)', (await page.evaluate(() => SugarCube.State.variables.power)) === 8);
 
 	// без связи — очередь, огонёк красный, потом уходит
 	center.kill();
@@ -235,10 +265,12 @@ try {
 	await page.waitForTimeout(300);
 	await link('Всем');
 	check('без связи: сообщение ждёт, огонёк красный', await page.evaluate(() => SgTermNet.queued() === 1 && [...document.body.children].some(e => e.title && /ждут отправки: 1/.test(e.title) && e.style.background.includes('255, 51, 51'))));
+	await link('Энергия +1');
 	center = await startCenter();
 	const p7 = phone({role: 'phone', dev: 'ph7', acc: 'a7', num: '7', name: 'Пилот'});
 	await p7.ready;
 	check('связь вернулась — ушло', !!(await p7.wait(o => o.kind === 'notify' && o.body.text === 'Шлюз открыт', 10000)));
+	check('изменение общей переменной без связи ($power 9) ушло центру при новой связи', !!(await p7.wait(o => o.t === 'state' && o.key === 'var:power' && o.value === 9, 6000)));
 
 	await page.keyboard.press('Control+Shift+KeyN');
 	await sleep(200);

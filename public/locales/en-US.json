@@ -1510,7 +1510,10 @@
 			"problems": {
 				"name": "A variable name may only contain Latin letters, digits and “_” and must not start with a digit.",
 				"duplicate": "Two variables have the same name."
-			}
+			},
+			"shared": "Shared with phones",
+			"sharedHint": "The network center (master's phone) keeps the value: the terminal, phone codes (\"Terminal variable\" action), rules in the Events window and the master console see and change it. In app texts — {{code}}. In StoryInit — the line <<sg-shared …>>.",
+			"sharedShort": "shared"
 		},
 		"actions": {
 			"button": "Action",
@@ -1920,7 +1923,13 @@
 			"remove": "Remove event",
 			"confirmRemove": "The screen stops being an event (the first line <<sg-event …>> and the tag are removed, the rest of the text stays). Remove?",
 			"noTag": "The passage has no sg-event tag — the terminal will not go to it.",
-			"addTag": "Add tag"
+			"addTag": "Add tag",
+			"stay": "Don't go to the screen — actions only",
+			"stayHint": "The terminal stays on its screen; the event only runs the actions below. This passage's text is not shown to players.",
+			"do": "Actions when the event fires",
+			"doHint": "Run once when the event fires (before going to the screen). In text — <<sg-event-do>>…<</sg-event-do>>, invisible on screen.",
+			"hintStay": "The terminal runs the actions when the condition becomes true and stays on its screen. First line <<sg-event stay …>> and tag sg-event. All events and phone rules — Events window (Story tab).",
+			"whenStay": "When the event fires (the terminal stays on its screen)"
 		},
 		"ticker": {
 			"button": "Event line",
@@ -2605,8 +2614,17 @@
 				"alarms": "alarms",
 				"glitches": "glitches",
 				"rules": "rules",
-				"votes": "votes"
-			}
+				"votes": "votes",
+				"shared": "shared variables"
+			},
+			"publish": "Publish package (.sgpack)",
+			"publishHint": "Checks the story first, then builds the package into the game folder.",
+			"publishPhone": "{{passage}}: \"To phones: …\" — {{detail}} is not in the app",
+			"publishWarns": "Story check: no errors, warnings — {{n}}:",
+			"publishOk": "Story check: no errors or warnings.",
+			"publishErrors": "Story check before publishing: {{n}} errors. The package was not built.",
+			"publishAnyway": "Build anyway",
+			"publishForced": "Built although the check found errors ({{n}})."
 		},
 		"phone": {
 			"tabs": {
@@ -2726,7 +2744,18 @@
 					"any-off": "forbid changing any time (until chapter end)"
 				},
 				"colorPick": "Colour",
-				"colorDefault": "default (the character's)"
+				"colorDefault": "default (the character's)",
+				"shared": "shared",
+				"termOther": "another terminal variable…",
+				"termNameOwn": "Terminal variable name (e.g. door_open)",
+				"termOp": "What to do",
+				"termOps": {
+					"set": "set value",
+					"add": "add (minus — subtract)"
+				},
+				"termAdd": "How much to add (e.g. 1 or -2)",
+				"termHint": "Terminal only.",
+				"termSharedHint": "Shared variable: the center sets it for everyone."
 			},
 			"block": {
 				"button": "App block",
@@ -3143,7 +3172,8 @@
 				"onN": {
 					"event": "event (terminal or code)",
 					"chapter": "N minutes after chapter start",
-					"every": "every N minutes"
+					"every": "every N minutes",
+					"var": "shared variable (when the condition becomes true)"
 				},
 				"event": "Event name",
 				"eventHint": "The terminal or a code with the «Event» action sends this name.",
@@ -3152,7 +3182,22 @@
 				"chapters": "Only in chapters (nothing ticked — all)",
 				"shortEvent": "event",
 				"shortChapter": "ch. {{n}} +{{m}} min",
-				"shortEvery": "every {{m}} min"
+				"shortEvery": "every {{m}} min",
+				"var": "Shared variable",
+				"op": "Condition",
+				"ops": {
+					"=": "equals",
+					"!=": "not equal",
+					">": "greater",
+					">=": "at least",
+					"<": "less",
+					"<=": "at most"
+				},
+				"value": "Value",
+				"valueHint": "Fires when the condition becomes true (was false).",
+				"noShared": "No shared variables: Variables window → \"Shared with phones\".",
+				"shortVar": "${{name}} {{op}} {{value}}",
+				"inEvents": "Center rules are edited in the Events window (Story tab → Events)."
 			},
 			"votes": {
 				"title": "Question for players",
@@ -3316,6 +3361,26 @@
 				"codeResult": "{{name}} — {{s}} s.",
 				"codeOk": "Check: the code is heard."
 			}
+		},
+		"eventsWindow": {
+			"button": "Events",
+			"title": "Events",
+			"intro": "When X → do Y. A terminal condition is run by the terminal (goes to the event screen or only runs actions, including \"To phones: …\"). A phone condition (event, chapter + N minutes, every N minutes, shared variable) is run by the network center on the master's phone. Nothing is written until Save.",
+			"termGroup": "Terminal condition ({{n}})",
+			"termGroupHint": "▶ — goes to the screen, ⚡ — actions only. Passages tagged sg-event.",
+			"ruleGroup": "Phone condition ({{n}})",
+			"ruleGroupHint": "Network center rules (passage \"Приложение\").",
+			"newTermName": "New event name (screen)",
+			"newName": "Event",
+			"addTerm": "+ Terminal condition",
+			"addRule": "+ Phone condition",
+			"whoTerm": "Runs on: the terminal (Twine).",
+			"whoCenter": "Runs on: the network center (master's phone), even when the terminal is busy or offline.",
+			"openScreen": "Open event screen",
+			"saveFirst": "Save first",
+			"removeRule": "Delete rule",
+			"removed": "No longer an event. Save — the passage stays a plain screen.",
+			"none": "No events yet."
 		}
 	}
 }

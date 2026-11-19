@@ -151,7 +151,7 @@ let value = await editorText();
 
 check('блок записан обычной командой', /<span class="sg-value">Глава: <<= \$\w*>><\/span>/.test(value), value);
 await win.waitForTimeout(1500);
-check('движок 30 поставлен сам', storyFile().includes('Версия движка: 30'));
+check('движок 31 поставлен сам', storyFile().includes('Версия движка: 31'));
 
 /* Запомнить открытое */
 await openPassage('Пульт');

@@ -91,6 +91,7 @@ export const signalyNetModule = String.raw`/* СИГНАЛЫ — сетевой 
       var b = o.body || {};
       // движок Twine (N.ownVars) сам пишет переменные — когда игра запущена (сессия П9)
       if (o.kind === 'term' && b.set && !N.ownVars) setVars(b.set);
+      if (o.kind === 'term' && b.add && !N.ownVars) setVars(N.added(b.add));
       if (o.kind === 'vote-close' && b.term && !N.ownVars) setVars(voteResult(b));
       N.last.unshift(o); N.last.length = Math.min(N.last.length, 8);
       fire('msg', o);
@@ -109,6 +110,16 @@ export const signalyNetModule = String.raw`/* СИГНАЛЫ — сетевой 
     return r;
   }
   N.voteResult = voteResult;
+  // П13: «прибавить» к переменной терминала (не общей): {add: {имя: N}}
+  N.added = function (add, V) {
+    var SC = W.SugarCube; V = V || (SC && SC.State ? SC.State.variables : (N.vars = N.vars || {}));
+    var r = {};
+    Object.keys(add).forEach(function (k) { var n = k.replace(/^\$/, ''); r[n] = (Number(V[n]) || 0) + (Number(add[k]) || 0); });
+    return r;
+  };
+  // П13 (Т4-3): общие переменные — состояние центра «var:имя»; прибавить — центр считает сам
+  N.share = function (name, value) { return N.set('var:' + String(name).replace(/^\$/, ''), value); };
+  N.shareAdd = function (name, n, base) { return N.send({ t: 'set', key: 'var:' + String(name).replace(/^\$/, ''), add: Number(n) || 0, base: base }); };
   function setVars(set) {
     var SC = W.SugarCube, V = SC && SC.State ? SC.State.variables : (N.vars = N.vars || {});
     Object.keys(set).forEach(function (k) { V[k.replace(/^\$/, '')] = set[k]; });

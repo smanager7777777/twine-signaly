@@ -34,6 +34,7 @@ import {
 } from './signaly-codes';
 import {arg, plain} from './signaly-link-form';
 import {scanArgs} from './signaly-screen-blocks';
+import {sharedVariables, withShared} from './signaly-variables';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export type AppGame = Record<string, any>;
@@ -67,6 +68,8 @@ const ownKeys = [
 	'accounts',
 	'blocks',
 	'codes',
+	// Сессия 35 (Т4-3): общие переменные — из StoryInit (галочка в окне «Переменные»).
+	'shared',
 	...appLists.map(([key]) => key)
 ];
 
@@ -571,6 +574,13 @@ export function storyToGame(
 			problems.push(`«Коды»: сотрудник ${p.id} — данные телефона не читаются`)
 		);
 	game.accounts = people.map(accountOf);
+	const shared = sharedVariables(passages.find(p => p.name === 'StoryInit')?.text ?? '');
+
+	if (shared.length) {
+		game.shared = shared;
+	} else {
+		delete game.shared;
+	}
 
 	const idOf = (num: string) =>
 		people.find(x => x.person.id === num)?.data.id ||
@@ -637,6 +647,8 @@ export interface AppImport {
 	files: Array<{path: string; name: string}>;
 	/** Персонажам без номера даны номера: «имя → номер». */
 	numbered: string[];
+	/** Сессия 35: новый текст StoryInit (общие переменные пакета) или undefined — без изменений. */
+	initText?: string;
 }
 
 export function gameToStory(
@@ -878,7 +890,13 @@ export function gameToStory(
 		blocks: outBlocks,
 		removeBlocks,
 		files: fileNames.map(name => ({name, path: appMediaDir + name})),
-		numbered
+		numbered,
+		initText: withShared(
+			passages.find(p => p.name === 'StoryInit')?.text ?? '',
+			(Array.isArray(game.shared) ? game.shared : [])
+				.filter((v: AppGame) => isObject(v) && typeof v.name === 'string')
+				.map((v: AppGame) => ({name: String(v.name).replace(/^\$/, ''), label: v.label, value: v.value}))
+		)
 	};
 }
 
@@ -917,7 +935,8 @@ export const appSections: Array<[string, string, (x: AppGame) => string]> = [
 	['alarms', 'Аварии', x => x.name || x.id],
 	['glitches', 'Сбои', x => x.name || x.id],
 	['rules', 'Правила', x => x.name || x.id],
-	['votes', 'Голосования', x => x.name || x.id]
+	['votes', 'Голосования', x => x.name || x.id],
+	['shared', 'Общие переменные', x => `$${x.name}`]
 ];
 
 export interface AppDiff {
@@ -952,7 +971,10 @@ export function withDefaults(game: AppGame): AppGame {
 		codes: (Array.isArray(game.codes) ? game.codes : []).map((c: AppGame) => ({
 			comment: '',
 			...c
-		}))
+		})),
+		...(Array.isArray(game.shared) && game.shared.length
+			? {shared: game.shared.map((v: AppGame) => ({label: '', value: 0, ...v}))}
+			: {})
 	};
 }
 
@@ -983,13 +1005,15 @@ export function diffGames(
 	appSections.forEach(([key, section, label]) => {
 		const a: AppGame[] = Array.isArray(was[key]) ? was[key] : [];
 		const b: AppGame[] = Array.isArray(now[key]) ? now[key] : [];
-		const byId = (list: AppGame[], id: unknown) => list.find(x => x.id === id);
+		// Общие переменные — по имени (у них нет id).
+		const idOf = (x: AppGame) => (key === 'shared' ? x.name : x.id);
+		const byId = (list: AppGame[], id: unknown) => list.find(x => idOf(x) === id);
 		const d: AppDiff = {
 			section,
-			added: b.filter(x => !byId(a, x.id)).map(label),
-			removed: a.filter(x => !byId(b, x.id)).map(label),
+			added: b.filter(x => !byId(a, idOf(x))).map(label),
+			removed: a.filter(x => !byId(b, idOf(x))).map(label),
 			changed: b
-				.filter(x => byId(a, x.id) && !same(byId(a, x.id), x))
+				.filter(x => byId(a, idOf(x)) && !same(byId(a, idOf(x)), x))
 				.map(label)
 		};
 

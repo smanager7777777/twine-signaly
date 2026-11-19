@@ -58,6 +58,9 @@
 // - сессия 31 (движок 28, этап Т1 приложения): сеть с телефонами игроков — модуль signaly-net-module.ts
 //   (окно «Сеть» Ctrl+Shift+N и огонёк в углу), действие <<sg-net …>> «Телефонам: …», условие
 //   setup.phone("code" | "event", "имя", ["номер"]) — пришло с телефона ($sgNet), переменные от пульта и итог голосования.
+// - сессия 35 (движок 31, этап Т4): общие с телефонами переменные — <<sg-shared "имя" …>> в StoryInit, значение
+//   хранит центр («var:имя»), терминал шлёт свои изменения и берёт чужие ($sgNet.shared — что отправлено);
+//   у события — слово stay (не переходить на экран) и действия <<sg-event-do>>…<</sg-event-do>> при срабатывании.
 //
 // Код написан без обратных кавычек и без «${», потому что хранится в шаблонной
 // строке.
@@ -73,7 +76,7 @@ import {tipBase} from './signaly-tip';
 const glitchBase = [...glitchRules(defaultGlitch, ':where(.glitchy)'), glitchKeyframes].join('\n');
 
 /** Версия движка. Увеличивать при каждом изменении кода ниже. */
-export const signalyEngineVersion = 30;
+export const signalyEngineVersion = 31;
 
 export const signalyEngineStart =
 	'/* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */';
@@ -2666,6 +2669,12 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	// В самом экране команда события ничего не показывает.
 	Macro.add('sg-event', {
 		skipArgs: true,
+		handler: function () {}
+	});
+	// Сессия 35 (Т4-4): действия события выполняются, когда оно срабатывает, — на экране их нет.
+	Macro.add('sg-event-do', {
+		skipArgs: true,
+		tags: null,
 		handler: function () {}
 	});
 
@@ -8785,8 +8794,13 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 				V[k.replace(/^\$/, '')] = set[k];
 			});
 		}
-		if (o.kind === 'term' && b.set) {
-			put(b.set);
+		if (o.kind === 'term' && (b.set || b.add)) {
+			if (b.set) {
+				put(b.set);
+			}
+			if (b.add) {
+				put(window.SgTermNet.added(b.add, V));
+			}
 		} else if (o.kind === 'vote-close' && b.term) {
 			put(window.SgTermNet.voteResult(b));
 		} else if (o.kind === 'code' || o.kind === 'event') {
@@ -8835,15 +8849,110 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		}
 	}
 
+	/* Сессия 35 (Т4-3): общие с телефонами переменные. Значение хранит центр («var:имя»): терминал
+	   шлёт свои изменения, берёт чужие (телефоны, правила, пульт). $sgNet.shared — что уже отправлено
+	   или взято: при новой связи своё изменение (без связи) уходит центру, иначе берётся значение центра. */
+	var shareNames = {};
+	var shareWelcome = false;
+	var shareIn = [];
+
+	setup.signaly.shared = shareNames;
+	Macro.add('sg-shared', {
+		handler: function () {
+			this.args.forEach(function (n) {
+				shareNames[String(n).replace(/^\$/, '')] = 1;
+			});
+		}
+	});
+
+	function shareJson(v) {
+		return v === undefined ? undefined : JSON.stringify(v);
+	}
+
+	function shareSync() {
+		var N = window.SgTermNet;
+		var names = Object.keys(shareNames);
+
+		if (!N || !names.length || !started || restoring || !State.passage) {
+			return;
+		}
+
+		var V = State.variables;
+		var store = V.sgNet || (V.sgNet = {});
+		var sent = store.shared || (store.shared = {});
+		var changed = false;
+		var took = false;
+		var welcome = shareWelcome && N.on;
+
+		if (welcome) {
+			shareWelcome = false;
+		}
+		shareIn.splice(0).forEach(function (o) {
+			var n = o.key.slice(4);
+
+			if (shareNames[n] && o.value !== null && o.value !== undefined) {
+				V[n] = o.value;
+				sent[n] = shareJson(o.value);
+				changed = took = true;
+			}
+		});
+		names.forEach(function (n) {
+			var key = 'var:' + n;
+			var local = shareJson(V[n]);
+
+			if (local === undefined) {
+				return;
+			}
+			if (welcome) {
+				var has = Object.prototype.hasOwnProperty.call(N.state, key) && N.state[key] !== null;
+				var center = has ? shareJson(N.state[key]) : undefined;
+
+				if (sent[n] !== undefined && local !== sent[n]) {
+					N.set(key, V[n]);
+					sent[n] = local;
+				} else if (has && center !== local) {
+					V[n] = N.state[key];
+					sent[n] = center;
+					took = true;
+				} else {
+					if (!has) {
+						N.set(key, V[n]);
+					}
+					sent[n] = local;
+				}
+				changed = true;
+			} else if (N.on && local !== sent[n]) {
+				N.set(key, V[n]);
+				sent[n] = local;
+				changed = true;
+			}
+		});
+		if (changed) {
+			saveVars();
+		}
+		if (took) {
+			setTimeout(checkEvents, 0);
+		}
+	}
+
 	if (window.SgTermNet) {
 		window.SgTermNet.ownVars = true;
 		window.SgTermNet.listen(function (type, o) {
 			if (type === 'msg' && o && /^(term|vote-close|code|event)$/.test(o.kind)) {
 				netPending.push(o);
 				netFlush();
+			} else if ((type === 'status' && o && o.t === 'welcome') || type === 'reset') {
+				shareWelcome = true;
+				shareSync();
+			} else if (type === 'state' && o && /^var:/.test(o.key) && o.by !== window.SgTermNet.dev) {
+				shareIn.push(o);
+				shareSync();
 			}
 		});
-		setInterval(netFlush, 500);
+		setInterval(function () {
+			netFlush();
+			shareSync();
+		}, 500);
 	}
 
 	/* ----- Предзагрузка картинок (этап 6, ответ 6А) ----- */
@@ -9482,15 +9591,17 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 
 	function eventArgs(args) {
 		var rest = args.trim();
-		var a = {repeat: false, delay: 0, priority: 0};
+		var a = {repeat: false, stay: false, delay: 0, priority: 0};
 		var m;
 
-		while ((m = /^(repeat|delay|priority)(?:\s+(-?\d+(?:[.,]\d+)?))?(?:\s+|$)/.exec(rest))) {
-			if (m[1] !== 'repeat' && m[2] === undefined) {
+		while ((m = /^(repeat|stay|delay|priority)(?:\s+(-?\d+(?:[.,]\d+)?))?(?:\s+|$)/.exec(rest))) {
+			if (m[1] !== 'repeat' && m[1] !== 'stay' && m[2] === undefined) {
 				break;
 			}
 			if (m[1] === 'repeat') {
 				a.repeat = true;
+			} else if (m[1] === 'stay') {
+				a.stay = true;
 			} else if (m[1] === 'delay') {
 				a.delay = Math.max(0, Number(m[2].replace(',', '.')) || 0);
 			} else {
@@ -9520,6 +9631,9 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			var a = eventArgs(p.text.slice(m.index + '<<sg-event'.length, end));
 
 			if (a.expr !== '') {
+				var run = /<<sg-event-do>>([\s\S]*?)<<\/sg-event-do>>/.exec(p.text);
+
+				a.run = run ? run[1] : '';
 				a.name = p.title;
 				eventList.push(a);
 			}
@@ -9528,6 +9642,18 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			return y.priority - x.priority || (x.name < y.name ? -1 : x.name > y.name ? 1 : 0);
 		});
 		return eventList;
+	}
+
+	// Сессия 35 (Т4-4): действия события (<<sg-event-do>>) — один раз, когда событие сработало.
+	function eventRun(ev) {
+		if (!ev.run || !/\S/.test(ev.run)) {
+			return;
+		}
+		try {
+			Wikifier.wikifyEval(ev.run);
+		} catch (e) {
+			console.error('СИГНАЛЫ: действия события «' + ev.name + '»', e);
+		}
 	}
 
 	function eventTrue(ev) {
@@ -9601,6 +9727,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		var current = State.passage;
 		var here = Story.has(current) && Story.get(current).tags.indexOf('sg-event') !== -1;
 		var next = null;
+		var ran = [];
 
 		list.forEach(function (ev) {
 			var m = marks[ev.name];
@@ -9608,17 +9735,19 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			if (!m || !m.ready) {
 				return;
 			}
-			if (ev.name === current) {
-				// Игроки уже на экране события.
+			if (ev.stay || ev.name === current) {
+				// Сессия 35: «не переходить на экран» — только действия; или игроки уже на экране события.
 				delete m.ready;
 				if (!ev.repeat) {
 					m.done = 1;
 				}
 				changed = true;
+				ran.push(ev);
 			} else if (!next && !here) {
 				next = ev;
 			}
 		});
+		ran.forEach(eventRun);
 
 		if (!next) {
 			if (changed) {
@@ -9645,6 +9774,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		State.variables.sgEventFrom = current;
 		eventBusy = true;
 		try {
+			eventRun(next);
 			accessGo(next.name, 'event', '');
 		} finally {
 			eventBusy = false;

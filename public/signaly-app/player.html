@@ -380,8 +380,8 @@ table.meter td,table.meter th{border-bottom:1px solid var(--text-30);padding:2px
   } catch (e) { /* не важно */ }
 })();
 </script>
-<meta name="generator" content="signaly-app 0.1.0 (2026-11-18)">
-<script>window.SG_APP_VERSION = "0.1.0 (2026-11-18)";</script>
+<meta name="generator" content="signaly-app 0.1.0 (2026-11-19)">
+<script>window.SG_APP_VERSION = "0.1.0 (2026-11-19)";</script>
 </head>
 <body class="fx-scan fx-glow">
 <div id="app">
@@ -10732,6 +10732,7 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
       glitches: [],
       rules: [],
       votes: [],
+      shared: [],
       settingsCode: '0000',
       sounds: true,
       palette: clone(DEFAULT_PALETTE),
@@ -10860,12 +10861,21 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
       x.every = +x.every || 0;
       x.who = Array.isArray(x.who) ? x.who : [];
     });
+    /* П13 (Т4-3): общие переменные терминала и телефонов — {name, label, value}; value — начальное значение. */
+    g.shared = Array.isArray(g.shared) ? g.shared : [];
+    g.shared = g.shared.filter(function (v) { return v && typeof v.name === 'string' && v.name.replace(/^\$/, ''); });
+    g.shared.forEach(function (v) {
+      v.name = v.name.replace(/^\$/, '');
+      v.label = v.label || '';
+      if (v.value === undefined) v.value = 0;
+    });
     g.rules = Array.isArray(g.rules) ? g.rules : [];
     g.rules.forEach(function (r) {
       r.id = r.id || uid('e');
       r.name = r.name || '';
       r.on = r.on || 'event';
       r.event = r.event || '';
+      if (r.on === 'var') { r.var = String(r.var || '').replace(/^\$/, ''); r.op = r.op || '='; if (r.value === undefined) r.value = ''; }
       r.chapter = +r.chapter || 1;
       r.minutes = +r.minutes || 0;
       r.chapters = Array.isArray(r.chapters) ? r.chapters : [];
@@ -11167,7 +11177,19 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
           red: al.red !== false, full: al.full !== false, siren: al.siren !== false, vibrate: al.vibrate !== false, torch: al.torch !== false, jam: al.jam !== false, at: now };
         out.net.push({ t: 'set', key: 'alarm', value: v, local: true });
       } else if (a.type === 'chapter') out.net.push({ t: 'set', key: 'chapter', value: { n: +a.n || 1, at: now }, local: true });
-      else if (a.type === 'term') out.net.push({ t: 'msg', to: ['role:terminal'], kind: 'term', body: { set: (function () { var o = {}; o[String(a.name || '').replace(/^\$/, '')] = termValue(a.value); return o; })() } });
+      else if (a.type === 'term') {
+        // П13 (Т4-3): общая переменная — состояние центра «var:имя» (видят телефоны и терминал); иначе — только терминалу
+        var vn = String(a.name || '').replace(/^\$/, ''), sv = sharedVar(game, vn), add = a.op === 'add';
+        var n = add ? Number(String(a.value).replace(',', '.')) || 0 : termValue(a.value);
+        if (sv) {
+          var cur = ctx.vars && ctx.vars.hasOwnProperty(vn) ? ctx.vars[vn] : sv.value;
+          out.net.push(add ? { t: 'set', key: 'var:' + vn, add: n, base: num(sv.value), value: num(cur) + n } : { t: 'set', key: 'var:' + vn, value: n });
+        } else {
+          var o = {};
+          o[vn] = n;
+          out.net.push({ t: 'msg', to: ['role:terminal'], kind: 'term', body: add ? { add: o } : { set: o } });
+        }
+      }
       else if (a.type === 'event') out.net.push({ t: 'msg', to: ['role:terminal'], kind: 'event', body: { name: a.name } });
       else if (a.type === 'countdown') {
         out.net.push({ t: 'set', key: 'countdown', local: true, value: a.on === false ? { on: false } :
@@ -11178,6 +11200,29 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
       }
     });
     return out;
+  }
+
+  function sharedVar(game, name) {
+    name = String(name || '').replace(/^\$/, '');
+    return (game.shared || []).filter(function (v) { return v.name === name; })[0] || null;
+  }
+  function num(v) { var n = Number(String(v).replace(',', '.')); return isFinite(n) ? n : 0; }
+
+  /* Значения общих переменных (П13): из центра (vals — {имя: значение}), иначе начальные из пакета. */
+  function sharedValues(game, vals) {
+    var out = {};
+    (game.shared || []).forEach(function (v) { out[v.name] = vals && vals.hasOwnProperty(v.name) ? vals[v.name] : v.value; });
+    return out;
+  }
+  /* «{{имя}}» в тексте → значение общей переменной; да/нет — «да» / «нет»; неизвестное имя остаётся как есть. */
+  function fillVars(text, game, vals) {
+    if (!text || String(text).indexOf('{{') < 0 || !game || !(game.shared || []).length) return text;
+    var v = sharedValues(game, vals);
+    return String(text).replace(/\{\{\s*\$?([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g, function (all, name) {
+      if (!v.hasOwnProperty(name)) return all;
+      var x = v[name];
+      return x === true ? 'да' : x === false ? 'нет' : x == null ? '' : String(x);
+    });
   }
 
   /* Значение для переменной терминала: число — числом, да/нет — true/false, остальное — текстом. */
@@ -11213,6 +11258,12 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
       if (r.on === 'event' && r.event) list.push({ id: r.id, on: 'event', event: r.event, chapters: r.chapters, emit: emit(r.actions) });
       else if (r.on === 'chapter') list.push({ id: r.id, on: 'state', key: 'chapter', n: r.chapter, emit: delayAll(emit(r.actions), r.minutes * 60000) });
       else if (r.on === 'every' && r.minutes > 0) list.push({ id: r.id, on: 'every', every: r.minutes * 60000, chapters: r.chapters, emit: emit(r.actions) });
+      else if (r.on === 'var' && r.var) {
+        // П13 (Т4-3): общая переменная — когда условие станет верным (было ложным)
+        var sv = sharedVar(game, r.var);
+        list.push({ id: r.id, on: 'state', key: 'var:' + r.var, test: { op: r.op || '=', value: termValue(r.value) }, init: sv ? sv.value : null,
+          chapters: r.chapters, emit: emit(r.actions) });
+      }
     });
     game.notices.forEach(function (n) {
       if (!n.chapter) return;
@@ -11321,6 +11372,16 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
           c.actions.some(function (a) { return a.type === 'open' && (a.blocks || []).indexOf(id) >= 0; });
       }) || game.rules.some(function (r) { return r.actions.some(function (a) { return a.type === 'open' && (a.blocks || []).indexOf(id) >= 0; }); });
     }
+    // П13 (Т4-3): общие переменные
+    var sharedSeen = {};
+    (game.shared || []).forEach(function (v) {
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(v.name)) err('Общая переменная «' + v.name + '»: имя — латиница, цифры и «_»');
+      if (sharedSeen[v.name]) err('Общая переменная «' + v.name + '» повторяется');
+      sharedSeen[v.name] = 1;
+    });
+    game.rules.forEach(function (r) {
+      if (r.on === 'var' && !sharedVar(game, r.var)) err('Правило «' + (r.name || r.var || '?') + '»: общей переменной «' + (r.var || '') + '» нет');
+    });
     game.blocks.forEach(function (b) {
       var name = b.title || '(без названия)';
       if (!b.title) warn('Блок без названия');
@@ -11606,6 +11667,9 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
     appsFor: appsFor,
     expandActions: expandActions,
     termValue: termValue,
+    sharedVar: sharedVar,
+    sharedValues: sharedValues,
+    fillVars: fillVars,
     termCodeMsg: termCodeMsg,
     voiceWordHints: voiceWordHints,
     voteMessages: voteMessages,
@@ -15085,7 +15149,7 @@ var qrcode = function() {
     items.forEach(function (it, n) {
       if (it.type === 'text') {
         var d = document.createElement('div');
-        d.innerHTML = SG.markup(garbled ? SG.garble(it.text, block.id + n) : it.text);
+        d.innerHTML = SG.markup(garbled ? SG.garble(it.text, block.id + n) : fillVars(it.text));
         if (garbled) d.className = 'garbled';
         frag.appendChild(d);
       } else if (it.type === 'image' && urls[it.file]) {
@@ -15181,8 +15245,10 @@ var qrcode = function() {
     });
   }
 
+  var openNow = null;
   function openBlock(b) {
     stopAudio();
+    openNow = b;
     var m = mine();
     if (m.seen.indexOf(b.id) < 0) { m.seen.push(b.id); save(); }
     $('view-sec').textContent = SG.folderPath(b.section).join(' / ');
@@ -15223,7 +15289,7 @@ var qrcode = function() {
     t.innerHTML = '';
     t.className = 'dlg-text';
     if (o.html) t.appendChild(o.html);
-    else if (o.text) { t.className = 'dlg-text rich'; t.innerHTML = SG.markup(o.text); }
+    else if (o.text) { t.className = 'dlg-text rich'; t.innerHTML = SG.markup(fillVars(o.text)); }
     var list = $('dlg-list');
     list.innerHTML = '';
     (o.blocks || []).forEach(function (b) {
@@ -15390,7 +15456,7 @@ var qrcode = function() {
   /* ---------- действия: местные и через центр ---------- */
   function doActions(actions, noNet) {
     if (!actions || !actions.length) return;
-    var x = SG.expandActions(game, actions, { self: state.account, now: Net.now() });
+    var x = SG.expandActions(game, actions, { self: state.account, now: Net.now(), vars: state.vars || {} });
     x.local.forEach(function (l) { onMsg({ kind: l.kind, body: l.body, to: ['acc:' + state.account], from: { acc: state.account }, local: true }); });
     x.net.forEach(function (m) {
       var o = Object.assign({}, m);
@@ -15459,8 +15525,28 @@ var qrcode = function() {
     } else hook('kind:' + o.kind, b, o);
   }
 
+  /* П13 (Т4-3): общие переменные — состояние центра «var:имя»; на телефоне — копия state.vars, «{{имя}}» в текстах. */
+  function fillVars(text) { return game ? SG.fillVars(text, game, state && state.vars) : text; }
+  P.fillVars = fillVars;
+  var varsPaint = 0;
   function onState(key, value) {
     if (!game) return;
+    if (/^var:/.test(key)) {
+      var vn = key.slice(4);
+      state.vars = state.vars || {};
+      if (value === null || value === undefined) delete state.vars[vn]; else state.vars[vn] = value;
+      saveSoon();
+      clearTimeout(varsPaint);
+      varsPaint = setTimeout(function () {
+        if (state.account && mine()) {
+          renderData();
+          var open = $('view').classList.contains('on') && openNow;
+          if (open) openBlock(open);
+        }
+        hook('vars', vn);
+      }, 50);
+      return;
+    }
     if (key === 'chapter' && value && value.n) {
       // побеждает более позднее решение: центр или местный код главы
       if ((value.at || 0) <= (state.chapterAt || 0)) return;
@@ -15489,6 +15575,7 @@ var qrcode = function() {
   Net.on('welcome', function (w) {
     state.net = state.net || {};
     state.net.epoch = w.epoch;
+    state.vars = {};
     Object.keys(w.state || {}).forEach(function (k) { onState(k, w.state[k]); });
     if (state.masterDev && game) {
       var ver = rulesVer();
@@ -15500,7 +15587,7 @@ var qrcode = function() {
   });
   Net.on('seq', function (n) { if (state.net) { state.net.seq = n; state.net.epoch = Net.epoch; saveSoon(); } });
   Net.on('status', function (up) { renderNetDot(); hook('net', up); });
-  Net.on('reset', function () { if (state.net) { state.net.seq = 0; state.net.epoch = Net.epoch; save(); } });
+  Net.on('reset', function () { state.vars = {}; if (state.net) { state.net.seq = 0; state.net.epoch = Net.epoch; save(); } });
   // центр нашёл себя по запасному адресу (шлюз точки доступа) — запомнить
   Net.on('moved', function (u) { if (state.net && u) { state.net.url = u; save(); } });
   // П-39: этот персонаж уже в сети на другом телефоне — вход блокируется
@@ -16440,7 +16527,7 @@ var qrcode = function() {
     P.sound('note');
     var jam = P.jamLevel();
     var seed = o && o.seq ? o.seq : Date.now();
-    P.dialog({ title: SG.jam(title || 'СООБЩЕНИЕ', jam, seed + 't'), cls: 'notice', text: SG.jam(text || '', jam, seed) });
+    P.dialog({ title: SG.jam(P.fillVars(title) || 'СООБЩЕНИЕ', jam, seed + 't'), cls: 'notice', text: SG.jam(P.fillVars(text || ''), jam, seed) });
   };
 
   /* ---------- помехи: глава, авария, сбой ---------- */
@@ -17407,6 +17494,12 @@ var qrcode = function() {
   function sel(list, cur) {
     return h('select', {}, list.map(function (o) { return h('option', { value: o[0], text: o[1], selected: String(o[0]) === String(cur) }); }));
   }
+  function varsNow() {
+    var o = {};
+    Object.keys(Net.state || {}).forEach(function (k) { if (/^var:/.test(k)) o[k.slice(4)] = Net.state[k]; });
+    return o;
+  }
+  function fmtVar(x) { return x === true ? 'да' : x === false ? 'нет' : x == null ? '—' : String(x); }
   function card(title) { return h('div', { class: 'ccard' }, h('div', { class: 'ct', text: title }), Array.prototype.slice.call(arguments, 1)); }
   function btn(label, fn, cls) { return h('button', { class: 'btn ' + (cls || ''), text: label, on: { click: fn } }); }
   function need() {
@@ -17459,6 +17552,7 @@ var qrcode = function() {
       if (tab === 'log' && $('console').classList.contains('on')) render();
     }
   });
+  P.on('vars', function () { if ($('console').classList.contains('on') && tab === 'game' && !document.activeElement.matches('#console input, #console textarea')) render(); });
   P.on('net', function () { if ($('console').classList.contains('on')) { dot(); if (tab === 'net') render(); } });
   Net.on('later', function () { if ($('console').classList.contains('on') && tab === 'log' && !typing()) render(); });
   Net.on('peers', function () { if ($('console').classList.contains('on') && tab === 'net') { render(); refreshCenter(); } });
@@ -17641,6 +17735,22 @@ var qrcode = function() {
     box.appendChild(card('ГОЛОСОВАНИЕ', g.votes.length ? [h('label', { class: 'field' }, 'Какое', vs),
       btn('Начать сейчас', function () { if (!need()) return; P.doActions([{ type: 'vote', vote: vs.value || g.votes[0].id }]); done('НАЧАТО'); })] :
       h('p', { class: 'hint', text: 'Голосования задаются в редакторе (вкладка «Сеть и события»).' }), res));
+
+    // П13 (Т4-3): общие переменные терминала и телефонов
+    if ((g.shared || []).length) {
+      var vals = SG.sharedValues(g, varsNow());
+      box.appendChild(card('ОБЩИЕ ПЕРЕМЕННЫЕ', g.shared.map(function (v) {
+        var inp = h('input', { type: 'text', class: 'cin', value: String(vals[v.name]), 'data-var': v.name });
+        var isNum = typeof v.value === 'number';
+        return h('div', { class: 'shared-var' },
+          h('div', { text: (v.label || v.name) + ' ($' + v.name + '): ' + fmtVar(vals[v.name]) }),
+          h('div', { class: 'row2' }, inp,
+            btn('Записать', function () { if (!need()) return; P.doActions([{ type: 'term', name: v.name, value: SG.termValue(inp.value) }]); done(); }, 'dim')),
+          isNum ? h('div', { class: 'row2' },
+            btn('−1', function () { if (!need()) return; P.doActions([{ type: 'term', name: v.name, op: 'add', value: -1 }]); done(); }, 'dim'),
+            btn('+1', function () { if (!need()) return; P.doActions([{ type: 'term', name: v.name, op: 'add', value: 1 }]); done(); }, 'dim')) : null);
+      }), h('p', { class: 'hint', text: 'Видят и меняют терминал, коды телефонов и пульт. В текстах блоков, ответов и уведомлений — {{имя}}. Правила «общая переменная» — в редакторе («Сеть и события» → «Правила»).' })));
+    }
 
     // автоматика и терминал
     var auto = Net.state.auto !== false;

@@ -20,6 +20,21 @@ export interface Variable {
 	/** Подпись по-русски («Глава»). */
 	label: string;
 	value: VarValue;
+	/**
+	 * Сессия 35 (Т4-3 А): общая с телефонами — значение хранит центр сети («var:имя»), видят и
+	 * меняют терминал, коды телефонов, правила и пульт. В разделе — строка <<sg-shared "имя" …>>.
+	 */
+	shared?: boolean;
+}
+
+/** Строка раздела «Переменные» со списком общих переменных. */
+export const sharedLineRe = /<<sg-shared((?:\s+(?:"[^"]*"|'[^']*'|[^\s>]+))*)\s*>>/;
+
+/** Имена из строки <<sg-shared "a" "b">>. */
+export function sharedNames(text: string) {
+	const m = sharedLineRe.exec(text);
+
+	return m ? [...m[1].matchAll(/"([^"]*)"|'([^']*)'|([^\s"']+)/g)].map(x => (x[1] ?? x[2] ?? x[3]).replace(/^\$/, '')) : [];
 }
 
 export const variablesMarkers: BlockMarkers = {
@@ -121,9 +136,12 @@ function readSimple(text: string, offset = 0) {
 export function readVariables(text: string): ReadVariables {
 	const block = findBlock(text, variablesMarkers);
 	const inner = block ? readSimple(block.inner) : [];
+	const shared = new Set(block ? sharedNames(block.inner) : []);
 	const rest = block ? text.slice(0, block.from) + ' '.repeat(block.to - block.from) + text.slice(block.to) : text;
 	const counts = setsOf(rest);
-	const variables: Variable[] = inner.map(({name, label, value}) => ({name, label, value}));
+	const variables: Variable[] = inner.map(({name, label, value}) =>
+		shared.has(name) ? {name, label, value, shared: true} : {name, label, value}
+	);
 	const ranges: Array<{from: number; to: number}> = [];
 	const byCode = new Set<string>();
 
@@ -150,6 +168,14 @@ export function variablesBlock(variables: Variable[]) {
 				`<<set $${v.name} to ${literal(v.value)}>>` +
 				(v.label.trim() ? ` /* ${v.label.trim().replace(/\*\//g, '* /')} */` : '')
 		),
+		...(variables.some(v => v.shared)
+			? [
+					`<<sg-shared ${variables
+						.filter(v => v.shared)
+						.map(v => `"${v.name}"`)
+						.join(' ')}>> /* общие с телефонами */`
+			  ]
+			: []),
 		variablesMarkers.end
 	].join('\n');
 }
@@ -262,6 +288,58 @@ export function knownVariables(passages: Array<{name: string; text: string}>, in
 		}
 	});
 	return result;
+}
+
+/** Сессия 35: общие с телефонами переменные StoryInit ({name, label, value} — как game.shared пакета). */
+export function sharedVariables(initText: string) {
+	return readVariables(initText)
+		.variables.filter(v => v.shared)
+		.map(({name, label, value}) => ({name, label, value}));
+}
+
+const isValue = (v: unknown): v is VarValue => typeof v === 'number' || typeof v === 'boolean' || typeof v === 'string';
+
+/**
+ * Сессия 35: отметить общие переменные (из пакета). Есть в разделе — галочка, нет — добавляется
+ * со значением и подписью из пакета; остальные — без галочки. Возвращает новый текст StoryInit
+ * или undefined, если ничего не меняется.
+ */
+export function withShared(initText: string, shared: Array<{name: string; label?: string; value?: VarValue}>) {
+	const {variables} = readVariables(initText);
+	const names = new Set(shared.map(v => v.name));
+	const next: Variable[] = variables.map(v => {
+		const own = shared.find(x => x.name === v.name);
+		// Пакет загружают в историю — его начальное значение и подпись важнее (как у остальных данных).
+		const out: Variable = {
+			name: v.name,
+			label: own?.label || v.label,
+			value: own && isValue(own.value) ? own.value : v.value
+		};
+
+		if (names.has(v.name)) {
+			out.shared = true;
+		}
+		return out;
+	});
+
+	shared.forEach(v => {
+		if (!next.some(x => x.name === v.name) && variableNameRe.test(v.name)) {
+			const value: VarValue = isValue(v.value) ? v.value : 0;
+
+			next.push({name: v.name, label: v.label ?? '', value, shared: true});
+		}
+	});
+
+	// Ничего не поменялось — StoryInit не трогать (и простые <<set>> вне раздела остаются на месте).
+	const key = (list: Variable[]) => JSON.stringify(list.map(v => [v.name, v.label, v.value, !!v.shared]));
+
+	if (key(next) === key(variables)) {
+		return undefined;
+	}
+
+	const text = withVariables(initText, next);
+
+	return text === initText ? undefined : text;
 }
 
 /** Подпись для списка: «Глава ($chapter)» или «$chapter». */

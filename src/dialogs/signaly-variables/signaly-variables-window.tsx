@@ -93,7 +93,7 @@ export const SignalyVariablesWindow: React.FC<SignalyVariablesWindowProps> = pro
 	}
 
 	function save() {
-		const variables = rows.map(({name, label, value}) => ({name, label, value}));
+		const variables = rows.map(({name, label, value, shared}) => (shared ? {name, label, value, shared} : {name, label, value}));
 		const renames = rows.filter(r => r.origin && r.origin !== r.name);
 
 		if (init) {
@@ -232,6 +232,12 @@ export const SignalyVariablesWindow: React.FC<SignalyVariablesWindowProps> = pro
 						value={String(row.value)}
 					/>
 				)}
+				<CheckField
+					hint={l('sharedHint', {code: `{{${row.name}}}`, interpolation: {escapeValue: false}})}
+					label={l('shared')}
+					onChange={shared => setRow({shared})}
+					value={!!row.shared}
+				/>
 				<h3>{l('usedIn')}</h3>
 				{used.length ? (
 					<ul className="signaly-variables-used">
@@ -278,7 +284,10 @@ export const SignalyVariablesWindow: React.FC<SignalyVariablesWindowProps> = pro
 								type="button"
 							>
 								{variableTitle(r)}
-								<span className="signaly-sound-file">{l(`types.${typeOf(r.value)}`)}</span>
+								<span className="signaly-sound-file">
+									{l(`types.${typeOf(r.value)}`)}
+									{r.shared ? ` · ${l('sharedShort')}` : ''}
+								</span>
 							</button>
 						))}
 					</div>

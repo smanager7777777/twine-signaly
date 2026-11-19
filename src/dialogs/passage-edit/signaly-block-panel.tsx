@@ -366,6 +366,13 @@ export const SignalyBlockPanel: React.FC<SignalyBlockPanelProps> = props => {
 				tagged={passage.tags.includes(eventTag)}
 				text={text}
 				variables={knownVariables(story.passages)}
+				actions={{
+					audio: findAudioInit(story.passages.find(p => p.name === 'StoryInit')?.text ?? '').init,
+					audioFiles: media.audio,
+					current: passage.name,
+					fileChoice,
+					passages
+				}}
 			/>
 		);
 	} else if (target.kind === 'effect') {

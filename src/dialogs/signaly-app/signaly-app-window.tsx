@@ -62,6 +62,7 @@ import '../signaly-sounds/signaly-sounds.css';
 import '../passage-edit/signaly-format-toolbar.css';
 import './signaly-app.css';
 import {signalyEngineVersion} from '../../util/signaly/signaly-engine';
+import {checkStory} from '../../util/signaly/signaly-check';
 import {freeSpot} from '../../util/signaly/signaly-keys';
 import {saveStoryWithUpgrade} from '../signaly-upgrade';
 import '../signaly-appearance/signaly-appearance.css';
@@ -95,6 +96,8 @@ export const SignalyAppWindow: React.FC<SignalyAppWindowProps> = props => {
 	const [pending, setPending] = React.useState<Pending>();
 	const [message, setMessage] = React.useState<string[]>([]);
 	const [busy, setBusy] = React.useState(false);
+	// Сессия 35 (Т4-2 А): «Опубликовать» — проверка истории перед сборкой; ошибки — список и «Собрать всё равно».
+	const [checked, setChecked] = React.useState<{errors: string[]; warns: string[]}>();
 	const fileInput = React.useRef<HTMLInputElement>(null);
 	const current = React.useMemo(
 		() => storyToGame(story.passages),
@@ -153,7 +156,11 @@ export const SignalyAppWindow: React.FC<SignalyAppWindowProps> = props => {
 			saveStoryWithUpgrade(dispatch, stories, story, {script: withEngine(story.script)});
 		}
 		if (dirty.game) {
-			const text = writeSettings(work.game);
+			// Сессия 35 (Т4-4 А): правила правит окно «События» — берутся из истории, как есть сейчас.
+			const text = writeSettings({
+				...work.game,
+				rules: settingsPassage ? readSettings(settingsPassage.text).game.rules ?? [] : work.game.rules ?? []
+			});
 
 			if (settingsPassage) {
 				dispatch({type: 'updatePassage', storyId: story.id, passageId: settingsPassage.id, props: {text}});
@@ -374,6 +381,17 @@ export const SignalyAppWindow: React.FC<SignalyAppWindowProps> = props => {
 			);
 		}
 
+		// Сессия 35 (Т4-3): общие переменные пакета — галочки в StoryInit.
+		if (r.initText !== undefined) {
+			const init = story.passages.find(p => p.name === 'StoryInit');
+
+			if (init) {
+				update(init, {text: r.initText});
+			} else {
+				create('StoryInit', [], r.initText);
+			}
+		}
+
 		const codes = codesPassageOf(story.passages);
 
 		if (codes) {
@@ -419,9 +437,34 @@ export const SignalyAppWindow: React.FC<SignalyAppWindowProps> = props => {
 		setBusy(false);
 	}
 
-	/* ----- сборка пакета ----- */
+	/* ----- публикация и сборка пакета ----- */
 
-	async function build() {
+	async function publish() {
+		setBusy(true);
+		setMessage([]);
+		setChecked(undefined);
+
+		const found = checkStory({
+			passages: story.passages,
+			script: story.script,
+			stylesheet: story.stylesheet,
+			appFiles: folder ? await appFiles() : undefined
+		}).filter(p => p.kind === 'app' || p.kind === 'phone');
+		const line = (p: {kind: string; passage: string; detail: string}) =>
+			p.kind === 'phone' ? l('publishPhone', {passage: p.passage, detail: p.detail}) : `${p.passage}: ${p.detail}`;
+		const errors = found.filter(p => p.kind === 'phone' || p.level === 'error').map(line);
+		const warns = found.filter(p => p.kind === 'app' && p.level !== 'error').map(line);
+
+		setBusy(false);
+		if (errors.length) {
+			setChecked({errors, warns});
+			return;
+		}
+		await build(warns.length ? [l('publishWarns', {n: warns.length}), ...warns] : [l('publishOk')]);
+	}
+
+	async function build(before: string[] = []) {
+		setChecked(undefined);
 		setBusy(true);
 		setMessage([]);
 		try {
@@ -434,7 +477,7 @@ export const SignalyAppWindow: React.FC<SignalyAppWindowProps> = props => {
 			const data = writeSgpack(game, files);
 			const name = `${String(game.title || story.name).replace(/[\\/:*?"<>|]+/g, '_')}-v${game.version}.sgpack`;
 			const b = bridge();
-			const notes: string[] = [];
+			const notes: string[] = [...before];
 
 			if (folder && b?.signalyWriteAppPack) {
 				const path = await b.signalyWriteAppPack(folder, name, data);
@@ -510,11 +553,14 @@ export const SignalyAppWindow: React.FC<SignalyAppWindowProps> = props => {
 				<button
 					className="signaly-button"
 					disabled={busy || !has || !saved}
-					onClick={build}
-					title={saved ? undefined : pl('saveFirst')}
+					onClick={() => {
+						setTab('pack');
+						publish();
+					}}
+					title={saved ? l('publishHint') : pl('saveFirst')}
 					type="button"
 				>
-					{l('build')}
+					{l('publish')}
 				</button>
 				<button aria-pressed={phone} className="signaly-button" onClick={() => setPhone(!phone)} type="button">
 					{pl('preview.toggle')}
@@ -562,6 +608,27 @@ export const SignalyAppWindow: React.FC<SignalyAppWindowProps> = props => {
 							<p key={m}>{m}</p>
 						))}
 					</div>
+				)}
+				{checked && (
+					<section className="signaly-check-group signaly-app-publish">
+						<h3>{l('publishErrors', {n: checked.errors.length})}</h3>
+						<ul>
+							{checked.errors.map(e => (
+								<li className="signaly-check-error" key={e}>
+									✗ {e}
+								</li>
+							))}
+							{checked.warns.map(e => (
+								<li key={e}>⚠ {e}</li>
+							))}
+						</ul>
+						<button className="signaly-button primary" disabled={busy} onClick={() => build([l('publishForced', {n: checked.errors.length})])} type="button">
+							{l('publishAnyway')}
+						</button>{' '}
+						<button className="signaly-button" onClick={() => setChecked(undefined)} type="button">
+							{l('cancel')}
+						</button>
+					</section>
 				)}
 				{pending && (
 					<section className="signaly-check-group signaly-app-pending">
