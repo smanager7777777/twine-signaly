@@ -41,6 +41,8 @@ export const PhoneCodeForm: React.FC<{
 	const needNet = limit > 0 || !!data.perAcc || data.count === 'all' || sign > 1;
 	const hints = voiceHints(refs.voice.unknown, str('voice'));
 	const variants = list('variants');
+	const when = list('when');
+	const setWhen = (i: number, patch: AppGame) => set({when: when.map((w, k) => (k === i ? {...w, ...patch} : w))});
 	const setVariant = (i: number, patch: AppGame) => set({variants: variants.map((v, k) => (k === i ? {...v, ...patch} : v))});
 
 	return (
@@ -109,6 +111,44 @@ export const PhoneCodeForm: React.FC<{
 					/>
 				</>
 			)}
+			<h5 className="signaly-block-subtitle">{l('code.whenTitle')}</h5>
+			<div className="signaly-field-hint">{l(refs.shared.length ? (when.length ? 'code.whenHint' : 'code.whenNone') : 'code.whenNoShared')}</div>
+			{when.map((w, i) => (
+				<fieldset className="signaly-block-row signaly-when-row" key={i}>
+					<legend>
+						{l('code.whenN', {n: i + 1})}{' '}
+						<button className="signaly-button" onClick={() => set({when: when.filter((_, k) => k !== i)})} type="button">
+							{l('code.whenRemove')}
+						</button>
+					</legend>
+					<ChoiceField
+						label={l('rules.var')}
+						onChange={v => setWhen(i, {var: v})}
+						options={[
+							...refs.shared.map(v => ({label: `${v.label || v.name} ($${v.name})`, value: v.name})),
+							...(w.var && !refs.shared.some(v => v.name === w.var) ? [{label: `$${w.var} ?`, value: String(w.var)}] : [])
+						]}
+						value={String(w.var ?? '')}
+					/>
+					<ChoiceField
+						label={l('rules.op')}
+						onChange={op => setWhen(i, {op})}
+						options={['>=', '<=', '>', '<', '=', '!='].map(v => ({label: l(`rules.ops.${v}`), value: v}))}
+						value={String(w.op || '>=')}
+					/>
+					<TextField hint={l('code.whenValueHint')} label={l('rules.value')} onChange={value => setWhen(i, {value})} value={String(w.value ?? '')} />
+				</fieldset>
+			))}
+			{refs.shared.length > 0 && (
+				<button
+					className="signaly-button"
+					onClick={() => set({when: [...when, {var: refs.shared[0].name, op: '>=', value: ''}]})}
+					type="button"
+				>
+					{l('code.whenAdd')}
+				</button>
+			)}
+			{when.length > 0 && <AreaInput hint={l('code.whenTextHint', {v: '{{имя}}', interpolation: {skipOnVariables: true}})} label={l('code.whenText')} onChange={whenText => set({whenText})} value={data.whenText} />}
 			<h5 className="signaly-block-subtitle">{l(needNet ? 'code.limitsNet' : 'code.limits')}</h5>
 			<NumField hint={l('code.limitHint')} label={l('code.limit')} onChange={v => set({limit: Math.round(v)})} value={limit} />
 			<CheckField label={l('code.perAcc')} onChange={perAcc => set({perAcc})} value={!!data.perAcc} />

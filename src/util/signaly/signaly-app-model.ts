@@ -51,9 +51,42 @@ export const defaultChat: AppGame = {
 	noPaste: true,
 	delayMax: 60,
 	masterContact: false,
+	auto: true,
 	bossColor: '',
 	anonColor: ''
 };
+
+/** Сессия 36 (Т4-6 Б): шапка и нижнее меню телефона (как SG.normHeader и MENU_TABS приложения). */
+export const defaultHeader: AppGame = {title: '', sub: '', chapter: true, infoTitle: '', items: [], info: []};
+export const menuTabs: Array<[string, string]> = [
+	['data', 'ДАННЫЕ'],
+	['code', 'КОД'],
+	['scan', 'СКАНЕР'],
+	['chat', 'СВЯЗЬ'],
+	['apps', 'ПРИБОРЫ'],
+	['photo', 'КАМЕРА'],
+	['notes', 'ЗАМЕТКИ']
+];
+
+/** Нижнее меню по порядку (заданные — первыми, остальные — по умолчанию). */
+export function fullMenu(menu: unknown): Array<{tab: string; label: string; hidden: boolean; def: string}> {
+	const given = (Array.isArray(menu) ? menu : []).filter(m => m && menuTabs.some(t => t[0] === m.tab));
+	const out = given.map(m => ({tab: String(m.tab), label: String(m.label ?? ''), hidden: !!m.hidden, def: ''}));
+
+	menuTabs.forEach(([tab]) => {
+		if (!out.some(m => m.tab === tab)) {
+			out.push({tab, label: '', hidden: false, def: ''});
+		}
+	});
+	return out.map(m => ({...m, def: menuTabs.find(t => t[0] === m.tab)![1]}));
+}
+
+/** Меню без изменений — пустой список (как «Как было» в редакторе приложения). */
+export function menuValue(list: Array<{tab: string; label: string; hidden: boolean}>) {
+	const out = list.map(m => ({tab: m.tab, label: m.label, hidden: m.hidden}));
+
+	return out.every((m, i) => !m.label && !m.hidden && m.tab === menuTabs[i][0]) ? [] : out;
+}
 
 export const defaultVoice: AppGame = {minConf: 0.6, digits: true, sens: 1, comment: '', unknown: ''};
 

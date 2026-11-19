@@ -978,6 +978,21 @@ export function withDefaults(game: AppGame): AppGame {
 	};
 }
 
+/**
+ * Для сравнения (сессия 36): ещё и поля, которые старый редактор приложения дописывает сам
+ * (SG.normalize): условие «когда» у кода, пустые шапка и меню.
+ */
+function diffDefaults(game: AppGame): AppGame {
+	const g = withDefaults(game);
+
+	return {
+		...g,
+		codes: g.codes.map((c: AppGame) => ({when: [], whenText: '', ...c})),
+		header: {title: '', sub: '', chapter: true, infoTitle: '', items: [], info: [], ...(g.header ?? {})},
+		menu: Array.isArray(g.menu) ? g.menu : []
+	};
+}
+
 /** Что поменяется, если историю заменить пакетом: было (из истории) → станет (пакет). */
 export function diffGames(
 	wasGame: AppGame,
@@ -986,8 +1001,8 @@ export function diffGames(
 	nowFiles: AppFiles = {}
 ): AppDiff[] {
 	const out: AppDiff[] = [];
-	const was = withDefaults(wasGame);
-	const now = withDefaults(nowGame);
+	const was = diffDefaults(wasGame);
+	const now = diffDefaults(nowGame);
 	const general = (g: AppGame) =>
 		Object.keys(g).filter(k => !ownKeys.includes(k));
 	const keys = [...new Set([...general(was), ...general(now)])].filter(

@@ -122,6 +122,24 @@ export function appProblems(game: AppGame, files?: Set<string>, blockPassage: (i
 			err(`Правило «${r.name || r.var || '?'}»: общей переменной «${r.var ?? ''}» нет`, 'settings');
 		}
 	});
+	// Сессия 36: условие «когда» у кода (Т4-5) и показатели шапки (Т4-6) — без такой переменной.
+	const hasShared = (name: unknown) => shared.some(v => v.name === String(name ?? '').replace(/^\$/, ''));
+
+	codes.forEach(c =>
+		arr(c.when).forEach(w => {
+			if (!hasShared(w.var)) {
+				err(`Код «${c.note || c.code || c.voice || '?'}»: в условии «когда» общей переменной «${w.var ?? ''}» нет`, 'codes');
+			}
+		})
+	);
+	arr(game.header?.items).forEach((it, i) => {
+		if (!hasShared(it.var)) {
+			err(`Шапка, показатель ${i + 1}${it.label ? ` «${it.label}»` : ''}: общей переменной «${it.var ?? ''}» нет`, 'settings');
+		}
+	});
+	if (arr(game.menu).length && ['data', 'code', 'scan', 'chat', 'apps', 'photo', 'notes'].every(t => arr(game.menu).some(m => m.tab === t && m.hidden))) {
+		err('Меню: скрыты все вкладки', 'settings');
+	}
 	const varsIn = (text: unknown, owner: string, where: string) => {
 		for (const m of String(text ?? '').matchAll(/\{\{\s*\$?([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g)) {
 			if (!shared.some(v => v.name === m[1])) {
@@ -134,8 +152,10 @@ export function appProblems(game: AppGame, files?: Set<string>, blockPassage: (i
 	codes.forEach(c => {
 		const label = String(c.comment || c.note || c.code || c.voice || '?');
 
-		[c.answer, ...arr(c.answers), ...arr(c.variants).map(v => v.answer)].forEach(t => varsIn(t, `Код «${label}»`, 'codes'));
+		[c.answer, c.whenText, ...arr(c.answers), ...arr(c.variants).map(v => v.answer)].forEach(t => varsIn(t, `Код «${label}»`, 'codes'));
 	});
+	[game.header?.title, game.header?.sub, game.header?.infoTitle].forEach(t => varsIn(t, 'Шапка', 'settings'));
+	arr(game.header?.info).forEach(s => varsIn(`${s.title ?? ''} ${s.text ?? ''}`, `Шапка, раздел «${s.title || '?'}»`, 'settings'));
 	arr(game.notices).forEach(n => varsIn(`${n.title ?? ''} ${n.text ?? ''}`, `Уведомление «${n.name || n.title || '?'}»`, 'settings'));
 	blocks.forEach(b => {
 		const name = String(b.title || '(без названия)');

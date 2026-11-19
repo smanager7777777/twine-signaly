@@ -38,7 +38,7 @@ const back = '<<link "Назад">><<sg-back>><</link>>';
 const initRe = /(:: StoryInit[^\n]*\n)/;
 const test =
 	story
-		.replace(initRe, '$1<<set $evChapter to 1>>\n<<set $evRepaired to false>>\n<<set $evHot to false>>\n<<set $iff to 0>>\n')
+		.replace(initRe, '$1<<set $evChapter to 1>>\n<<set $evRepaired to false>>\n<<set $evHot to false>>\n<<set $iff to 0>>\n<<set $evPop to false>>\n<<set $evPopRan to 0>>\n')
 		.replace(/\s*$/, '\n') +
 	`
 :: Коды [sg-codes] {"position":"0,0","size":"100,100"}
@@ -80,6 +80,11 @@ ${codesText}
 :: EvLow [sg-event] {"position":"800,0","size":"100,100"}
 <<sg-event $evChapter is 3>>
 Обычное ${back}
+
+:: Внимание экипажу [sg-event] {"position":"1000,0","size":"100,100"}
+<<sg-event popup $evPop>>
+<<sg-event-do>><<set $evPopRan += 1>><</sg-event-do>>
+Давление падает. Проверьте отсек 3.
 
 :: EvCond {"position":"900,0","size":"100,100"}
 <<if setup.entered("3", "102")>>ДА<<else>>НЕТ<</if>>
@@ -265,6 +270,31 @@ async function newChecks(url, prefix) {
 	say('«Вернуться» — на экран до событий', (await passage(page)) === 'EvHome');
 	await page.waitForTimeout(600);
 	say('больше событий нет', (await passage(page)) === 'EvHome');
+
+	// Сессия 36 (Т4-8 Б): событие popup — окно-сообщение поверх экрана, терминал остаётся.
+	await page.evaluate(() => {
+		SugarCube.Dialog.create('Чужое окно');
+		SugarCube.Dialog.append('текст');
+		SugarCube.Dialog.open();
+		SugarCube.State.variables.evPop = true;
+	});
+	await page.waitForTimeout(700);
+	say('popup: открыто другое окно — событие ждёт', (await page.textContent('#ui-dialog-title')).trim() === 'Чужое окно' && (await v(page, 'evPopRan')) === 0,
+		(await page.innerText('#ui-dialog-title')) + ' / ' + (await v(page, 'evPopRan')) + ' / ' + (await passage(page)));
+	await page.evaluate(() => SugarCube.Dialog.close());
+	await page.waitForTimeout(700);
+	say(
+		'popup: окно-сообщение с текстом пассажа, заголовок — название, терминал на месте',
+		(await passage(page)) === 'EvHome' &&
+			(await page.evaluate(() => SugarCube.Dialog.isOpen())) &&
+			(await page.textContent('#ui-dialog-title')).trim() === 'Внимание экипажу' &&
+			(await page.innerText('#ui-dialog-body')).trim() === 'Давление падает. Проверьте отсек 3.',
+		(await page.innerText('#ui-dialog-title')) + ' / ' + (await passage(page)) + ' / ' + (await page.evaluate(() => SugarCube.Dialog.isOpen()))
+	);
+	say('popup: действия выполнены один раз', (await v(page, 'evPopRan')) === 1);
+	await page.evaluate(() => SugarCube.Dialog.close());
+	await page.waitForTimeout(700);
+	say('popup: один раз — окно не повторяется', !(await page.evaluate(() => SugarCube.Dialog.isOpen())) && (await v(page, 'evPopRan')) === 1 && (await passage(page)) === 'EvHome');
 
 	// Сбой: отметки на месте.
 	const marks = JSON.stringify(await v(page, 'sgEvents'));

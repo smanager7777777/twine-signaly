@@ -1929,7 +1929,11 @@
 			"do": "Actions when the event fires",
 			"doHint": "Run once when the event fires (before going to the screen). In text — <<sg-event-do>>…<</sg-event-do>>, invisible on screen.",
 			"hintStay": "The terminal runs the actions when the condition becomes true and stays on its screen. First line <<sg-event stay …>> and tag sg-event. All events and phone rules — Events window (Story tab).",
-			"whenStay": "When the event fires (the terminal stays on its screen)"
+			"whenStay": "When the event fires (the terminal stays on its screen)",
+			"popup": "Don't go to the screen — show a message window",
+			"popupHint": "The terminal stays on its screen and the text of this passage appears on top as a message window (titled with the passage name). If another window is open, the event waits until it is closed. The actions below run too.",
+			"whenPopup": "When the event fires (a message window over the screen)",
+			"hintPopup": "The terminal shows a message window with this passage's text when the condition becomes true and stays on its screen. In the text: first line <<sg-event popup …>> and the sg-event tag."
 		},
 		"ticker": {
 			"button": "Event line",
@@ -2636,7 +2640,8 @@
 				"voice": "Voice",
 				"blocks": "Blocks",
 				"qr": "QR",
-				"sstv": "SSTV"
+				"sstv": "SSTV",
+				"header": "Header and menu"
 			},
 			"saveFirst": "Save the form changes first",
 			"noAccounts": "No app characters yet: in «Коды» → Employees, tick «App character on the phone».",
@@ -2861,7 +2866,17 @@
 				"deniedOpens": "Opens blocks for them (optional)",
 				"actions": "Actions on the phone",
 				"actionsHint": "Run when the code works on the phone. «Everyone» and «selected» go through the network.",
-				"variantAnswer": "Answer in this variant"
+				"variantAnswer": "Answer in this variant",
+				"whenTitle": "When it works (shared variables)",
+				"whenHint": "The code works only if all conditions are true; otherwise «NO ACCESS» and the answer below. Values come from the network center (offline — the last known).",
+				"whenNone": "Without conditions the code always works (by chapter and «who»).",
+				"whenNoShared": "No shared variables: Variables window → «Shared with phones».",
+				"whenN": "Condition {{n}}",
+				"whenRemove": "Remove condition",
+				"whenAdd": "+ Condition",
+				"whenValueHint": "A number as a number, yes/no, anything else as text (only «equals» and «not equal»).",
+				"whenText": "Answer when the condition is not met",
+				"whenTextHint": "Optional. The window title is «NO ACCESS». {{v}} inserts a shared variable."
 			},
 			"person": {
 				"title": "On the phone",
@@ -2991,7 +3006,9 @@
 					"scanFail": "Scanner not responding",
 					"busy": "Character already online",
 					"noPaste": "Pasting unavailable"
-				}
+				},
+				"autoNet": "The phone finds the center itself after login (no NETWORK QR)",
+				"autoNetHint": "First the Wi-Fi gateway (the hotspot on the game master's phone), then the whole Wi-Fi network. The phone remembers the address it found. The NETWORK QR stays as a fallback."
 			},
 			"chapters": {
 				"add": "+ Chapter",
@@ -3360,6 +3377,47 @@
 				"makeCode": "Make code sound",
 				"codeResult": "{{name}} — {{s}} s.",
 				"codeOk": "Check: the code is heard."
+			},
+			"header": {
+				"lines": "Header lines",
+				"title": "First line",
+				"titleHint": "Empty — the character name. {name}, {prof}, {chapter}, {{v}} — a shared variable.",
+				"sub": "Second line",
+				"subHint": "Empty — the profession.",
+				"chapter": "Show the chapter on the right",
+				"items": "Header indicators (shared variables)",
+				"itemsHint": "A line under the name: a shared variable as a number («7» or «7/10») or as lit and unlit squares. The label may be empty.",
+				"noShared": "No shared variables: Variables window → «Shared with phones».",
+				"item": "Indicator {{n}}",
+				"remove": "Remove",
+				"var": "Variable",
+				"label": "Label",
+				"labelHint": "Empty — no label.",
+				"show": "Show as",
+				"showNum": "number",
+				"showCells": "squares",
+				"max": "Out of",
+				"maxHint": "0 — just the number; otherwise «7/10».",
+				"cells": "Squares",
+				"cellsHint": "As many lit as the value; 0 — by value (up to 10). Yes/no — one square.",
+				"unit": "Unit (e.g. %)",
+				"fromChapter": "From chapter",
+				"who": "Visible to",
+				"addItem": "+ Indicator",
+				"info": "Window on tapping the header",
+				"infoHint": "Tapping the header opens a window with all indicators and the sections below.",
+				"infoTitle": "Window title (empty — SUMMARY)",
+				"section": "Section {{n}}",
+				"secTitle": "Section title",
+				"secText": "Text",
+				"secTextHint": "{{v}} — a shared variable, **bold**.",
+				"addSection": "+ Section",
+				"menu": "Bottom menu",
+				"menuHint": "Order (↑), own names and hidden tabs.",
+				"menuLabel": "Name on the phone",
+				"menuLabelHint": "Empty — «{{def}}».",
+				"menuHide": "Hide",
+				"menuReset": "Reset"
 			}
 		},
 		"eventsWindow": {
@@ -3367,7 +3425,7 @@
 			"title": "Events",
 			"intro": "When X → do Y. A terminal condition is run by the terminal (goes to the event screen or only runs actions, including \"To phones: …\"). A phone condition (event, chapter + N minutes, every N minutes, shared variable) is run by the network center on the master's phone. Nothing is written until Save.",
 			"termGroup": "Terminal condition ({{n}})",
-			"termGroupHint": "▶ — goes to the screen, ⚡ — actions only. Passages tagged sg-event.",
+			"termGroupHint": "▶ — goes to the screen, 💬 — a message window over the screen, ⚡ — actions only. Passages tagged sg-event.",
 			"ruleGroup": "Phone condition ({{n}})",
 			"ruleGroupHint": "Network center rules (passage \"Приложение\").",
 			"newTermName": "New event name (screen)",

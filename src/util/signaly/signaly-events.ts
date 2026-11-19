@@ -8,7 +8,9 @@
 //   delay N    — через N секунд после того, как условие стало верным;
 //   priority N — важность: из нескольких готовых событий первым идёт то, у
 //                кого число больше;
-//   stay       — (сессия 35) не переходить на экран события, только действия.
+//   stay       — (сессия 35) не переходить на экран события, только действия;
+//   popup      — (сессия 36, Т4-8 Б) не переходить, а показать текст пассажа окном-сообщением
+//                поверх экрана (заголовок — название пассажа).
 // Движок терминала сам переходит на такой пассаж, когда условие станет верным.
 // Сессия 35 (Т4-4 А): действия при срабатывании — строкой после первой:
 //   <<sg-event-do>>действия (как у ссылки)<</sg-event-do>>
@@ -27,6 +29,8 @@ export interface EventHead {
 	repeat: boolean;
 	/** Не переходить на экран события — только действия (сессия 35). */
 	stay: boolean;
+	/** Показать текст пассажа окном-сообщением поверх экрана (сессия 36). */
+	popup: boolean;
 	/** Секунды задержки (0 — сразу). */
 	delay: number;
 	/** Важность (0 по умолчанию). */
@@ -63,19 +67,22 @@ export function parseEventArgs(args: string) {
 	let rest = args.trim();
 	let repeat = false;
 	let stay = false;
+	let popup = false;
 	let delay = 0;
 	let priority = 0;
 
 	for (;;) {
-		const m = /^(repeat|stay|delay|priority)(?:\s+(-?\d+(?:[.,]\d+)?))?(?:\s+|$)/.exec(rest);
+		const m = /^(repeat|stay|popup|delay|priority)(?:\s+(-?\d+(?:[.,]\d+)?))?(?:\s+|$)/.exec(rest);
 
-		if (!m || (m[1] !== 'repeat' && m[1] !== 'stay' && m[2] === undefined)) {
+		if (!m || (m[1] !== 'repeat' && m[1] !== 'stay' && m[1] !== 'popup' && m[2] === undefined)) {
 			break;
 		}
 		if (m[1] === 'repeat') {
 			repeat = true;
 		} else if (m[1] === 'stay') {
 			stay = true;
+		} else if (m[1] === 'popup') {
+			popup = true;
 		} else if (m[1] === 'delay') {
 			delay = Math.max(0, Number(m[2].replace(',', '.')));
 		} else {
@@ -83,7 +90,7 @@ export function parseEventArgs(args: string) {
 		}
 		rest = rest.slice(m[0].length);
 	}
-	return {expr: rest.trim(), repeat, stay, delay, priority};
+	return {expr: rest.trim(), repeat, stay, popup, delay, priority};
 }
 
 /** Команда события в тексте пассажа (первая). */
@@ -116,12 +123,13 @@ function num(n: number) {
 	return String(Number(n.toFixed(3)));
 }
 
-type HeadFields = Pick<EventHead, 'expr' | 'repeat' | 'delay' | 'priority'> & {stay?: boolean};
+type HeadFields = Pick<EventHead, 'expr' | 'repeat' | 'delay' | 'priority'> & {stay?: boolean; popup?: boolean};
 
 export function writeEventHead(e: HeadFields) {
 	const words = [
 		e.repeat ? 'repeat' : '',
 		e.stay ? 'stay' : '',
+		e.popup && !e.stay ? 'popup' : '',
 		e.delay > 0 ? `delay ${num(e.delay)}` : '',
 		e.priority !== 0 && isFinite(e.priority) ? `priority ${num(e.priority)}` : ''
 	].filter(Boolean);

@@ -246,7 +246,7 @@ await win.waitForTimeout(1500);
 let file = passageIn(storyFile(), 'Процедуры').text;
 
 check('список в файле истории', (file.match(/<<sg-row /g) || []).length === 99 && file.includes('goto "Пароль"'), file.slice(0, 300));
-check('движок 31', storyFile().includes('Версия движка: 31'));
+check('движок 32', storyFile().includes('Версия движка: 32'));
 
 await app.close();
 const failed = results.filter(ok => !ok).length;

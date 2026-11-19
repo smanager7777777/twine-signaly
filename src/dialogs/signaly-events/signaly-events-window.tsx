@@ -449,7 +449,7 @@ export const SignalyEventsWindow: React.FC<
 	const termLabel = (x: TermItem) => {
 		const head = findEvent(x.text);
 
-		return `${head?.stay ? '⚡' : '▶'} ${x.name}${head ? ` · ${head.expr.length > 40 ? head.expr.slice(0, 40) + '…' : head.expr}` : ''}`;
+		return `${head?.stay ? '⚡' : head?.popup ? '💬' : '▶'} ${x.name}${head ? ` · ${head.expr.length > 40 ? head.expr.slice(0, 40) + '…' : head.expr}` : ''}`;
 	};
 
 	return (

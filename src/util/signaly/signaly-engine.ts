@@ -61,6 +61,8 @@
 // - сессия 35 (движок 31, этап Т4): общие с телефонами переменные — <<sg-shared "имя" …>> в StoryInit, значение
 //   хранит центр («var:имя»), терминал шлёт свои изменения и берёт чужие ($sgNet.shared — что отправлено);
 //   у события — слово stay (не переходить на экран) и действия <<sg-event-do>>…<</sg-event-do>> при срабатывании.
+// - сессия 36 (движок 32, ответ Т4-8 Б): у события — слово popup: не переходить на экран, а показать текст пассажа
+//   окном-сообщением поверх экрана (заголовок — название пассажа); ждёт, пока закроют другое окно.
 //
 // Код написан без обратных кавычек и без «${», потому что хранится в шаблонной
 // строке.
@@ -76,7 +78,7 @@ import {tipBase} from './signaly-tip';
 const glitchBase = [...glitchRules(defaultGlitch, ':where(.glitchy)'), glitchKeyframes].join('\n');
 
 /** Версия движка. Увеличивать при каждом изменении кода ниже. */
-export const signalyEngineVersion = 31;
+export const signalyEngineVersion = 32;
 
 export const signalyEngineStart =
 	'/* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */';
@@ -9591,17 +9593,19 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 
 	function eventArgs(args) {
 		var rest = args.trim();
-		var a = {repeat: false, stay: false, delay: 0, priority: 0};
+		var a = {repeat: false, stay: false, popup: false, delay: 0, priority: 0};
 		var m;
 
-		while ((m = /^(repeat|stay|delay|priority)(?:\s+(-?\d+(?:[.,]\d+)?))?(?:\s+|$)/.exec(rest))) {
-			if (m[1] !== 'repeat' && m[1] !== 'stay' && m[2] === undefined) {
+		while ((m = /^(repeat|stay|popup|delay|priority)(?:\s+(-?\d+(?:[.,]\d+)?))?(?:\s+|$)/.exec(rest))) {
+			if (m[1] !== 'repeat' && m[1] !== 'stay' && m[1] !== 'popup' && m[2] === undefined) {
 				break;
 			}
 			if (m[1] === 'repeat') {
 				a.repeat = true;
 			} else if (m[1] === 'stay') {
 				a.stay = true;
+			} else if (m[1] === 'popup') {
+				a.popup = true;
 			} else if (m[1] === 'delay') {
 				a.delay = Math.max(0, Number(m[2].replace(',', '.')) || 0);
 			} else {
@@ -9727,6 +9731,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		var current = State.passage;
 		var here = Story.has(current) && Story.get(current).tags.indexOf('sg-event') !== -1;
 		var next = null;
+		var pop = null;
 		var ran = [];
 
 		list.forEach(function (ev) {
@@ -9735,7 +9740,12 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			if (!m || !m.ready) {
 				return;
 			}
-			if (ev.stay || ev.name === current) {
+			if (ev.popup && !ev.stay && ev.name !== current) {
+				// Сессия 36 (Т4-8 Б): окно-сообщение поверх экрана — по одному, когда другое окно закрыто.
+				if (!pop) {
+					pop = ev;
+				}
+			} else if (ev.stay || ev.name === current) {
 				// Сессия 35: «не переходить на экран» — только действия; или игроки уже на экране события.
 				delete m.ready;
 				if (!ev.repeat) {
@@ -9748,6 +9758,22 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			}
 		});
 		ran.forEach(eventRun);
+
+		if (pop && !Dialog.isOpen()) {
+			var pm = marks[pop.name];
+
+			delete pm.ready;
+			if (!pop.repeat) {
+				pm.done = 1;
+			}
+			changed = true;
+			eventRun(pop);
+			try {
+				setup.signaly.openDialog({title: pop.name, passage: pop.name});
+			} catch (e) {
+				console.error('СИГНАЛЫ: окно события «' + pop.name + '»', e);
+			}
+		}
 
 		if (!next) {
 			if (changed) {

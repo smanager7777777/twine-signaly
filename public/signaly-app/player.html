@@ -45,6 +45,20 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 #bar-name{color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #bar-prof{font-size:12px;color:var(--dim);letter-spacing:.08em}
 #bar-chap{font-size:12px;border:1px solid var(--dim);padding:4px 8px;white-space:nowrap}
+#bar-chap[hidden],#bar-vars[hidden]{display:none}
+#bar{display:block}
+#bar .bar-top{display:flex;align-items:center;justify-content:space-between}
+#bar .bar-top .who{flex:1 1 auto}
+#bar .bar-top>*+*{margin-left:8px}
+#bar.tap .who{cursor:pointer}
+#bar.tap #bar-prof::after{content:' ⓘ'}
+#bar-vars{display:flex;flex-wrap:wrap;align-items:center;margin-top:6px;font-size:12px;letter-spacing:.06em;cursor:pointer}
+#bar-vars .hv{display:inline-flex;align-items:center;margin:2px 14px 2px 0;white-space:nowrap}
+#bar-vars .hv b{font-weight:normal;color:var(--dim);margin-right:6px}
+#bar-vars .hv .v{color:var(--accent)}
+#bar-vars .cells{display:inline-flex}
+#bar-vars .cells i{display:inline-block;width:9px;height:12px;margin-right:2px;border:1px solid var(--text-40);background:transparent}
+#bar-vars .cells i.on{background:var(--text);border-color:var(--text);box-shadow:0 0 4px var(--text)}
 .tab{display:none;flex:1;overflow-y:auto;padding:14px;-webkit-overflow-scrolling:touch}
 .tab.on{display:block}
 .tab-title{color:var(--dim);letter-spacing:.3em;font-size:12px;text-align:center;margin:6px 0 16px}
@@ -364,6 +378,7 @@ body.alarm-on{--bg:#140202;--panel:#260404;--text:#ff3b30;--dim:#9a1d17;--accent
 #bar-voice.broken{opacity:.3;text-decoration:line-through}
 table.meter{border-collapse:collapse;font-size:12px;width:100%}
 table.meter td,table.meter th{border-bottom:1px solid var(--text-30);padding:2px 4px;text-align:left}
+#bar #bar-vars{margin-left:0}
 
 </style>
 <style id="sg-theme"></style>
@@ -408,8 +423,11 @@ table.meter td,table.meter th{border-bottom:1px solid var(--text-30);padding:2px
 
   <section id="scr-main" class="screen">
     <header id="bar">
-      <div class="who"><span id="bar-name"></span><span id="bar-prof"></span></div>
-      <div class="bar-r"><span id="bar-net" class="net-dot" hidden></span><div class="chap" id="bar-chap"></div></div>
+      <div class="bar-top">
+        <div class="who"><span id="bar-name"></span><span id="bar-prof"></span></div>
+        <div class="bar-r"><span id="bar-net" class="net-dot" hidden></span><div class="chap" id="bar-chap"></div></div>
+      </div>
+      <div id="bar-vars" hidden></div>
     </header>
     <div id="banners"></div>
     <main id="tab-data" class="tab on"></main>
@@ -10700,7 +10718,7 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
     { id: 'white', name: 'Белый', color: '#dfe9df' }
   ];
   /* Связь (П-40…П-44): имя мастера в чатах, подпись анонимных, запрет вставки, предел отложенной отправки. */
-  var DEFAULT_CHAT = { master: 'Руководитель', masterProf: '', anon: 'НЕИЗВЕСТНЫЙ', noPaste: true, delayMax: 60, masterContact: false,
+  var DEFAULT_CHAT = { master: 'Руководитель', masterProf: '', anon: 'НЕИЗВЕСТНЫЙ', noPaste: true, delayMax: 60, masterContact: false, auto: true,
     bossColor: '', anonColor: '' };   // цвет сообщений Руководителя (и «Системы» с пульта) и анонимных у всех: '' — цветом читающего (П-51)
 
   /* Голос (П-58): общие настройки. minConf — уверенность распознавания (0…1), digits — цифры голосом,
@@ -10764,6 +10782,7 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
     g.texts = Object.assign(clone(DEFAULT_TEXTS), g.texts || {});
     g.chat = Object.assign(clone(DEFAULT_CHAT), g.chat || {});
     g.chat.delayMax = Math.max(1, Math.min(240, +g.chat.delayMax || 60));
+    normHeader(g);
     g.voice = Object.assign(clone(DEFAULT_VOICE), g.voice || {});
     g.voice.minConf = Math.max(0.1, Math.min(1, +g.voice.minConf || DEFAULT_VOICE.minConf));
     if (!Array.isArray(g.chapters) || !g.chapters.length) g.chapters = base.chapters;
@@ -10935,6 +10954,11 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
     c.voiceMax = Math.max(0, +c.voiceMax || 0);                     // сколько телефонов срабатывает: 0 — все услышавшие
     c.voiceEvery = Math.max(0, +c.voiceEvery || 0);                 // секунд паузы после срабатывания (у всех)
     c.term = !!c.term;                                              // фраза «для терминала» (П-60): слышит любой телефон с голосом, молча передаёт терминалу
+    // П14 (Т4-5 А): «когда» — код срабатывает, только если верны все условия по общим переменным; иначе «нет доступа» и whenText
+    c.when = (Array.isArray(c.when) ? c.when : []).filter(function (w) { return w && w.var; }).map(function (w) {
+      return { var: String(w.var).replace(/^\$/, ''), op: w.op || '>=', value: w.value == null ? '' : String(w.value) };
+    });
+    c.whenText = c.whenText || '';
     return c;
   }
 
@@ -10995,6 +11019,75 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
     return null;
   }
 
+  /* ---------- П14 (Т4-6 Б): шапка и меню приложения ----------
+     game.header: title / sub — строки шапки (пусто — имя и профессия; {{имя}} — общая переменная, {name} {prof} {chapter});
+     chapter — показывать главу справа; items — показатели (общая переменная: подпись или без, числом или квадратиками);
+     infoTitle и info — окно по нажатию на шапку (разделы: заголовок, текст, кому, с главы).
+     game.menu: [{tab, label, hidden}] — порядок, названия и скрытые вкладки нижнего меню (пусто — как было). */
+  var MENU_TABS = [['data', 'ДАННЫЕ'], ['code', 'КОД'], ['scan', 'СКАНЕР'], ['chat', 'СВЯЗЬ'], ['apps', 'ПРИБОРЫ'], ['photo', 'КАМЕРА'], ['notes', 'ЗАМЕТКИ']];
+  function normHeader(g) {
+    var h = g.header = Object.assign({ title: '', sub: '', chapter: true, infoTitle: '', items: [], info: [] }, g.header || {});
+    h.chapter = h.chapter !== false;
+    h.items = (Array.isArray(h.items) ? h.items : []).map(function (it) {
+      it = Object.assign({ var: '', label: '', show: 'num', max: 0, chapter: 1, who: [], unit: '' }, it || {});
+      it.id = it.id || uid('h');
+      it.var = String(it.var || '').replace(/^\$/, '');
+      it.show = it.show === 'cells' ? 'cells' : 'num';
+      it.max = Math.max(0, Math.min(40, +it.max || 0));
+      it.chapter = +it.chapter || 1;
+      it.who = Array.isArray(it.who) ? it.who : [];
+      return it;
+    });
+    h.info = (Array.isArray(h.info) ? h.info : []).map(function (s) {
+      s = Object.assign({ title: '', text: '', chapter: 1, who: [] }, s || {});
+      s.id = s.id || uid('i');
+      s.chapter = +s.chapter || 1;
+      s.who = Array.isArray(s.who) ? s.who : [];
+      return s;
+    });
+    var seen = {};
+    g.menu = (Array.isArray(g.menu) ? g.menu : []).filter(function (m) {
+      if (!m || seen[m.tab] || !MENU_TABS.some(function (t) { return t[0] === m.tab; })) return false;
+      return (seen[m.tab] = true);
+    }).map(function (m) { return { tab: m.tab, label: String(m.label || ''), hidden: !!m.hidden }; });
+  }
+  /* Нижнее меню по порядку: [{tab, label, hidden}] — все вкладки, заданные в game.menu — первыми. */
+  function menuTabs(game) {
+    var out = (game.menu || []).map(function (m) { return { tab: m.tab, label: m.label, hidden: !!m.hidden }; });
+    MENU_TABS.forEach(function (t) { if (!out.some(function (m) { return m.tab === t[0]; })) out.push({ tab: t[0], label: '', hidden: false }); });
+    out.forEach(function (m) { var d = MENU_TABS.filter(function (t) { return t[0] === m.tab; })[0]; m.def = d[1]; m.text = m.label || d[1]; });
+    return out;
+  }
+  /* Что видно в шапке персонажу: показатели и разделы окна (кому, с главы). */
+  function headerFor(game, state) {
+    var h = game.header || {}, a = byId(game.accounts, state.account) || {}, n = state.chapter || 1;
+    function vis(x) { return n >= (x.chapter || 1) && allowed(x.who || [], state.account); }
+    var ch = game.chapters[n - 1];
+    function fill(t) {
+      return fillVars(String(t || ''), game, state.vars).replace(/\{name\}/g, a.name || '').replace(/\{prof\}/g, a.profession || '').replace(/\{chapter\}/g, ch ? ch.name : '');
+    }
+    var vals = sharedValues(game, state.vars);
+    var items = (h.items || []).filter(vis).filter(function (it) { return sharedVar(game, it.var); }).map(function (it) {
+      var v = vals[it.var], sv = sharedVar(game, it.var);
+      return { id: it.id, var: it.var, label: it.label, show: it.show, max: it.max, unit: it.unit || '', value: v, name: sv.label || it.var,
+        cells: it.show === 'cells' ? cellsOf(v, it.max) : null,
+        text: v === true ? 'да' : v === false ? 'нет' : v == null ? '' : String(v) + (it.max && it.show === 'num' ? '/' + it.max : '') + (it.unit ? ' ' + it.unit : '') };
+    });
+    return { title: fill(h.title) || a.name || '—', sub: h.title || h.sub ? fill(h.sub) : (a.profession || ''), chapter: h.chapter !== false ? (ch ? ch.name : '') : '',
+      items: items, infoTitle: fill(h.infoTitle) || 'СВОДКА',
+      info: (h.info || []).filter(vis).map(function (s) { return { title: fill(s.title), text: fill(s.text) }; }) };
+  }
+  /* Квадратики: [true, true, false…] — горящие по значению (да/нет — один квадратик); max 0 — по значению, не больше 10. */
+  function cellsOf(v, max) {
+    if (v === true || v === false) return [v];
+    var n = Number(String(v == null ? '' : v).replace(',', '.'));
+    if (!isFinite(n)) n = 0;
+    var m = max || Math.max(1, Math.min(10, Math.ceil(n)));
+    var out = [];
+    for (var i = 0; i < m; i++) out.push(i < Math.round(n));
+    return out;
+  }
+
   function allowed(who, accountId) {
     return !who.length || who.indexOf(accountId) >= 0;
   }
@@ -11053,6 +11146,7 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
       var v = pickVariant(code, state);
       var ok = !!v || allowed(code.who, state.account);
       if (!ok && code.deniedAsWrong) return { kind: 'wrong' };
+      if (ok && !whenOk(game, code, state.vars)) return { kind: 'code', code: code, ok: false, cond: false, variant: v };
       return { kind: 'code', code: code, ok: ok, variant: v };
     }
     return { kind: 'wrong' };
@@ -11088,6 +11182,7 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
       return ids.map(function (id) { return byId(game.blocks, id); })
         .filter(function (b) { return b && allowed(b.who, state.account); });
     }
+    if (r.cond === false) return { kind: 'denied', title: T.denied, text: c.whenText, blocks: [], fresh: [], actions: [] };
     if (!r.ok) {
       var db = pick(c.deniedOpens);
       return { kind: 'denied', title: T.denied, text: c.denied, blocks: db, fresh: db.filter(function (b) { return unlocked.indexOf(b.id) < 0; }), actions: [] };
@@ -11224,6 +11319,40 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
       return x === true ? 'да' : x === false ? 'нет' : x == null ? '' : String(x);
     });
   }
+
+  /* Сравнение общей переменной с числом или текстом (как в центре, SgCenter.test): числа — числами,
+     остальное — текстом без регистра и пробелов по краям (только = и !=); да/нет — «да»/«нет» (и true/false, 1/0). */
+  function varTest(v, op, w) {
+    op = op || '=';
+    if (v === true || v === false) {
+      var t = String(w == null ? '' : w).trim().toLowerCase();
+      var yes = t === 'да' || t === 'true' || t === '1', no = t === 'нет' || t === 'false' || t === '0' || t === '';
+      if (op === '=' ) return v ? yes : no;
+      if (op === '!=') return v ? !yes : !no;
+      v = v ? 1 : 0;
+    }
+    var x = Number(String(v == null ? '' : v).trim().replace(',', '.')), y = Number(String(w == null ? '' : w).trim().replace(',', '.'));
+    var nx = v !== '' && v != null && isFinite(x), ny = w !== '' && w != null && isFinite(y);
+    if (nx && ny) {
+      if (op === '>') return x > y;
+      if (op === '>=') return x >= y;
+      if (op === '<') return x < y;
+      if (op === '<=') return x <= y;
+      if (op === '!=') return x !== y;
+      return x === y;
+    }
+    var a = String(v == null ? '' : v).trim().toLowerCase(), b = String(w == null ? '' : w).trim().toLowerCase();
+    if (op === '!=') return a !== b;
+    if (op === '=') return a === b;
+    return false;
+  }
+  /* Условия кода «когда» (Т4-5): все верны? vals — значения центра ({имя: значение}). */
+  function whenOk(game, code, vals) {
+    if (!code.when || !code.when.length) return true;
+    var v = sharedValues(game, vals);
+    return code.when.every(function (w) { return varTest(v[w.var], w.op, w.value); });
+  }
+  var WHEN_OPS = [['>=', 'не меньше'], ['<=', 'не больше'], ['>', 'больше'], ['<', 'меньше'], ['=', 'равно'], ['!=', 'не равно']];
 
   /* Значение для переменной терминала: число — числом, да/нет — true/false, остальное — текстом. */
   function termValue(v) {
@@ -11379,9 +11508,34 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
       if (sharedSeen[v.name]) err('Общая переменная «' + v.name + '» повторяется');
       sharedSeen[v.name] = 1;
     });
+    ((game.header || {}).items || []).forEach(function (it, i) {
+      if (!sharedVar(game, it.var)) err('Шапка, показатель ' + (i + 1) + (it.label ? ' «' + it.label + '»' : '') + ': общей переменной «' + (it.var || '') + '» нет');
+    });
+    var hidAll = game.menu && game.menu.length && MENU_TABS.every(function (t) { return game.menu.some(function (m) { return m.tab === t[0] && m.hidden; }); });
+    if (hidAll) err('Меню: скрыты все вкладки');
+    game.codes.forEach(function (c) {
+      (c.when || []).forEach(function (w) {
+        if (!sharedVar(game, w.var)) err('Код «' + (c.note || c.code || c.voice || '?') + '»: в условии «когда» общей переменной «' + w.var + '» нет');
+      });
+    });
     game.rules.forEach(function (r) {
       if (r.on === 'var' && !sharedVar(game, r.var)) err('Правило «' + (r.name || r.var || '?') + '»: общей переменной «' + (r.var || '') + '» нет');
     });
+    function varsIn(text, owner) {
+      String(text || '').replace(/\{\{\s*\$?([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g, function (all, n) {
+        if (!sharedVar(game, n)) warn(owner + ': {{' + n + '}} — нет такой общей переменной («Общее» → «Общие переменные»)');
+        return all;
+      });
+    }
+    game.blocks.forEach(function (b) { b.items.forEach(function (it) { if (it.type === 'text') varsIn(it.text, 'Блок «' + (b.title || '?') + '»'); }); });
+    game.codes.forEach(function (c) {
+      var label = c.note || c.code || c.voice || '?';
+      [c.answer, c.whenText].concat(c.answers || [], (c.variants || []).map(function (v) { return v.answer; })).forEach(function (t) { varsIn(t, 'Код «' + label + '»'); });
+    });
+    var hh = game.header || {};
+    [hh.title, hh.sub, hh.infoTitle].forEach(function (t) { varsIn(t, 'Шапка'); });
+    (hh.info || []).forEach(function (s) { varsIn((s.title || '') + ' ' + (s.text || ''), 'Шапка, раздел «' + (s.title || '?') + '»'); });
+    game.notices.forEach(function (n) { varsIn((n.title || '') + ' ' + (n.text || ''), 'Уведомление «' + (n.name || n.title || '?') + '»'); });
     game.blocks.forEach(function (b) {
       var name = b.title || '(без названия)';
       if (!b.title) warn('Блок без названия');
@@ -11588,7 +11742,8 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
       var mineToo = !!v || allowed(c.who, state.account);
       if (!mineToo && !c.term) return;
       var r = { kind: 'code', code: c, ok: true, variant: v };
-      var net = !mineToo ? [] : codeNeeds(r) ? null : wireMessages(expandActions(game, c.actions, { self: state.account, now: '{{now}}' }).net);
+      // с условием «когда» код целиком решает приложение (служба условий не знает)
+      var net = !mineToo ? [] : codeNeeds(r) || (c.when && c.when.length) ? null : wireMessages(expandActions(game, c.actions, { self: state.account, now: '{{now}}' }).net);
       if (c.term && net) net = [termCodeMsg(game, c, state.account, true)].concat(net);
       // фраза для терминала — по умолчанию у одного телефона (кто первый спросил центр), чтобы терминал не получил её дважды
       out.phrases.push({ id: c.id, text: text, max: c.voiceMax || (c.term ? 1 : 0), every: (c.voiceEvery || 0) * 1000, net: net, term: c.term, mine: mineToo });
@@ -11668,6 +11823,14 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
     expandActions: expandActions,
     termValue: termValue,
     sharedVar: sharedVar,
+    MENU_TABS: MENU_TABS,
+    normHeader: normHeader,
+    menuTabs: menuTabs,
+    headerFor: headerFor,
+    cellsOf: cellsOf,
+    varTest: varTest,
+    whenOk: whenOk,
+    WHEN_OPS: WHEN_OPS,
     sharedValues: sharedValues,
     fillVars: fillVars,
     termCodeMsg: termCodeMsg,
@@ -14779,9 +14942,51 @@ var qrcode = function() {
     if (N.epoch) h.epoch = N.epoch;
     return JSON.stringify(h);
   }
+  /* П-62: адреса нет («auto») — найти центр самому. В браузере своего адреса не узнать, поэтому —
+     адреса точек доступа по умолчанию (как «НАЙТИ» терминала) или список проверки SG_NET_FIND. */
+  function candidates() {
+    if (window.SG_NET_FIND) return window.SG_NET_FIND.slice();
+    var l = ['ws://192.168.43.1:8790', 'ws://172.20.10.1:8790', 'ws://192.168.49.1:8790'];
+    for (var i = 0; i < 256; i++) l.push('ws://192.168.' + i + '.1:8790');
+    return l;
+  }
+  function find(done) {
+    var list = candidates(), res = list.map(function () { return null; }), live = 0, next = 0, over = false;
+    function check() {
+      if (over) return;
+      for (var i = 0; i < list.length; i++) { if (res[i] === true) { over = true; done(list[i]); return; } if (res[i] === null) break; }
+      if (next >= list.length && !live) { over = true; done(null); }
+    }
+    function one(i) {
+      live++;
+      var w, t, fin = false;
+      function end(ok) { if (fin) return; fin = true; clearTimeout(t); try { w.close(); } catch (e) { /* уже */ } live--; res[i] = ok; check(); pump(); }
+      try { w = new WebSocket(list[i]); } catch (e) { live--; res[i] = false; check(); pump(); return; }
+      t = setTimeout(function () { end(false); }, 1500);
+      w.onopen = function () { end(true); };
+      w.onerror = function () { end(false); };
+    }
+    function pump() { while (!over && live < 32 && next < list.length) one(next++); }
+    pump();
+  }
+  N.AUTO = 'auto';
+  N.find = find;
   function wsOpen() {
     clearTimeout(timer);
     if (stopped || !N.url) return;
+    if (N.url === N.AUTO) {
+      if (!window.SG_NET_FIND) { N.info = 'поиск центра — только в приложении; отсканируйте QR «СЕТЬ»'; emit('link'); return; }
+      N.info = 'ищу центр в сети Wi-Fi…';
+      emit('link');
+      find(function (u) {
+        if (stopped || N.url !== N.AUTO) return;
+        if (u) { N.url = u; emit('moved', u); wsOpen(); return; }
+        N.tries++; N.info = 'центр не найден в этой сети Wi-Fi';
+        emit('link');
+        timer = setTimeout(wsOpen, 3000);
+      });
+      return;
+    }
     var opened = false;
     try { ws = new WebSocket(N.url); } catch (e) { N.tries++; N.info = 'неверный адрес центра'; emit('link'); retry(); return; }
     ws.onopen = function () {
@@ -14951,7 +15156,7 @@ var qrcode = function() {
   }
   function flatState() {
     var m = state.account ? mine() : { unlocked: [], received: [] };
-    return { account: state.account, chapter: state.chapter, unlocked: m.unlocked, received: m.received };
+    return { account: state.account, chapter: state.chapter, unlocked: m.unlocked, received: m.received, vars: state.vars || {} };
   }
   function fresh() { return { account: null, chapter: 1, byAccount: {}, dev: SG.uid('d'), masterDev: false, net: null }; }
   /* «Сбросить прогресс этого телефона»: стираются аккаунт, глава и данные. Остаются номер телефона,
@@ -15037,14 +15242,59 @@ var qrcode = function() {
     renderData();
     renderModules();
   }
+  /* Шапка (П14, Т4-6 Б): строки, глава, показатели общих переменных; нажатие — окно «сводка». */
   function renderBar() {
-    var a = acc();
-    $('bar-name').textContent = a.name || '—';
-    $('bar-prof').textContent = a.profession || '';
-    var ch = game.chapters[state.chapter - 1];
-    $('bar-chap').textContent = ch ? ch.name : '';
+    var hd = SG.headerFor(game, flatState());
+    $('bar-name').textContent = hd.title;
+    $('bar-prof').textContent = hd.sub;
+    $('bar-chap').textContent = hd.chapter;
+    $('bar-chap').hidden = !hd.chapter;
+    var box = $('bar-vars');
+    box.innerHTML = '';
+    hd.items.forEach(function (it) {
+      var el = document.createElement('span');
+      el.className = 'hv' + (it.cells ? ' hv-cells' : '');
+      el.setAttribute('data-var', it.var);
+      if (it.label) { var lb = document.createElement('b'); lb.textContent = it.label; el.appendChild(lb); }
+      if (it.cells) {
+        var cs = document.createElement('span');
+        cs.className = 'cells';
+        it.cells.forEach(function (on) { var c = document.createElement('i'); if (on) c.className = 'on'; cs.appendChild(c); });
+        el.appendChild(cs);
+      } else {
+        var v = document.createElement('span');
+        v.className = 'v';
+        v.textContent = it.text;
+        el.appendChild(v);
+      }
+      box.appendChild(el);
+    });
+    box.hidden = !hd.items.length;
+    $('bar').classList.toggle('tap', !!(hd.items.length || hd.info.length));
     renderNetDot();
   }
+  P.headerInfo = function () {
+    if (!acc()) return false;
+    var hd = SG.headerFor(game, flatState());
+    if (!hd.items.length && !hd.info.length) return false;
+    var L = [];
+    hd.items.forEach(function (it) {
+      var cells = it.cells ? ' ' + it.cells.map(function (on) { return on ? '■' : '□'; }).join('') : '';
+      L.push((it.label || it.name) + ': **' + it.text + '**' + cells);
+    });
+    hd.info.forEach(function (s) {
+      if (L.length) L.push('');
+      if (s.title) L.push('**' + s.title + '**');
+      if (s.text) L.push(s.text);
+    });
+    P.sound('key');
+    dialog({ title: hd.infoTitle, cls: 'hinfo', text: L.join('\n') });
+    return true;
+  };
+  $('bar').addEventListener('click', function (e) {
+    if (e.target.closest && e.target.closest('#bar-net, #bar-voice, #bar-color, button')) return;
+    P.headerInfo();
+  });
   function renderNetDot() {
     var d = $('bar-net');
     d.hidden = !Net.url;
@@ -15332,9 +15582,9 @@ var qrcode = function() {
       save();
       glitch();
       P.sound('ok');
-      helloNet();
+      if (Net.url) helloNet(); else startNet();
       route();
-      setTab('data');
+      setTab(firstTab());
       hook('login');
       return true;
     }
@@ -15407,6 +15657,7 @@ var qrcode = function() {
       if (!SG.pickVariant(code, flatState()) && code.who.length && code.who.indexOf(state.account) < 0) { hook('voiceCode', code); return true; }
     }
     var r = { kind: 'code', code: code, ok: true, variant: SG.pickVariant(code, flatState()), voice: true, noNet: !!netDone };
+    if (!SG.whenOk(game, code, state.vars)) { r.ok = false; r.cond = false; }
     if (netDone) {
       var m = mine();
       m.counts[id] = (m.counts[id] || 0) + 1;
@@ -15543,6 +15794,7 @@ var qrcode = function() {
           var open = $('view').classList.contains('on') && openNow;
           if (open) openBlock(open);
         }
+        if (state.account && acc()) renderBar();
         hook('vars', vn);
       }, 50);
       return;
@@ -15564,7 +15816,12 @@ var qrcode = function() {
     Net.setHello({ role: state.masterDev ? 'master' : 'phone', dev: state.dev, acc: state.account || null,
       num: a && a.num ? a.num : null, name: a ? a.name : (state.masterDev ? 'Мастер' : ''), ver: window.SG_APP_VERSION || '' });
   }
+  /* П-62: адреса центра нет (QR «СЕТЬ» не сканировали) — после входа телефон ищет центр сам. */
+  function autoNet() {
+    return !!(game && state.account && !state.masterDev && (game.chat || {}).auto !== false);
+  }
   function startNet() {
+    if ((!state.net || !state.net.url) && autoNet()) state.net = { url: Net.AUTO, epoch: state.net && state.net.epoch || null, seq: state.net && state.net.seq || 0 };
     if (!state.net || !state.net.url) return;
     var a = acc();
     Net.start(state.net.url, { role: state.masterDev ? 'master' : 'phone', dev: state.dev, acc: state.account || null,
@@ -15961,18 +16218,37 @@ var qrcode = function() {
     return a ? SG.moduleState(game, a, state.chapter, mine().mods, id) : 'hidden';
   }
   function hasModule(id) { return modState(id) === 'on'; }
+  /* Нижнее меню (П14): порядок, названия, скрытые вкладки — из пакета (game.menu). */
+  function menuHidden(id) { return (game.menu || []).some(function (m) { return m.tab === id && m.hidden; }); }
+  function applyMenu() {
+    var nav = $('tabs');
+    SG.menuTabs(game).forEach(function (m) {
+      var b = nav.querySelector('button[data-tab=' + m.tab + ']');
+      if (!b) return;
+      b.textContent = m.text;
+      nav.appendChild(b);
+    });
+    var sst = nav.querySelector('button[data-tab=sstv]');
+    if (sst) nav.appendChild(sst);
+    ['data', 'code', 'scan'].forEach(function (id) { nav.querySelector('button[data-tab=' + id + ']').hidden = menuHidden(id); });
+  }
+  function firstTab() {
+    var b = Array.prototype.filter.call(document.querySelectorAll('#tabs button'), function (x) { return !x.hidden; })[0];
+    return b ? b.dataset.tab : 'data';
+  }
   function renderModules() {
     if (!acc()) return;
+    applyMenu();
     MODTABS.forEach(function (id) {
       var st = modState(id);
       var b = document.querySelector('#tabs button[data-tab=' + id + ']');
-      b.hidden = st === 'hidden';
+      b.hidden = st === 'hidden' || menuHidden(id);
       b.classList.toggle('broken', st === 'broken' || st === 'denied');
     });
     var apps = SG.appsFor(game, state.account, state.chapter, mine().apps);
-    document.querySelector('#tabs button[data-tab=apps]').hidden = !apps.length;
+    document.querySelector('#tabs button[data-tab=apps]').hidden = !apps.length || menuHidden('apps');
     var cur = document.querySelector('#tabs button.on');
-    if (cur && cur.hidden) setTab('data');
+    if (cur && cur.hidden) setTab(firstTab());
     else if (cur) { var t = cur.dataset.tab; if (MODTABS.indexOf(t) >= 0 && modState(t) !== 'on') setTab(t); }
     if (hasModule('sstv')) renderSstvGot();
     hook('modules');
@@ -16783,7 +17059,12 @@ var qrcode = function() {
   var netTimer = 0;
   P.netText = function (url, up, d) {
     var host = String(url || '').replace(/^wss?:\/\//, '');
-    var L = ['Центр: **' + host + '**', ''];
+    var L = [url === Net.AUTO ? 'Центр: **ищу сам** (точка доступа мастера, затем вся сеть Wi-Fi)' : 'Центр: **' + host + '**', ''];
+    if (url === Net.AUTO && !up) {
+      L.push('○ ' + ((d && d.errText) || Net.info || 'Поиск…'));
+      L.push('', 'Что сделать: подключите телефон к **точке доступа мастера**; на телефоне мастера должен быть запущен центр (пульт мастера → «Запустить центр»). Телефон найдёт его сам. Не находит — отсканируйте QR «СЕТЬ» с пульта мастера.');
+      return L.join('\n');
+    }
     if (up) { L.push('**● СВЯЗЬ ЕСТЬ**'); return L.join('\n'); }
     d = d || {};
     L.push('○ Подключение… ' + (d.tries ? 'попытка ' + d.tries : ''));

@@ -668,7 +668,7 @@ setup.signalySounds = {
 
 
 /* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */
-/* Версия движка: 31. Обновляется программой «Twine СИГНАЛЫ».
+/* Версия движка: 32. Обновляется программой «Twine СИГНАЛЫ».
    Настройки — в окне «Оформление терминала» (они лежат в таблице стилей).
    Свой код пишите ниже конца этого блока. */
 (function () {
@@ -713,7 +713,7 @@ setup.signalySounds = {
 	// Предпросмотр в программе: без стартового экрана, автокопии и защиты.
 	var preview = window.SIGNALY_PREVIEW;
 
-	setup.signaly = {engine: 31, preview: !!preview};
+	setup.signaly = {engine: 32, preview: !!preview};
 
 	// Русские служебные надписи SugarCube (этап 6, ответ 4А). Код автора стоит
 	// ниже движка, поэтому его надписи главнее.
@@ -10442,17 +10442,19 @@ setup.signalySounds = {
 
 	function eventArgs(args) {
 		var rest = args.trim();
-		var a = {repeat: false, stay: false, delay: 0, priority: 0};
+		var a = {repeat: false, stay: false, popup: false, delay: 0, priority: 0};
 		var m;
 
-		while ((m = /^(repeat|stay|delay|priority)(?:\s+(-?\d+(?:[.,]\d+)?))?(?:\s+|$)/.exec(rest))) {
-			if (m[1] !== 'repeat' && m[1] !== 'stay' && m[2] === undefined) {
+		while ((m = /^(repeat|stay|popup|delay|priority)(?:\s+(-?\d+(?:[.,]\d+)?))?(?:\s+|$)/.exec(rest))) {
+			if (m[1] !== 'repeat' && m[1] !== 'stay' && m[1] !== 'popup' && m[2] === undefined) {
 				break;
 			}
 			if (m[1] === 'repeat') {
 				a.repeat = true;
 			} else if (m[1] === 'stay') {
 				a.stay = true;
+			} else if (m[1] === 'popup') {
+				a.popup = true;
 			} else if (m[1] === 'delay') {
 				a.delay = Math.max(0, Number(m[2].replace(',', '.')) || 0);
 			} else {
@@ -10578,6 +10580,7 @@ setup.signalySounds = {
 		var current = State.passage;
 		var here = Story.has(current) && Story.get(current).tags.indexOf('sg-event') !== -1;
 		var next = null;
+		var pop = null;
 		var ran = [];
 
 		list.forEach(function (ev) {
@@ -10586,7 +10589,12 @@ setup.signalySounds = {
 			if (!m || !m.ready) {
 				return;
 			}
-			if (ev.stay || ev.name === current) {
+			if (ev.popup && !ev.stay && ev.name !== current) {
+				// Сессия 36 (Т4-8 Б): окно-сообщение поверх экрана — по одному, когда другое окно закрыто.
+				if (!pop) {
+					pop = ev;
+				}
+			} else if (ev.stay || ev.name === current) {
 				// Сессия 35: «не переходить на экран» — только действия; или игроки уже на экране события.
 				delete m.ready;
 				if (!ev.repeat) {
@@ -10599,6 +10607,22 @@ setup.signalySounds = {
 			}
 		});
 		ran.forEach(eventRun);
+
+		if (pop && !Dialog.isOpen()) {
+			var pm = marks[pop.name];
+
+			delete pm.ready;
+			if (!pop.repeat) {
+				pm.done = 1;
+			}
+			changed = true;
+			eventRun(pop);
+			try {
+				setup.signaly.openDialog({title: pop.name, passage: pop.name});
+			} catch (e) {
+				console.error('СИГНАЛЫ: окно события «' + pop.name + '»', e);
+			}
+		}
 
 		if (!next) {
 			if (changed) {

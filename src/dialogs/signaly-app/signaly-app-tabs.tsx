@@ -45,8 +45,9 @@ import {
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 // Сессия 34: «Блоки» (Т3-11 А), «QR» и «SSTV» (Т3-8 А) — signaly-app-blocks.tsx, signaly-app-media-tabs.tsx.
-export type AppTab = 'pack' | 'general' | 'chapters' | 'blocks' | 'apps' | 'events' | 'voice' | 'qr' | 'sstv';
-export const appTabs: AppTab[] = ['pack', 'general', 'chapters', 'blocks', 'apps', 'events', 'voice', 'qr', 'sstv'];
+// Сессия 36 (Т4-6 Б): «Шапка и меню» — signaly-app-header.tsx.
+export type AppTab = 'pack' | 'general' | 'header' | 'chapters' | 'blocks' | 'apps' | 'events' | 'voice' | 'qr' | 'sstv';
+export const appTabs: AppTab[] = ['pack', 'general', 'header', 'chapters', 'blocks', 'apps', 'events', 'voice', 'qr', 'sstv'];
 export type EventsSub = 'notices' | 'alarms' | 'glitches' | 'rules' | 'votes';
 export const eventsSubs: EventsSub[] = ['notices', 'alarms', 'glitches', 'rules', 'votes'];
 
@@ -114,6 +115,7 @@ export const GeneralTab: React.FC<TabProps> = ({game, setGame, table}) => {
 			<TextField hint={l('general.anonHint')} label={l('general.anon')} onChange={anon => setSub('chat', {anon})} value={String(chat.anon)} />
 			<NumField label={l('general.delayMax')} max={240} min={1} onChange={delayMax => setSub('chat', {delayMax: Math.round(delayMax)})} value={Number(chat.delayMax) || 60} />
 			<CheckField label={l('general.noPaste')} onChange={noPaste => setSub('chat', {noPaste})} value={chat.noPaste !== false} />
+			<CheckField hint={l('general.autoNetHint')} label={l('general.autoNet')} onChange={auto => setSub('chat', {auto})} value={chat.auto !== false} />
 			<ChoiceField label={l('general.bossColor')} onChange={bossColor => setSub('chat', {bossColor})} options={chatColors} value={String(chat.bossColor ?? '')} />
 			<ChoiceField hint={l('general.anonColorHint')} label={l('general.anonColor')} onChange={anonColor => setSub('chat', {anonColor})} options={chatColors} value={String(chat.anonColor ?? '')} />
 			<h3>{l('general.palette')}</h3>

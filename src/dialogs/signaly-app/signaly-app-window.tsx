@@ -44,6 +44,7 @@ import {AppRefsContext, usePhoneL} from './signaly-app-fields';
 import {AppPreview} from './signaly-app-preview';
 import {BlocksTab} from './signaly-app-blocks';
 import {QrTab, SstvTab} from './signaly-app-media-tabs';
+import {HeaderTab} from './signaly-app-header';
 import {addPassageEditors, useDialogsContext} from '../context';
 import {
 	AppTab,
@@ -587,6 +588,7 @@ export const SignalyAppWindow: React.FC<SignalyAppWindowProps> = props => {
 				</div>
 				<AppRefsContext.Provider value={refs}>
 					{tab === 'general' && <GeneralTab {...tabProps} />}
+					{tab === 'header' && <HeaderTab {...tabProps} />}
 					{tab === 'chapters' && <ChaptersTab {...tabProps} />}
 					{tab === 'apps' && <DevicesTab {...tabProps} />}
 					{tab === 'events' && <EventsTab {...tabProps} setSub={setEvSub} sub={evSub} />}

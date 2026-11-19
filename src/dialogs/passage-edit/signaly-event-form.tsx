@@ -45,7 +45,7 @@ export const EventForm: React.FC<{
 					</button>
 				</div>
 			)}
-			<h5 className="signaly-block-subtitle">{l(head.stay ? 'whenStay' : 'when')}</h5>
+			<h5 className="signaly-block-subtitle">{l(head.stay ? 'whenStay' : head.popup ? 'whenPopup' : 'when')}</h5>
 			{head.conds && head.conds.length > 0 ? (
 				<CondRows
 					conds={head.conds}
@@ -60,7 +60,18 @@ export const EventForm: React.FC<{
 				</>
 			)}
 			<CheckField hint={l('repeatHint')} label={l('repeat')} onChange={repeat => write({repeat})} value={head.repeat} />
-			<CheckField hint={l('stayHint')} label={l('stay')} onChange={stay => write({stay})} value={head.stay} />
+			<CheckField
+				hint={l('stayHint')}
+				label={l('stay')}
+				onChange={stay => write(stay ? {stay, popup: false} : {stay})}
+				value={head.stay}
+			/>
+			<CheckField
+				hint={l('popupHint')}
+				label={l('popup')}
+				onChange={popup => write(popup ? {popup, stay: false} : {popup})}
+				value={head.popup && !head.stay}
+			/>
 			<TextField
 				hint={l('delayHint')}
 				label={l('delay')}
@@ -97,7 +108,7 @@ export const EventForm: React.FC<{
 					/>
 				</>
 			)}
-			<div className="signaly-field-hint">{l(head.stay ? 'hintStay' : 'hint')}</div>
+			<div className="signaly-field-hint">{l(head.stay ? 'hintStay' : head.popup ? 'hintPopup' : 'hint')}</div>
 			<div className="signaly-block-buttons">
 				<button
 					className="signaly-button"
