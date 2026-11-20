@@ -22,7 +22,7 @@ const cls = '/tmp/sg-net-play-java';
 fs.rmSync(cls, {recursive: true, force: true});
 fs.mkdirSync(cls, {recursive: true});
 const javaSrc = path.join(appRepo, 'android/app/src/main/java/ru/signaly/net');
-execFileSync('javac', ['-encoding', 'UTF-8', '-Xlint:none', '-d', cls, ...['SgJson', 'SgWs', 'SgCenter', 'SgVad', 'SgVoiceCore'].map(n => path.join(javaSrc, n + '.java'))], {stdio: ['ignore', 'ignore', 'inherit']});
+execFileSync('javac', ['-encoding', 'UTF-8', '-Xlint:none', '-d', cls, ...['SgJson', 'SgWs', 'SgCenter', 'SgVad', 'SgVoiceCore', 'SgReplica'].map(n => path.join(javaSrc, n + '.java'))], {stdio: ['ignore', 'ignore', 'inherit']});
 const port = 19400 + Math.floor(Math.random() * 300);
 async function startCenter() {
 	const p = spawn('java', ['-cp', cls, 'ru.signaly.net.SgCenter', String(port), ''], {stdio: ['ignore', 'pipe', 'ignore']});
