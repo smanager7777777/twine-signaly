@@ -133,7 +133,7 @@ describe('событие: «не переходить на экран» и де�
 	it('движок 31: общие переменные, stay и действия события', () => {
 		const engine = signalyEngineBlock();
 
-		expect(signalyEngineVersion).toBe(33);
+		expect(signalyEngineVersion).toBe(34);
 		expect(engine).toContain("Macro.add('sg-shared'");
 		expect(engine).toContain("Macro.add('sg-event-do'");
 		expect(engine).toContain('eventRun(next)');
