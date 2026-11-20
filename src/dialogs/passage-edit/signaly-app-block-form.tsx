@@ -133,6 +133,7 @@ export const AppBlockForm: React.FC<{
 			<ChapterField label={l('block.chapter')} onChange={chapter => write({chapter})} value={head.chapter} />
 			<CheckField hint={l('block.startHint')} label={l('block.start')} onChange={start => write({start})} value={head.start} />
 			<CheckField label={l('block.share')} onChange={share => write({share})} value={head.share} />
+			<CheckField label={l('block.hidden')} onChange={hidden => write({hidden})} value={!!head.hidden} />
 			<ChoiceField
 				hint={l('block.garbleHint')}
 				label={l('block.garble')}

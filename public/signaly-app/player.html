@@ -215,6 +215,7 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .modal.notice .dlg-box{border-color:var(--accent)}
 .qr-show{display:block;margin:6px auto;max-width:100%;image-rendering:pixelated}
 .note-ed{width:100%;background:var(--panel);color:var(--text);border:1px solid var(--dim);font:inherit;padding:8px;user-select:text;-webkit-user-select:text}
+.note-view{white-space:pre-wrap;text-align:left;max-height:62vh;overflow-y:auto;font-size:14px;line-height:1.35;padding:4px 2px}
 .garbled{color:var(--dim);letter-spacing:.05em}
 .toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);z-index:80;background:var(--text);color:var(--bg);padding:8px 14px;letter-spacing:.1em;font-size:13px}
 
@@ -427,8 +428,8 @@ table.meter td,table.meter th{border-bottom:1px solid var(--text-30);padding:2px
   } catch (e) { /* не важно */ }
 })();
 </script>
-<meta name="generator" content="signaly-app 0.1.0 (2026-11-19)">
-<script>window.SG_APP_VERSION = "0.1.0 (2026-11-19)";</script>
+<meta name="generator" content="signaly-app 0.1.0 (2026-11-20)">
+<script>window.SG_APP_VERSION = "0.1.0 (2026-11-20)";</script>
 </head>
 <body class="fx-scan fx-glow">
 <div id="app">
@@ -10851,6 +10852,10 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
       a.colors = a.colors && typeof a.colors === 'object' && !Array.isArray(a.colors) ? a.colors : {};
       // голос (П-58): режим микрофона, когда функция «Голос» включена ('off' — функции нет)
       a.voiceMode = ['button', 'screen', 'always'].indexOf(a.voiceMode) >= 0 ? a.voiceMode : (a.modules.indexOf('voice') >= 0 ? 'button' : 'off');
+      // П17 (Т8-5 А): скрытые программы — функция есть, но вкладки не видно; код («Функция приложения» → «открыть скрытую») открывает её до выхода
+      a.secret = Array.isArray(a.secret) ? a.secret : [];
+      // П17: заметки с начала игры («Заметки» персонажа: памятка, список проверки тестировщика)
+      a.notes = Array.isArray(a.notes) ? a.notes.filter(function (n) { return n && typeof n.text === 'string'; }).map(function (n, i) { return { id: n.id || 'pn' + (i + 1), text: n.text }; }) : [];
     });
     g.blocks = Array.isArray(g.blocks) ? g.blocks : [];
     g.blocks.forEach(function (b) {
@@ -10862,6 +10867,7 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
       b.start = !!b.start;
       b.items = Array.isArray(b.items) ? b.items : [];
       b.share = !!b.share;
+      b.hidden = !!b.hidden;   // П17 (Т8-5 А): скрытый — открывается только кодом, в списке не виден
       b.garble = +b.garble || 0;
     });
     g.codes = Array.isArray(g.codes) ? g.codes : [];
@@ -10877,6 +10883,7 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
       a.start = a.start !== false;
       a.uses = +a.uses || 0;
       a.showUses = !!a.showUses;
+      a.hidden = !!a.hidden;   // П17 (Т8-5 А): скрытый прибор — открывается только кодом, после выхода не виден
       a.emptyText = a.emptyText || '';
       a.unknown = a.unknown || '';
       a.color = a.color || '';
@@ -10940,6 +10947,7 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
         r.seconds = Math.max(0, +r.seconds || 0);
         r.every = Math.max(0, +r.every || 0);
         r.who = Array.isArray(r.who) ? r.who : [];
+        r.screen = r.screen === 'on' || r.screen === 'off' ? r.screen : '';
       }
       r.chapter = +r.chapter || 1;
       r.minutes = +r.minutes || 0;
@@ -11358,7 +11366,7 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
     var blocks = pick(src.opens);
     var fresh = blocks.filter(function (b) { return unlocked.indexOf(b.id) < 0; });
     var left = claim && c.limit > 0 && c.showLeft ? claim.left : null;
-    var again = texts.length === 1 && blocks.length && !fresh.length && !c.actions.length && !c.limit && !c.perAcc;
+    var again = texts.length === 1 && blocks.length && !fresh.length && !c.actions.length && !c.limit && !c.perAcc && !blocks.some(function (b) { return b.hidden; });
     return { kind: again ? 'already' : 'open', title: again ? T.already : (claim && claim.signers ? T.signed : T.opened),
       text: text, blocks: blocks, fresh: fresh, actions: c.actions, left: left };
   }
@@ -11396,7 +11404,25 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
   };
   /* П16 (основа 2): события телефона — условие правила «на телефоне» (выполняет сам телефон). seconds — «дольше N с». */
   var PHONE_SENSORS = [['shake', 'встряхнули'], ['facedown', 'положили экраном вниз'], ['faceup', 'перевернули экраном вверх'], ['flip', 'перевернули (вниз или вверх)'],
-    ['locked', 'экран заблокирован дольше N с (срабатывает при разблокировке)'], ['unlocked', 'экран не блокировали дольше N с'], ['photo', 'сделан снимок камерой'], ['scan', 'отсканирован QR']];
+    ['locked', 'экран заблокирован дольше N с (срабатывает при разблокировке)'], ['unlocked', 'экран не блокировали дольше N с'],
+    ['away', 'экран включён, но игрок не в приложении дольше N с (свернул, смотрит другое)'], ['photo', 'сделан снимок камерой'], ['scan', 'отсканирован QR']];
+  // П17 (Т8-6 Б): когда работает правило «на самом телефоне»
+  var PHONE_SCREEN = [['', 'всегда'], ['on', 'только при включённом экране'], ['off', 'только при выключенном экране']];
+  /* П17: что выполняет служба Android (и в фоне): правила «на телефоне» этого персонажа в этой главе, кроме снимка и QR.
+     net — готовые сообщения центру; local — что сделать на этом телефоне (вспышку, сигнал и шторку служба делает сама,
+     остальное — приложение по событию t:'phone'). seconds — с, every — мс. */
+  function phoneConfig(game, state) {
+    var out = { rules: [] };
+    if (!state || !state.account) return out;
+    (game.rules || []).forEach(function (r) {
+      if (r.on !== 'phone' || r.sensor === 'photo' || r.sensor === 'scan') return;
+      if (r.who && r.who.length && r.who.indexOf(state.account) < 0) return;
+      if (r.chapters && r.chapters.length && r.chapters.indexOf(state.chapter || 1) < 0) return;
+      var x = expandActions(game, r.actions, { self: state.account, now: '{{now}}' });
+      out.rules.push({ id: r.id, sensor: r.sensor, seconds: r.seconds || 0, every: (r.every || 0) * 1000, screen: r.screen || '', net: wireMessages(x.net), local: x.local });
+    });
+    return out;
+  }
 
   /* Разворачивает действия в сообщения протокола (docs/06_NETWORK.md).
      ctx: {self: id аккаунта или null (правила центра), now: время центра или '{{now}}'}.
@@ -12032,6 +12058,8 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
     CELLS_MAX: CELLS_MAX,
     LAYER_FX: LAYER_FX,
     PHONE_SENSORS: PHONE_SENSORS,
+    PHONE_SCREEN: PHONE_SCREEN,
+    phoneConfig: phoneConfig,
     TAP_KINDS: TAP_KINDS,
     normTap: normTap,
     LAYERS_MAX: LAYERS_MAX,
@@ -15066,6 +15094,7 @@ var qrcode = function() {
     hello: null,
     info: '',          // почему нет связи (текст для экрана)
     tries: 0,          // попыток без успеха
+    gen: 0,            // П17: поколение центра (растёт, когда центр подняли из копии на другом телефоне)
     on: function (type, fn) { (handlers[type] = handlers[type] || []).push(fn); },
     now: function () { return Date.now() + N.offset; },
     start: start,
@@ -15101,6 +15130,7 @@ var qrcode = function() {
     try { o = JSON.parse(text); } catch (e) { return; }
     if (o.t === 'welcome') {
       if (o.epoch !== N.epoch) { N.epoch = o.epoch; N.seq = 0; }
+      if ((o.gen || 0) > N.gen) { N.gen = o.gen; try { localStorage.setItem('sg-net-gen', String(N.gen)); } catch (e) { /* нет */ } }
       // центр перезапущен и не успел записать последние сообщения: его счёт отстал от нашего
       if (o.seq < N.seq) N.seq = o.seq;
       N.offset = o.now - Date.now();
@@ -15136,7 +15166,15 @@ var qrcode = function() {
     else if (o.t === 'dropped') emit('dropped', o);
     else if (o.t === 'pong') N.offset = o.now - Date.now();
     else if (o.t === 'voice' || o.t === 'voice-status') emit('voice', o);
-    else if (o.t === 'heard') emit('heard', o);   // П16: проба голоса — что услышал телефон (только мастеру)   // служба: услышана фраза / состояние микрофона (П-58)
+    else if (o.t === 'heard') emit('heard', o);
+    else if (o.t === 'dump') emit('dump', o);
+    else if (o.t === 'phone') emit('phone', o);   // П17: служба — сработало правило «на самом телефоне»     // П17: выгрузка состояния центра (мастеру)
+    else if (o.t === 'stale') {
+      // П17: этот центр уступил новому (поднят из копии) — искать другой
+      if ((o.gen || 0) > N.gen) N.gen = o.gen;
+      if (!plugin) { staleUrls[N.url] = Date.now(); findNow = true; if (ws) try { ws.close(); } catch (e) { /* уже */ } }
+      emit('stale', o);
+    }   // П16: проба голоса — что услышал телефон (только мастеру)   // служба: услышана фраза / состояние микрофона (П-58)
   }
   function status(up) {
     if (!up && N.up) { N.up = false; emit('status', false); }
@@ -15144,16 +15182,20 @@ var qrcode = function() {
 
   /* ---------- WebSocket (браузер) ---------- */
   var ws = null, outbox = [], wait = 1000, timer = 0, stopped = true;
+  var fails = 0, findNow = false, staleUrls = {};
+  try { N.gen = +localStorage.getItem('sg-net-gen') || 0; } catch (e) { /* нет */ }
+  N.findAfter = 5;   // П17: столько неудач подряд по адресу — искать центр в сети (его подняли на другом телефоне)
   function helloText() {
     var h = Object.assign({ t: 'hello' }, N.hello || {});
     h.since = N.seq;
     if (N.epoch) h.epoch = N.epoch;
+    if (N.gen) h.gen = N.gen;
     return JSON.stringify(h);
   }
   /* П-62: адреса нет («auto») — найти центр самому. В браузере своего адреса не узнать, поэтому —
      адреса точек доступа по умолчанию (как «НАЙТИ» терминала) или список проверки SG_NET_FIND. */
   function candidates() {
-    if (window.SG_NET_FIND) return window.SG_NET_FIND.slice();
+    if (window.SG_NET_FIND) return window.SG_NET_FIND.filter(function (u) { return !(staleUrls[u] && Date.now() - staleUrls[u] < 120000); });
     var l = ['ws://192.168.43.1:8790', 'ws://172.20.10.1:8790', 'ws://192.168.49.1:8790'];
     for (var i = 0; i < 256; i++) l.push('ws://192.168.' + i + '.1:8790');
     return l;
@@ -15195,18 +15237,36 @@ var qrcode = function() {
       });
       return;
     }
+    if (findNow || (fails >= N.findAfter && fails % N.findAfter === 0 && window.SG_NET_FIND)) {
+      // П17: центр пропал (или уступил) — найти новый в сети
+      findNow = false;
+      N.info = 'ищу центр в сети Wi-Fi…';
+      emit('link');
+      var was = N.url;
+      find(function (u) {
+        if (stopped || N.url !== was) return;
+        if (u && u !== was) { N.url = u; emit('moved', u); }
+        if (!u) fails++;
+        openWs();
+      });
+      return;
+    }
+    openWs();
+  }
+  function openWs() {
     var opened = false;
     try { ws = new WebSocket(N.url); } catch (e) { N.tries++; N.info = 'неверный адрес центра'; emit('link'); retry(); return; }
     ws.onopen = function () {
       opened = true;
       wait = 1000;
+      fails = 0;
       ws.send(helloText());
       while (outbox.length && ws && ws.readyState === 1) ws.send(outbox.shift());
     };
     ws.onmessage = function (e) { onText(e.data); };
     ws.onclose = function () {
       ws = null;
-      if (!opened) { N.tries++; N.info = 'центр не отвечает'; } else N.info = 'связь прервалась — переподключение';
+      if (!opened) { N.tries++; fails++; N.info = 'центр не отвечает'; } else N.info = 'связь прервалась — переподключение';
       status(false);
       emit('link');
       retry();
@@ -15361,7 +15421,20 @@ var qrcode = function() {
     var m = state.byAccount[id];
     ['counts', 'mods', 'appUses', 'chatSeen', 'pendingSign'].forEach(function (k) { if (!m[k] || typeof m[k] !== 'object') m[k] = {}; });
     ['apps', 'chat', 'notes', 'photos', 'received'].forEach(function (k) { if (!Array.isArray(m[k])) m[k] = []; });
+    packNotes(m);
     return m;
+  }
+  /* П17: заметки из пакета (у персонажа — «notes»): появляются в «Заметках» сами; новая версия пакета обновляет
+     текст, если игрок свою копию не правил. */
+  function packNotes(m) {
+    var a = acc();
+    if (!a || !a.notes || !a.notes.length) return;
+    a.notes.slice().reverse().forEach(function (pn) {
+      if (m.packGone && m.packGone[pn.id]) return;   // игрок удалил
+      var n = m.notes.filter(function (x) { return x.pack === pn.id; })[0];
+      if (!n) m.notes.unshift({ id: SG.uid('n'), at: Date.now(), text: pn.text, pack: pn.id, packText: pn.text });
+      else if (n.packText !== pn.text && n.text === n.packText) { n.text = pn.text; n.packText = pn.text; n.at = Date.now(); }
+    });
   }
   function flatState() {
     var m = state.account ? mine() : { unlocked: [], received: [] };
@@ -15612,7 +15685,8 @@ var qrcode = function() {
       p.appendChild(renderItems(a.items));
       box.appendChild(p);
     }
-    var list = SG.visibleBlocks(game, flatState());
+    // П17 (Т8-5 А): скрытые блоки в списке не видны — их показывает только код
+    var list = SG.visibleBlocks(game, flatState()).filter(function (b) { return !b.hidden; });
     var seen = mine().seen;
     // папка, в которой стоит игрок; если её больше нет (блоки закрыли) — поднимаемся выше
     while (folder.length && !SG.folderLevel(list, folder).length) folder.pop();
@@ -15904,7 +15978,7 @@ var qrcode = function() {
     setTimeout(function () {
       route();
       if (!acc()) return;
-      var fr = SG.visibleBlocks(game, flatState()).filter(function (b) { return mine().seen.indexOf(b.id) < 0; });
+      var fr = SG.visibleBlocks(game, flatState()).filter(function (b) { return !b.hidden && mine().seen.indexOf(b.id) < 0; });
       dialog({ title: game.texts.chapter + ': ' + ch.name, text: ch.message || '', blocks: fr });
     }, 500);
   }
@@ -15989,10 +16063,10 @@ var qrcode = function() {
   }
 
   /* ---------- действия: местные и через центр ---------- */
-  function doActions(actions, noNet) {
+  function doActions(actions, noNet, skip) {
     if (!actions || !actions.length) return;
     var x = SG.expandActions(game, actions, { self: state.account, now: Net.now(), vars: state.vars || {} });
-    x.local.forEach(function (l) { onMsg({ kind: l.kind, body: l.body, to: ['acc:' + state.account], from: { acc: state.account }, local: true }); });
+    x.local.forEach(function (l) { if (skip && skip.indexOf(l.kind) >= 0) return; onMsg({ kind: l.kind, body: l.body, to: ['acc:' + state.account], from: { acc: state.account }, local: true }); });
     x.net.forEach(function (m) {
       var o = Object.assign({}, m);
       var delay = o.delay;
@@ -16041,6 +16115,7 @@ var qrcode = function() {
       var bl = SG.visibleBlocks(game, flatState()).filter(function (x) { return ids.indexOf(x.id) >= 0; });
       if (bl.length) { glitch(); P.sound('note'); dialog({ title: b.title || 'НОВЫЕ ДАННЫЕ', blocks: bl }); }
     } else if (o.kind === 'module') {
+      if (b.on === 'open') { openSecret(b.id); return; }   // П17: скрытая программа — до выхода
       m.mods[b.id] = b.on || 'on';
       save();
       renderModules();
@@ -16049,6 +16124,7 @@ var qrcode = function() {
       save();
       renderModules();
       var ap = SG.byId(game.apps, b.id);
+      if (ap && ap.hidden && SG.allowed(ap.who, state.account)) { setTimeout(function () { if (P.openApp) P.openApp(ap); }, 350); return; }   // П17: скрытый прибор — сразу на экране
       if (ap && SG.allowed(ap.who, state.account)) { P.sound('note'); dialog({ title: 'ДОСТУПЕН ПРИБОР', text: '**' + ap.name + '**\n\nВкладка «ПРИБОРЫ».' }); }
     } else if (o.kind === 'signed') {
       var p = m.pendingSign[b.key];
@@ -16275,7 +16351,7 @@ var qrcode = function() {
         if (scan.owner !== owner || scan.stream) { s.getTracks().forEach(function (t) { t.stop(); }); return; }
         scan.stream = s;
         video.srcObject = s;
-        video.play();
+        var pp = video.play(); if (pp && pp.catch) pp.catch(function () { /* окно закрыли раньше, чем видео пошло */ });
         video.parentNode.classList.add('scanning');
         hook('camOn', owner);
         if (!cb) { setScanMsg(''); return; }   // камера-улика: без поиска QR
@@ -16533,10 +16609,10 @@ var qrcode = function() {
     MODTABS.forEach(function (id) {
       var st = modState(id);
       var b = document.querySelector('#tabs button[data-tab=' + id + ']');
-      b.hidden = st === 'hidden' || menuHidden(id);
+      b.hidden = st === 'hidden' || menuHidden(id) || (secretOf(id) && P.secretTab !== id);
       b.classList.toggle('broken', st === 'broken' || st === 'denied');
     });
-    var apps = SG.appsFor(game, state.account, state.chapter, mine().apps);
+    var apps = SG.appsFor(game, state.account, state.chapter, mine().apps).filter(function (x) { return !x.hidden; });   // П17: скрытые — только кодом
     document.querySelector('#tabs button[data-tab=apps]').hidden = !apps.length || menuHidden('apps');
     var cur = document.querySelector('#tabs button.on');
     if (cur && cur.hidden) setTab(firstTab());
@@ -16547,7 +16623,18 @@ var qrcode = function() {
 
   /* ---------- вкладки ---------- */
   var TABS = ['data', 'code', 'scan', 'chat', 'apps', 'sstv', 'photo', 'notes', 'off'];
+  /* П17 (Т8-5 А): скрытая программа — функция персонажа с пометкой «скрытая»: вкладки не видно, код открывает её
+     (P.secretTab), уход на другую вкладку снова прячет. Тем же кодом — снова. */
+  function secretOf(id) { var a = acc(); return !!(a && a.secret && a.secret.indexOf(id) >= 0); }
+  function openSecret(id) {
+    if (MODTABS.indexOf(id) < 0 || !secretOf(id) || modState(id) === 'hidden') return;
+    P.secretTab = id;
+    renderModules();
+    setTimeout(function () { closeTop(); setTab(id); }, 300);
+  }
+  P.openSecret = openSecret;
   function setTab(name) {
+    if (P.secretTab && name !== P.secretTab) { P.secretTab = null; setTimeout(renderModules, 0); }
     var show = name;
     var st = MODTABS.indexOf(name) >= 0 ? modState(name) : 'on';
     if (st !== 'on') {
@@ -17970,9 +18057,17 @@ var qrcode = function() {
       el.innerHTML = '<span class="ic">✎</span><span class="t"></span><span class="sm"></span>';
       el.querySelector('.t').textContent = (n.text.split('\n')[0] || '(пусто)').slice(0, 60);
       el.querySelector('.sm').textContent = hhmm(n.at);
-      el.addEventListener('click', function () { editNote(n); });
+      el.addEventListener('click', function () { if (n.pack) viewNote(n); else editNote(n); });
       box.appendChild(el);
     });
+  }
+  /* П17: заметка из пакета (длинная памятка) — сначала читать, править — кнопкой. */
+  function viewNote(n) {
+    var v = document.createElement('div');
+    v.className = 'note-view';
+    v.textContent = n.text;
+    P.dialog({ title: (n.text.split('\n')[0] || 'ЗАМЕТКА').slice(0, 40), html: v, buttons: [
+      { label: 'Готово', fn: renderNotes }, { label: 'Править', cls: 'dim', fn: function () { setTimeout(function () { editNote(n); }, 0); } }] });
   }
   function editNote(n) {
     var ta = document.createElement('textarea');
@@ -17985,7 +18080,7 @@ var qrcode = function() {
     P.attachKbd(ta, ta, { auto: true, open: true, newline: true });
     P.dialog({ title: 'ЗАМЕТКА', html: wrap, buttons: [
       { label: 'Готово', fn: renderNotes },
-      { label: 'Удалить', cls: 'warn', fn: function () { var m = P.mine(); m.notes = m.notes.filter(function (x) { return x !== n; }); P.save(); renderNotes(); } }] });
+      { label: 'Удалить', cls: 'warn', fn: function () { var m = P.mine(); m.notes = m.notes.filter(function (x) { return x !== n; }); if (n.pack) { m.packGone = m.packGone || {}; m.packGone[n.pack] = true; } P.save(); renderNotes(); } }] });
     setTimeout(function () { ta.focus(); }, 80);
   }
 })();
@@ -17998,7 +18093,8 @@ var qrcode = function() {
   'use strict';
   var P = window.SGP, SG = window.SG, $ = P.$;
 
-  function list() { return SG.appsFor(P.game, P.state.account, P.state.chapter, P.mine().apps); }
+  // П17 (Т8-5 А): скрытые приборы в списке не видны — их открывает код (сразу на экране)
+  function list() { return SG.appsFor(P.game, P.state.account, P.state.chapter, P.mine().apps).filter(function (a) { return !a.hidden; }); }
   function left(a) { return a.uses ? Math.max(0, a.uses - (P.mine().appUses[a.id] || 0)) : null; }
   function render() {
     var box = $('tab-apps');
@@ -18173,9 +18269,9 @@ var qrcode = function() {
   function refreshCenter() {
     if (!plugin) return;
     plugin.status().then(function (s) {
-      var was = center ? [center.center, center.online, center.vpn, (center.ips || []).join()].join('|') : '';
+      var was = center ? [center.center, center.online, center.vpn, (center.ips || []).join(), center.up, center.rep && center.rep.has].join('|') : '';
       center = s;
-      var now = [s.center, s.online, s.vpn, (s.ips || []).join()].join('|');
+      var now = [s.center, s.online, s.vpn, (s.ips || []).join(), s.up, s.rep && s.rep.has].join('|');
       if (was !== now && tab === 'net' && $('console').classList.contains('on') && !typing()) render();
     }).catch(function () {});
   }
@@ -18216,6 +18312,7 @@ var qrcode = function() {
         }));
     }
     box.appendChild(card('ЦЕНТР СЕТИ НА ЭТОМ ТЕЛЕФОНЕ', cBox));
+    box.appendChild(card('ЗАПАСНОЙ ЦЕНТР', backupBox()));
 
     // подключение
     var addr = h('input', { type: 'text', class: 'cin', value: Net.url ? Net.url.replace(/^ws:\/\//, '') : '', placeholder: '192.168.1.20' });
@@ -18245,6 +18342,98 @@ var qrcode = function() {
         return h('div', { class: 'peer' + (p.online ? ' on' : '') }, h('span', { text: (p.online ? '● ' : '○ ') + (p.role === 'terminal' ? 'ТЕРМИНАЛ' : p.role === 'master' ? 'МАСТЕР' : accName(p.acc)) }),
           h('span', { class: 'sm', text: (p.name && p.role !== 'phone' ? p.name : '') + ago }));
       })) : h('p', { class: 'hint', text: 'Пока никого.' })) : h('p', { class: 'hint', text: 'Список виден на мастерском телефоне (галочка выше).' })));
+  }
+
+  /* ---------- П17 (Т8-1 А): запасной центр и восстановление ---------- */
+  var dumpWait = null;
+  Net.on('dump', function (o) { if (dumpWait) { var f = dumpWait; dumpWait = null; f(o); } });
+  function stamp(t) {
+    var d = new Date(t || Date.now());
+    function z(n) { return ('0' + n).slice(-2); }
+    return d.getFullYear() + z(d.getMonth() + 1) + z(d.getDate()) + '-' + z(d.getHours()) + z(d.getMinutes());
+  }
+  /* Сохранить состояние файлом: в APK — в «Загрузки», в браузере — скачиванием. */
+  function saveState(text) {
+    var name = 'signaly-sostoyanie-' + stamp() + '.json';
+    if (plugin && plugin.saveFile) {
+      plugin.saveFile({ name: name, text: text }).then(function (r) {
+        P.dialog({ title: 'СОСТОЯНИЕ ВЫГРУЖЕНО', text: 'Файл: ' + r.where + '. Его можно загрузить на любом телефоне (пульт → «Загрузить состояние из файла»).' });
+      }).catch(function (e) { P.dialog({ title: 'НЕ ЗАПИСАНО', warn: true, text: String(e.message || e) }); });
+      return;
+    }
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    a.download = name;
+    a.id = 'dump-link';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+    done('ВЫГРУЖЕНО');
+  }
+  function dumpState() {
+    if (Net.up && P.state.masterDev) {
+      var t = setTimeout(function () { if (dumpWait) { dumpWait = null; P.dialog({ title: 'НЕТ ОТВЕТА', warn: true, text: 'Центр не прислал состояние (старая версия приложения на телефоне-центре?).' }); } }, 15000);
+      dumpWait = function (o) { clearTimeout(t); saveState(JSON.stringify(o.data)); };
+      Net.send({ t: 'admin', op: 'dump', id: 'd' + Date.now() });
+      return;
+    }
+    if (plugin && plugin.replicaDump) {
+      plugin.replicaDump().then(function (r) {
+        if (!r.text || r.text.indexOf('"epoch":null') >= 0) { P.dialog({ title: 'НЕТ КОПИИ', warn: true, text: 'На этом телефоне ещё нет копии игры.' }); return; }
+        saveState(r.text);
+      });
+      return;
+    }
+    P.dialog({ title: 'НЕТ СВЯЗИ', warn: true, text: Net.up ? 'Выгружать может мастерский телефон (вкладка «СЕТЬ» → «Этот телефон — мастерский»).' : 'Подключите телефон к центру.' });
+  }
+  function loadState(inp) {
+    var f = inp.files && inp.files[0];
+    if (!f) return;
+    var r = new FileReader();
+    r.onload = function () {
+      var text = String(r.result || ''), data = null;
+      try { data = JSON.parse(text); } catch (e) { /* ниже */ }
+      inp.value = '';
+      if (!data || !data.epoch) { P.dialog({ title: 'НЕ ТОТ ФАЙЛ', warn: true, text: 'Это не файл состояния СИГНАЛОВ.' }); return; }
+      var what = (data.log || []).length + ' сообщений, переменных: ' + Object.keys(data.state || {}).filter(function (k) { return /^var:/.test(k); }).length;
+      if (Net.up && P.state.masterDev) {
+        P.dialog({ title: 'ЗАГРУЗИТЬ В ЦЕНТР?', warn: true, text: 'Состояние центра заменится файлом (' + what + '). Все телефоны и терминал переподключатся сами.', buttons: [
+          { label: 'Загрузить', cls: 'warn', fn: function () { Net.send({ t: 'admin', op: 'restore', data: data }); done('ЗАГРУЖЕНО'); } }, { label: 'Отмена', cls: 'dim' }] });
+      } else if (plugin && plugin.takeover && !(center && center.center)) {
+        P.dialog({ title: 'ПОДНЯТЬ ЦЕНТР ИЗ ФАЙЛА?', warn: true, text: 'На этом телефоне запустится центр с состоянием из файла (' + what + '). Телефоны и терминал найдут его сами.', buttons: [
+          { label: 'Поднять', cls: 'warn', fn: function () { raise(text); } }, { label: 'Отмена', cls: 'dim' }] });
+      } else P.dialog({ title: 'НЕКУДА ЗАГРУЗИТЬ', warn: true, text: Net.up ? 'Загружать в центр может мастерский телефон (вкладка «СЕТЬ» → «Этот телефон — мастерский»).' : 'Нет связи с центром. Поднять центр из файла можно только в приложении на телефоне.' });
+    };
+    r.readAsText(f);
+  }
+  function raise(data) {
+    plugin.takeover(data ? { data: data } : {}).then(function (s) {
+      center = s;
+      P.state.masterDev = true;
+      P.joinNet('ws://127.0.0.1:' + s.port);
+      render();
+      P.dialog({ title: 'ЦЕНТР ПОДНЯТ', text: 'Центр работает на этом телефоне. Телефоны и терминал найдут его сами (до минуты). Если центр был на точке доступа — включите на этом телефоне точку доступа с тем же именем и паролем.' });
+    }).catch(function (e) { P.dialog({ title: 'ЦЕНТР НЕ ПОДНЯТ', warn: true, text: String(e.message || e) }); });
+  }
+  function backupBox() {
+    var rep = center && center.rep, line;
+    if (!plugin) line = h('p', { class: 'hint', text: 'Копия игры хранится в приложении на каждом телефоне. Поднять центр из копии можно только в приложении (APK).' });
+    else if (center && center.center) line = h('p', { class: 'hint', text: 'Центр — этот телефон. Копия игры есть у всех остальных телефонов.' });
+    else line = h('p', { id: 'rep-line', text: rep && rep.has ? 'Копия игры на этом телефоне: ' + rep.msgs + ' сообщений, обновлена ' + hhmmss(rep.at) + '.' : 'Копии игры на этом телефоне пока нет (появится после подключения к центру).' });
+    var file = h('input', { type: 'file', accept: '.json,application/json', id: 'state-file', style: 'display:none' });
+    file.addEventListener('change', function () { loadState(file); });
+    return h('div', {},
+      h('p', { class: 'hint', text: 'Если телефон-центр сел или сломался: на любом другом телефоне войдите в режим мастера (мастерский код) → пульт → «Поднять центр отсюда». Центр запустится с копией игры этого телефона; телефоны и терминал найдут его сами. Если старый центр вернётся — он уступит сам. Если центр был на точке доступа — включите точку доступа на новом телефоне с тем же именем и паролем.' }),
+      line,
+      plugin && !(center && center.center) ? (Net.up ? h('p', { class: 'hint', text: 'Сейчас центр в сети — второй центр поднимать нельзя (кнопка появится, когда связь с центром пропадёт).' }) :
+        btn('Поднять центр отсюда', function () {
+          P.dialog({ title: 'ПОДНЯТЬ ЦЕНТР ЗДЕСЬ?', warn: true, text: 'Делайте это, только если старый центр не работает: на этом телефоне запустится центр с копией игры' + (rep && rep.has ? ' (' + rep.msgs + ' сообщений, ' + hhmmss(rep.at) + ')' : '') + '.', buttons: [
+            { label: 'Поднять', cls: 'warn', fn: function () { raise(null); } }, { label: 'Отмена', cls: 'dim' }] });
+        }, 'warn')) : null,
+      h('div', { class: 'row2' },
+        btn('Выгрузить состояние в файл', dumpState, 'dim'),
+        btn('Загрузить состояние из файла', function () { file.click(); }, 'dim')),
+      file);
   }
 
   /* ---------- П16: ТЕЛЕФОНЫ — наблюдение за телефонами и проба голоса (основа 1, раздел 6в) ---------- */
@@ -18733,7 +18922,11 @@ var qrcode = function() {
    срабатывает на этом телефоне, когда его встряхнули, положили экраном вниз или перевернули вверх, экран был
    заблокирован дольше N с (при разблокировке) или не блокировался дольше N с, сделан снимок, отсканирован QR.
    Действия — как у кода (тому, кто «ввёл» — этому телефону; другим — через центр), в том числе новые:
-   «Вспышка» (фонарик мигает N раз) и «Короткий сигнал» (звук и вибрация). Работает, пока приложение открыто.
+   «Вспышка» (фонарик мигает N раз) и «Короткий сигнал» (звук и вибрация).
+   П17 (Т8-6 Б): в APK датчики и экран ведёт служба Android (SgPhone / SgPhoneCore) — правила срабатывают и когда
+   приложение свёрнуто или экран погашен; здесь — только снимок и QR, а служба присылает t:'phone' (что ещё сделать
+   в приложении). Новый вид — «не в приложении дольше N с» (away). У правила «когда работает»: всегда / при
+   включённом экране / при выключенном. В браузере всё — здесь (экран «выключен» = страница скрыта).
    Проверки: P.phoneEvent(вид) и поддельные devicemotion / visibilitychange (tests/net-e2e.mjs). */
 (function () {
   'use strict';
@@ -18741,7 +18934,10 @@ var qrcode = function() {
   var plugin = Net.plugin;
   var last = {};          // правило → время срабатывания (пауза every)
   var face = 'up', faceAt = 0, faceTimer = 0, faceWant = '';
-  var hiddenAt = 0, visibleAt = Date.now(), visTimer = 0;
+  var hiddenAt = 0, visibleAt = Date.now(), visTimer = 0, awayTimer = 0;
+  // П17: в APK события датчиков и экрана — у службы (и в фоне)
+  var NATIVE = { shake: 1, facedown: 1, faceup: 1, flip: 1, locked: 1, unlocked: 1, away: 1 };
+  var native = !!(plugin && plugin.phoneConfig);
 
   function rules(kind) {
     var g = P.game, st = P.state;
@@ -18754,10 +18950,14 @@ var qrcode = function() {
     });
   }
   /* Событие телефона: kind — вид, dur — сколько длилось (мс) для «дольше N с». Возвращает число сработавших правил. */
-  P.phoneEvent = function (kind, dur) {
+  P.phoneEvent = function (kind, dur, force) {
     var n = 0, now = Date.now();
+    if (native && NATIVE[kind] && !force) return 0;
     rules(kind).forEach(function (r) {
       if (r.seconds && (dur || 0) < r.seconds * 1000) return;
+      // экран: в браузере «выключен» — страница скрыта («не в приложении» проверяется без этого)
+      if (kind !== 'away' && r.screen === 'on' && document.hidden) return;
+      if (kind !== 'away' && r.screen === 'off' && !document.hidden) return;
       if (r.every && last[r.id] && now - last[r.id] < r.every * 1000) return;
       last[r.id] = now;
       n++;
@@ -18811,8 +19011,22 @@ var qrcode = function() {
       planVisible();
     }, next + 50);
   }
+  /* П17: «не в приложении дольше N с» — в браузере: страница скрыта дольше N с (потом — снова через N с). */
+  function planAway() {
+    clearTimeout(awayTimer);
+    var list = rules('away');
+    if (!list.length || !document.hidden) return;
+    var at = hiddenAt;
+    var next = Math.min.apply(null, list.map(function (r) { return Math.max(1, r.seconds || 0) * 1000; }));
+    awayTimer = setTimeout(function () {
+      if (!document.hidden || hiddenAt !== at) return;
+      P.phoneEvent('away', Date.now() - at);
+      planAway();
+    }, next + 50);
+  }
   document.addEventListener('visibilitychange', function () {
-    if (document.hidden) { hiddenAt = Date.now(); clearTimeout(visTimer); return; }
+    if (document.hidden) { hiddenAt = Date.now(); clearTimeout(visTimer); planAway(); return; }
+    clearTimeout(awayTimer);
     var dur = hiddenAt ? Date.now() - hiddenAt : 0;
     hiddenAt = 0;
     visibleAt = Date.now();
@@ -18820,6 +19034,29 @@ var qrcode = function() {
     planVisible();
   });
   ['login', 'route'].forEach(function (k) { P.on(k, function () { visibleAt = Date.now(); planVisible(); }); });
+
+  /* ---------- П17: служба Android ведёт правила (и в фоне) ---------- */
+  var sent = '';
+  P.phoneSync = function () {
+    if (!native || !P.game || !P.state) return;
+    var cfg = JSON.stringify(SG.phoneConfig(P.game, P.state));
+    if (cfg === sent) return;
+    sent = cfg;
+    plugin.phoneConfig({ config: cfg }).catch(function () { sent = ''; });
+  };
+  ['login', 'route', 'net'].forEach(function (k) { P.on(k, function () { P.phoneSync(); }); });
+  P.on('state', function (k) { if (k === 'chapter') setTimeout(P.phoneSync, 600); });
+  /* Служба: сработало правило. Сообщения центру она уже отправила, вспышку и сигнал (и шторку, если приложение
+     было свёрнуто) сделала — здесь остальное (открыть блоки, сбой, уведомление окном…). */
+  Net.on('phone', function (o) {
+    var s = P.state, g = P.game;
+    if (!s || !g || !s.account) return;
+    if (o.at && o.at <= (s.phoneAt || 0)) return;   // уже выполнено (страница перезагрузилась, журнал службы тот же)
+    if (o.at) { s.phoneAt = o.at; P.saveSoon(); }
+    var r = (g.rules || []).filter(function (x) { return x.id === o.id && x.on === 'phone'; })[0];
+    if (!r) return;
+    P.doActions(r.actions, true, o.done || []);
+  });
   P.on('photo', function () { P.phoneEvent('photo'); });
   P.on('scan', function () { P.phoneEvent('scan'); });
 

@@ -514,7 +514,7 @@ const ActionBody: React.FC<{a: AppGame; self: boolean; set: (patch: AppGame) => 
 					<ChoiceField
 						label={l('act.what')}
 						onChange={on => set({on})}
-						options={['on', 'broken', 'denied', 'hidden'].map(v => ({label: l(`act.moduleOn.${v}`), value: v}))}
+						options={['on', 'broken', 'denied', 'hidden', 'open'].map(v => ({label: l(`act.moduleOn.${v}`), value: v}))}
 						value={String(a.on ?? 'on')}
 					/>
 					{to}

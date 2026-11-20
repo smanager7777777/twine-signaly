@@ -139,6 +139,8 @@ export const PhonePersonForm: React.FC<{
 	const modules: string[] = Array.isArray(data.modules) ? data.modules : [];
 	const modChapter: AppGame = data.modChapter && typeof data.modChapter === 'object' ? data.modChapter : {};
 	const modState: AppGame = data.modState && typeof data.modState === 'object' ? data.modState : {};
+	const secret: string[] = Array.isArray(data.secret) ? data.secret : [];
+	const notes: AppGame[] = Array.isArray(data.notes) ? data.notes : [];
 	const colors: AppGame = data.colors && typeof data.colors === 'object' && !Array.isArray(data.colors) ? data.colors : {};
 	const voice = voiceModeOf(data);
 	const setColor = (n: string, patch: AppGame) => {
@@ -203,10 +205,36 @@ export const PhonePersonForm: React.FC<{
 									value={String(modState[m] || 'hidden')}
 								/>
 							</td>
+							<td className="signaly-secret">
+								{/* Сессия 39 (П17, Т8-5 А): скрытая программа — вкладки не видно, открывает код до выхода. */}
+								<CheckField
+									label={l('person.secret')}
+									onChange={on => set({secret: on ? [...secret.filter(x => x !== m), m] : secret.filter(x => x !== m)})}
+									value={secret.includes(m)}
+								/>
+							</td>
 						</tr>
 					))}
 				</tbody>
 			</table>
+			<h5 className="signaly-block-subtitle">{l('person.notes')}</h5>
+			<div className="signaly-field-hint">{l('person.notesHint')}</div>
+			{notes.map((n, i) => (
+				<div className="signaly-person-note" key={String(n.id ?? i)}>
+					<AreaInput
+						label={l('person.note', {n: i + 1})}
+						onChange={text => set({notes: notes.map((x, k) => (k === i ? {...x, text} : x))})}
+						rows={5}
+						value={n.text}
+					/>
+					<button className="signaly-small-button" onClick={() => set({notes: notes.filter((_x, k) => k !== i)})} type="button">
+						{l('person.noteDel')}
+					</button>
+				</div>
+			))}
+			<button className="signaly-small-button" onClick={() => set({notes: [...notes, {id: `pn${Date.now().toString(36)}`, text: ''}]})} type="button">
+				{l('person.noteAdd')}
+			</button>
 			<ChoiceField
 				hint={l(`person.voiceHint.${voice}`)}
 				label={l('person.voice')}

@@ -2734,7 +2734,8 @@
 					"on": "turn on / repair",
 					"broken": "break («ПОВРЕЖДЕНО»)",
 					"denied": "«НЕТ ДОСТУПА»",
-					"hidden": "hide"
+					"hidden": "hide",
+					"open": "open the hidden program (until exit)"
 				},
 				"app": "Device",
 				"appHint": "The device appears only if the character is ticked in the device's «Available to».",
@@ -2812,7 +2813,8 @@
 				"addAudio": "+ Sound",
 				"mediaHint": "The image or sound line goes where the cursor is in the passage text (at the start of a line — before it, otherwise after it). Put new files into the game folder media/app/.",
 				"remove": "Not an app block",
-				"confirmRemove": "Remove the block's first line and the app-block tag? The passage text stays."
+				"confirmRemove": "Remove the block's first line and the app-block tag? The passage text stays.",
+				"hidden": "Hidden: opened only by a code, not shown in the list"
 			},
 			"code": {
 				"app": "Where it's entered",
@@ -2943,7 +2945,13 @@
 				"profileText": "Text",
 				"profileTextHint": "App markup: # heading, **bold**, _italic_, --- line.",
 				"profileRemove": "Remove entry",
-				"profileAddText": "+ Text"
+				"profileAddText": "+ Text",
+				"secret": "hidden (by code)",
+				"notes": "Notes from the start",
+				"notesHint": "Shown in the character’s NOTES tab (needs the Notes function).",
+				"note": "Note {{n}}",
+				"noteAdd": "+ Note",
+				"noteDel": "Remove note"
 			},
 			"general": {
 				"pack": "Package",
@@ -3112,7 +3120,8 @@
 				"addBadges": "+ Answers for all login codes (badges)",
 				"badgesMade": "Codes added: {{n}}. Fill in the readings («Коды» window).",
 				"badgesNone": "All login codes already exist for the device.",
-				"codesWhere": "New codes go to the «Коды» table (phone only) after Save; readings and limits are edited there."
+				"codesWhere": "New codes go to the «Коды» table (phone only) after Save; readings and limits are edited there.",
+				"hidden": "Hidden: opened only by a code (straight on screen), hidden again after exit"
 			},
 			"events": {
 				"subs": {
@@ -3252,7 +3261,8 @@
 					"locked": "screen locked longer than N s (fires on unlock)",
 					"unlocked": "screen not locked for longer than N s",
 					"photo": "photo taken",
-					"scan": "QR scanned"
+					"scan": "QR scanned",
+					"away": "screen on, but the player is not in the app for longer than N s"
 				},
 				"longer": "Longer than, s",
 				"longerHint": "For «face down», «locked», «not locked»: 0 — at once.",
@@ -3260,7 +3270,14 @@
 				"everyHint": "0 — every time.",
 				"phoneWho": "On whose phones",
 				"phoneHint": "Run by the phone itself while the app is open. «To whoever entered the code» — this phone; «all» and «selected» — via the centre.",
-				"shortPhone": "📱 {{what}}"
+				"shortPhone": "📱 {{what}}",
+				"screen": "When it works",
+				"screens": {
+					"any": "always",
+					"on": "only with the screen on",
+					"off": "only with the screen off"
+				},
+				"screenHint": "The Android service watches — the rule also fires with the app minimized or the screen off (photo and QR — only while the app is open)."
 			},
 			"votes": {
 				"title": "Question for players",
@@ -3531,7 +3548,8 @@
 			"saveFirst": "Save first",
 			"removeRule": "Delete rule",
 			"removed": "No longer an event. Save — the passage stays a plain screen.",
-			"none": "No events yet."
+			"none": "No events yet.",
+			"whoPhone": "Runs: the phone itself (Android service — also in the background)."
 		}
 	}
 }

@@ -79,7 +79,7 @@ import {tipBase} from './signaly-tip';
 const glitchBase = [...glitchRules(defaultGlitch, ':where(.glitchy)'), glitchKeyframes].join('\n');
 
 /** Версия движка. Увеличивать при каждом изменении кода ниже. */
-export const signalyEngineVersion = 33;
+export const signalyEngineVersion = 34;
 
 export const signalyEngineStart =
 	'/* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */';

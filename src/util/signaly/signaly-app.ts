@@ -217,6 +217,7 @@ const blockOwn = [
 	'chapter',
 	'start',
 	'share',
+	'hidden',
 	'garble',
 	'items'
 ];
@@ -281,6 +282,10 @@ export function writeBlock(
 	}
 	if (block.share) {
 		words.push('share');
+	}
+	// Сессия 39 (П17, Т8-5 А): скрытый блок — только кодом, в списке не виден.
+	if (block.hidden) {
+		words.push('hidden');
 	}
 	if (block.garble) {
 		words.push('garble', String(block.garble));
@@ -381,7 +386,7 @@ export function readBlock(
 	while (words.length) {
 		const w = words.shift()!;
 
-		if (w === 'start' || w === 'share') {
+		if (w === 'start' || w === 'share' || w === 'hidden') {
 			block[w] = true;
 		} else if (w === 'who' && words.length) {
 			block.who = String(val(words.shift()) ?? '')
@@ -1014,7 +1019,11 @@ function diffDefaults(game: AppGame): AppGame {
 		},
 		menu: (Array.isArray(g.menu) ? g.menu : []).map((m: AppGame) => ({chapter: 1, who: [], ...m})),
 		// Сессия 38 (П16, основа 2): правило «на телефоне» — поля по умолчанию не отличие.
-		rules: (Array.isArray(g.rules) ? g.rules : []).map((r: AppGame) => (r.on === 'phone' ? {sensor: 'shake', seconds: 0, every: 0, who: [], ...r} : r)),
+		// Сессия 39 (П17): «когда работает» у правила «на телефоне», скрытые блоки и приборы, скрытые программы и заметки персонажа.
+		rules: (Array.isArray(g.rules) ? g.rules : []).map((r: AppGame) => (r.on === 'phone' ? {sensor: 'shake', seconds: 0, every: 0, who: [], screen: '', ...r} : r)),
+		blocks: g.blocks.map((b: AppGame) => ({hidden: false, ...b})),
+		apps: (Array.isArray(g.apps) ? g.apps : []).map((a: AppGame) => ({hidden: false, ...a})),
+		accounts: (Array.isArray(g.accounts) ? g.accounts : []).map((a: AppGame) => ({notes: [], secret: [], ...a})),
 		limits: Array.isArray(g.limits) ? g.limits : []
 	};
 }

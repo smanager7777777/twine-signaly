@@ -430,7 +430,7 @@ export const SignalyEventsWindow: React.FC<
 		return (
 			<>
 				<div className="signaly-notice signaly-events-who">
-					{l('whoCenter')}
+					{l(rule.on === 'phone' ? 'whoPhone' : 'whoCenter')}
 				</div>
 				<PhoneRuleForm rule={rule} set={patch => setRule(sel.i, patch)} />
 				<div className="signaly-block-buttons">

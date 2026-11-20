@@ -149,7 +149,9 @@ export const moduleOff = ['hidden', 'denied', 'broken'];
 export const voiceModes = ['off', 'button', 'screen', 'always'];
 /** Действия кода и правила (ACTIONS). */
 /** Сессия 38 (П16, основа 2): события самого телефона (правило on: 'phone', как SG.PHONE_SENSORS приложения). */
-export const phoneSensors = ['shake', 'facedown', 'faceup', 'flip', 'locked', 'unlocked', 'photo', 'scan'];
+export const phoneSensors = ['shake', 'facedown', 'faceup', 'flip', 'locked', 'unlocked', 'away', 'photo', 'scan'];
+/** Сессия 39 (П17, Т8-6 Б): когда работает правило «на телефоне» (следит служба Android — и в фоне). */
+export const phoneScreens = ['', 'on', 'off'];
 
 export const actionTypes = [
 	'open',
@@ -449,6 +451,8 @@ export interface BlockHead {
 	chapter: number;
 	start: boolean;
 	share: boolean;
+	/** Сессия 39 (П17, Т8-5 А): скрытый — только кодом, в списке не виден. */
+	hidden?: boolean;
 	garble: number;
 	/** Остальные слова строки (title, folder, more) — без изменений. */
 	rest: string[];
@@ -484,7 +488,7 @@ export function readBlockHead(text: string): BlockHead | undefined {
 	while (words.length) {
 		const w = words.shift()!;
 
-		if (w === 'start' || w === 'share') {
+		if (w === 'start' || w === 'share' || w === 'hidden') {
 			head[w] = true;
 		} else if (w === 'who' && words.length) {
 			head.who = String(val(words.shift()) ?? '')
@@ -516,6 +520,9 @@ export function blockHeadLine(head: BlockHead) {
 	}
 	if (head.share) {
 		words.push('share');
+	}
+	if (head.hidden) {
+		words.push('hidden');
 	}
 	if (head.garble) {
 		words.push('garble', String(head.garble));

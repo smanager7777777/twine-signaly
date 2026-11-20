@@ -156,7 +156,7 @@ check('тег sg-radio', /tags="sg-radio"/.test(passageIn(file, 'Радио').ta
 check('перенос шаблона: пассаж «Музыка»', /<<sg-folder "Радио" section radio>>/.test(passageIn(file, 'Музыка').text));
 check('перенос шаблона: экран radio — блок', passageIn(file, 'radio').text.trim() === '<<sg-radio "Сломанное">>', passageIn(file, 'radio').text);
 check('перенос шаблона: РАД — действие «Музыка»', passageIn(file, 'audiobuttons').text.includes('<<link "РАД">><<sg-mus toggle radio>><</link>>'));
-check('движок 33', /Версия движка: 33/.test(file));
+check('движок 34', /Версия движка: 34/.test(file));
 await rw.getByRole('button', {name: 'Закрыть', exact: true}).click();
 await win.waitForTimeout(500);
 

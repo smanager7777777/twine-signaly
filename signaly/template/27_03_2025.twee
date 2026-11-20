@@ -668,7 +668,7 @@ setup.signalySounds = {
 
 
 /* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */
-/* Версия движка: 33. Обновляется программой «Twine СИГНАЛЫ».
+/* Версия движка: 34. Обновляется программой «Twine СИГНАЛЫ».
    Настройки — в окне «Оформление терминала» (они лежат в таблице стилей).
    Свой код пишите ниже конца этого блока. */
 (function () {
@@ -713,7 +713,7 @@ setup.signalySounds = {
 	// Предпросмотр в программе: без стартового экрана, автокопии и защиты.
 	var preview = window.SIGNALY_PREVIEW;
 
-	setup.signaly = {engine: 33, preview: !!preview};
+	setup.signaly = {engine: 34, preview: !!preview};
 
 	// Русские служебные надписи SugarCube (этап 6, ответ 4А). Код автора стоит
 	// ниже движка, поэтому его надписи главнее.
@@ -9374,7 +9374,7 @@ setup.signalySounds = {
   'use strict';
   if (W.SgTermNet) return;
   var D = W.document, KEY = 'sg-term-net-url', PORT = 8790;
-  var N = W.SgTermNet = { url: '', on: false, seq: 0, epoch: null, offset: 0, state: {}, last: [], dev: 'terminal-1', name: 'Терминал' };
+  var N = W.SgTermNet = { url: '', on: false, seq: 0, epoch: null, gen: 0, offset: 0, state: {}, last: [], dev: 'terminal-1', name: 'Терминал', findAfter: 4 };
   var ws = null, timer = null, pinger = null, heard = 0, stopped = true, queue = [], subs = [], skip = -1;
   var QKEY = 'sg-term-net-queue', PKEY = 'sg-term-net-pos';
 
@@ -9387,8 +9387,10 @@ setup.signalySounds = {
   }
   // П9: неотправленное и место в журнале центра — в памяти браузера (терминал перезагрузили — ничего не потеряно и не повторено)
   queue = json(QKEY) || [];
-  (function () { var p = json(PKEY); if (p && p.epoch) { N.epoch = p.epoch; N.seq = +p.seq || 0; } })();
-  function savePos() { json(PKEY, { epoch: N.epoch, seq: N.seq }); }
+  (function () { var p = json(PKEY); if (p && p.epoch) { N.epoch = p.epoch; N.seq = +p.seq || 0; N.gen = +p.gen || 0; } })();
+  function savePos() { json(PKEY, { epoch: N.epoch, seq: N.seq, gen: N.gen }); }
+  // П17 (Т8-1 А): центр могут поднять на другом телефоне — после нескольких неудач терминал ищет его сам
+  var fails = 0, findNow = false, finding = false, staleUrls = {};
   function saveQueue() { json(QKEY, queue.slice(-500)); }
   N.now = function () { return Date.now() + N.offset; };
   N.queued = function () { return queue.length; };
@@ -9421,7 +9423,8 @@ setup.signalySounds = {
     ws = w;
     w.onopen = function () {
       heard = Date.now();
-      w.send(JSON.stringify({ t: 'hello', role: 'terminal', dev: N.dev, acc: null, name: N.name, ver: 'term-net-1', epoch: N.epoch, since: N.seq }));
+      fails = 0;
+      w.send(JSON.stringify({ t: 'hello', role: 'terminal', dev: N.dev, acc: null, name: N.name, ver: 'term-net-2', epoch: N.epoch, since: N.seq, gen: N.gen || undefined }));
       clearInterval(pinger);
       pinger = setInterval(function () {
         if (ws !== w) return;
@@ -9430,10 +9433,38 @@ setup.signalySounds = {
       }, 8000);
     };
     w.onmessage = function (e) { heard = Date.now(); var o; try { o = JSON.parse(e.data); } catch (x) { return; } got(o); };
-    w.onclose = function () { if (ws !== w) return; ws = null; clearInterval(pinger); var was = N.on; N.on = false; if (was) fire('status'); retry(); };
+    w.onclose = function () { if (ws !== w) return; ws = null; clearInterval(pinger); var was = N.on; N.on = false; if (!was) fails++; if (was) fire('status'); retry(); };
     w.onerror = function () {};
   }
-  function retry() { if (stopped) return; clearTimeout(timer); timer = setTimeout(open, 3000); }
+  function retry() {
+    if (stopped) return;
+    clearTimeout(timer);
+    if (findNow || (fails >= N.findAfter && fails % N.findAfter === 0)) { findNow = false; timer = setTimeout(search, 300); return; }
+    timer = setTimeout(open, 3000);
+  }
+  /* П17: где искать новый центр — список проверки, вся подсеть /24 прежнего адреса (тот же порт), адреса точек доступа. */
+  N.searchList = function () {
+    var l = [];
+    if (W.SG_TERM_FIND) l = W.SG_TERM_FIND.slice();
+    else {
+      var m = /^ws:\/\/(\d+\.\d+\.\d+)\.(\d+)(:\d+)?/.exec(N.url || '');
+      if (m) for (var i = 1; i < 255; i++) l.push(m[1] + '.' + i + (m[3] || ''));
+      l = l.concat(N.candidates());
+    }
+    return l.filter(function (h) { var u = N.norm(h), t = staleUrls[u]; return !(t && Date.now() - t < 120000); });
+  };
+  function search() {
+    if (stopped || finding) return;
+    finding = true;
+    N.searching = true; paint();
+    N.find(function (h) {
+      finding = false; N.searching = false;
+      if (stopped) return;
+      if (h && N.norm(h) !== N.url) { N.url = N.norm(h); store(KEY, N.url); fire('moved', { url: N.url }); }
+      if (!h) fails++;
+      open();
+    }, N.searchList());
+  }
   function raw(o) { if (ws && ws.readyState === 1 && N.on) { ws.send(JSON.stringify(o)); return true; } return false; }
   N.send = function (o) { if (!raw(o)) { queue.push(o); saveQueue(); paint(); } return o; };
 
@@ -9443,6 +9474,7 @@ setup.signalySounds = {
       skip = !N.epoch && typeof o.seq === 'number' ? o.seq : -1;
       if (N.epoch && N.epoch !== o.epoch) N.seq = 0;
       N.on = true; N.epoch = o.epoch; N.offset = (o.now || Date.now()) - Date.now(); N.state = o.state || {};
+      if ((o.gen || 0) > N.gen) N.gen = o.gen;
       if (typeof o.seq === 'number' && o.seq < N.seq) N.seq = o.seq;
       savePos();
       var q = queue; queue = []; saveQueue(); q.forEach(function (m) { raw(m); });
@@ -9460,6 +9492,11 @@ setup.signalySounds = {
     } else if (o.t === 'state') {
       if (o.value === null) delete N.state[o.key]; else N.state[o.key] = o.value;
       fire('state', o);
+    } else if (o.t === 'stale') {
+      // П17: этот центр уступил новому (поднят из копии на другом телефоне) — искать другой
+      if ((o.gen || 0) > N.gen) N.gen = o.gen;
+      staleUrls[N.url] = Date.now(); findNow = true; savePos();
+      fire('stale', o);
     } else if (o.t === 'reset') {
       N.epoch = o.epoch; N.seq = 0; N.state = {}; savePos(); fire('reset', o);
     }
@@ -9586,7 +9623,7 @@ setup.signalySounds = {
     var stopScan = null;
     function btn(t, f) { var b = el('button', B, t); b.onclick = f; return b; }
     box.paintStatus = function () {
-      st.textContent = (N.on ? '● В СЕТИ: ' + N.url : stopped ? '○ НЕ ПОДКЛЮЧЕНО' : '◌ ЖДУ ЦЕНТР: ' + N.url) +
+      st.textContent = (N.on ? '● В СЕТИ: ' + N.url : stopped ? '○ НЕ ПОДКЛЮЧЕНО' : N.searching ? '◌ ИЩУ ЦЕНТР В СЕТИ…' : '◌ ЖДУ ЦЕНТР: ' + N.url) +
         (queue.length ? '\nждут отправки: ' + queue.length + ' (уйдут, когда связь вернётся)' : '') +
         (N.last.length ? '\nпоследнее: ' + N.last[0].kind + ' ' + JSON.stringify(N.last[0].body).slice(0, 80) : '');
     };

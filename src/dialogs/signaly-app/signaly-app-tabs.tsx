@@ -17,6 +17,7 @@ import {
 	newItem,
 	normCode,
 	parseObject,
+	phoneScreens,
 	phoneSensors,
 	randomDigits,
 	themeColors,
@@ -376,6 +377,8 @@ export const DevicesTab: React.FC<TabProps> = ({game, sel, setGame, setSel, setT
 					<h3>{l('apps.usesTitle')}</h3>
 					<NumField hint={l('apps.usesHint')} label={l('apps.uses')} onChange={uses => set({uses: Math.round(uses)})} value={Number(a.uses) || 0} />
 					<CheckField label={l('apps.showUses')} onChange={showUses => set({showUses})} value={!!a.showUses} />
+					{/* Сессия 39 (П17, Т8-5 А): скрытый прибор — только кодом, сразу на экране. */}
+					<CheckField label={l('apps.hidden')} onChange={hidden => set({hidden})} value={!!a.hidden} />
 					<TextField label={l('apps.emptyText')} onChange={emptyText => set({emptyText})} value={String(a.emptyText ?? '')} />
 					<h3>{l('apps.codesTitle', {n: codes.length})}</h3>
 					<div className="signaly-field-hint">{l('apps.codesHint')}</div>
@@ -496,6 +499,14 @@ export const PhoneRuleForm: React.FC<{rule: AppGame; set: (patch: AppGame) => vo
 					<NumField hint={l('rules.longerHint')} label={l('rules.longer')} onChange={seconds => set({seconds: Math.max(0, Math.round(seconds))})} value={Number(x.seconds) || 0} />
 					<NumField hint={l('rules.everyHint')} label={l('rules.every')} onChange={every => set({every: Math.max(0, Math.round(every))})} value={Number(x.every) || 0} />
 					<AccountsField label={l('rules.phoneWho')} onChange={who => set({who})} value={x.who} />
+					{/* Сессия 39 (П17, Т8-6 Б): следит служба Android — и в фоне; когда работает. */}
+					<ChoiceField
+						hint={l('rules.screenHint')}
+						label={l('rules.screen')}
+						onChange={screen => set({screen})}
+						options={phoneScreens.map(v => ({label: l(`rules.screens.${v || 'any'}`), value: v}))}
+						value={str('screen')}
+					/>
 					<div className="signaly-field-hint">{l('rules.phoneHint')}</div>
 				</>
 			)}

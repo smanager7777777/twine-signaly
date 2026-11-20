@@ -149,7 +149,7 @@ try {
 	await page.waitForSelector('.passage');
 	await page.evaluate(() => document.fullscreenElement && document.exitFullscreen());
 	await page.waitForFunction(() => window.SgTermNet && window.SgTermNet.on, null, {timeout: 6000});
-	check('движок 33: терминал подключился к центру', await page.evaluate(() => SugarCube.setup.signaly.engine === 33 && SgTermNet.on));
+	check('движок 34: терминал подключился к центру', await page.evaluate(() => SugarCube.setup.signaly.engine === 34 && SgTermNet.on));
 	check('мастер видит терминал в сети', !!(await master.wait(o => o.t === 'peers' && o.peers.some(p => p.role === 'terminal' && p.online))));
 	check('огонёк в углу виден (в истории есть сеть)', await page.evaluate(() => [...document.body.children].some(e => e.title && /^Сеть/.test(e.title))));
 

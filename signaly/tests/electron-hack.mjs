@@ -132,7 +132,7 @@ await add('Терминал взлома');
 let value = await editorText();
 
 check('команда в тексте', /<<sg-hack words "ОТСЕК/.test(value) && value.includes('<</sg-hack>>') && /columns 2/.test(value), value);
-check('движок 33 поставлен', storyFile().includes('Версия движка: 33'));
+check('движок 34 поставлен', storyFile().includes('Версия движка: 34'));
 check('квадратики и глитч в заготовке', /triesshow boxes/.test(value) && /usedglitch/.test(value), value);
 await win.screenshot({path: shot('form')});
 

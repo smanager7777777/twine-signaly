@@ -92,7 +92,7 @@ await appWin().locator('.signaly-app-pending').waitFor({timeout: 15000});
 await appWin().getByRole('button', {name: 'Загрузить в историю'}).click();
 await win.waitForFunction(() => document.querySelector('.signaly-app-message')?.textContent.includes('Загружено'), null, {timeout: 15000});
 await win.waitForTimeout(2500);
-check('пакет загружен, движок 33', passageText('Приложение').includes('<<app-general>>') && storyFile().includes('Версия движка: 33'));
+check('пакет загружен, движок 34', passageText('Приложение').includes('<<app-general>>') && storyFile().includes('Версия движка: 34'));
 await appWin().getByRole('button', {name: 'Закрыть'}).click();
 await win.waitForTimeout(600);
 
