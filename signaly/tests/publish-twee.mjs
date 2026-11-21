@@ -5,9 +5,11 @@
 import fs from 'fs';
 import path from 'path';
 import vm from 'vm';
+import {fileURLToPath} from 'url';
 
 const [input, output, ...flags] = process.argv.slice(2);
-const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
+// Сессия 40: fileURLToPath — путь верный и на Windows (сборка релиза делает test-terminal.html).
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const formatJs = fs.readFileSync(
 	path.join(root, 'public/story-formats/sugarcube-2.37.3/format.js'),
 	'utf8'
