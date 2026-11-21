@@ -182,7 +182,8 @@ check('предпросмотр: первая строка {name}, вторая 
 check('предпросмотр: 5 горящих квадратиков из 10', (await phone.locator('#bar-vars .cells i').count()) === 10 && (await phone.locator('#bar-vars .cells i.on').count()) === 5);
 const tabs = await phone.locator('#tabs button:not([hidden])').allInnerTexts();
 check('предпросмотр: меню — ВВОД первым, без «Сканера»', tabs[0] === 'ВВОД' && !tabs.includes('СКАНЕР'), tabs.join(' '));
-await phone.locator('#bar-name').click();
+// Сессия 40: плеер П20 — нажатие на имя открывает досье (П19, замечание 4); сводка — нажатие на главу без своего текста.
+await phone.locator('#bar-chap').click();
 await win.waitForTimeout(500);
 check('предпросмотр: нажатие на шапку — «БОРТОВАЯ СВОДКА» с разделом', (await phone.locator('#dlg.on').innerText()).includes('Реактор: 5 из 10'), await phone.locator('body').innerText());
 await win.screenshot({path: shot('header-preview')});

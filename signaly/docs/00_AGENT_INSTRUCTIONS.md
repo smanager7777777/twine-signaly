@@ -403,6 +403,15 @@
 - Подсказки в `public/locales` — слиянием JSON (поиск словаря по ключам-соседям: `sensors` + `phoneWho`, `share` + `garble` + `startHint` и т. п.).
 - Проверки: `signaly-session39.test.ts` (5), `signaly/tests/electron-app-t8.mjs` (8).
 
+**Сессия 40 (= П21: формы новых полей приложения П20, личные на терминале, движок 35, «Тест терминала»):**
+- Пакет-образец с полями П20 — `__tests__/fixtures/app-test-net-pack-p20.sgpack` (`test-net-pack` релиза `signaly-app` build-76: скачать можно и `curl -L https://github.com/smanager7777777/signaly-app/releases/download/build-N/test-net-pack.sgpack` — `gh api` к `signaly-app` без подключения не пускает). Старые образцы build-38 не менять (с ними сверяются старые проверки).
+- `signaly-app` без записи: `git clone --depth 1 …` даёт ветку по умолчанию (старую) — `git fetch --depth 1 origin main && git checkout FETCH_HEAD`; для `net-play` / `test-terminal-play` — `npm ci --ignore-scripts` в клоне; плеер — `node tools/build.mjs`, затем `sync-app-player.py`.
+- Личные в движке: `pvKey` (id из `phone` сотрудника — `codes().people[].app`), `pvPending` (своё изменение до ответа центра — список `[время, прибавка, записать]`; ответ центра на своё (`o.by === N.dev`) снимает первое; при связи — не дольше 30 с), `pvHist` (окна «за N мин», если центр их не считает). Оба — в `localStorage` (`sg-pv-pending`, `sg-pv-hist`).
+- Поле с `undefined` в патче действия / шапки — убрать ключ (`set` в `ActionBody`, `setHeader`): значение по умолчанию не пишется.
+- `signaly/tools/tsconfig.json` собирает и `signaly-app.ts` (нужно генератору «Теста терминала»).
+- «Тест терминала»: после правки движка — `node signaly/tests/test-terminal/make-test-terminal.mjs` (после `npx tsc -p signaly/tools/tsconfig.json`); список проверок — `CHECKS` в нём (сначала новое в сборке); `signaly-session40.test` сверяет версию движка в `.twee`. Релиз: `test-terminal.twee` и `test-terminal.html` (`publish-twee.mjs` в `build-windows.yml`).
+- Проверки: `signaly-session40.test.ts` (9), `signaly/tests/electron-app-t9.mjs` (16, в `runall.sh`), `net-play` (+9), `test-terminal-play.mjs` (15, в `runall.sh`).
+
 ## Как записывать решения
 В `05_AUTHOR_DECISIONS.md` — таблица: номер, дата, вопрос, решение автора, что изменено. Решение «не нужно» записывать тоже. Отменённое решение не удалять: пометить, каким решением оно отменено. Находки при проверке, которые меняют поведение для автора (как «через N секунд отменяется при переходе»), и уточнения, которые агент сделал сам в рамках ответа автора (решения 76, 81 … 143), — тоже строкой.
 
