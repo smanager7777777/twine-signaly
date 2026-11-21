@@ -36,7 +36,7 @@ export type CondOp = 'on' | 'off' | 'eq' | 'ne' | 'gt' | 'lt' | 'ge';
  * экран (on — был, off — не был, ge — не меньше N раз, eq — ровно N раз);
  * entered — сотрудник ввёл код таблицы (on — ввёл, off — не ввёл).
  */
-export type CondKind = 'visits' | 'entered' | 'phone';
+export type CondKind = 'visits' | 'entered' | 'phone' | 'personal';
 /** phone (сессия 31): что пришло с телефона — код или фраза голосом, событие. */
 export type PhoneWhat = 'code' | 'event';
 
@@ -53,6 +53,8 @@ export interface Cond {
 	code?: string;
 	/** phone: код или фраза (code), событие (event); имя — в code, номер сотрудника — в person ('' — любой). */
 	phone?: PhoneWhat;
+	/** personal (сессия 40, Т31-3 А): «за N минут» (0 — само значение); переменная — в name, сотрудник — в person. */
+	minutes?: number;
 }
 
 export interface Condition {
@@ -103,6 +105,11 @@ const enteredRe = new RegExp(`^(not\\s+|!\\s*)?setup\\.entered\\(\\s*${str}\\s*,
 const phoneRe = new RegExp(
 	`^setup\\.phone\\(\\s*${str}\\s*,\\s*${str}\\s*(?:,\\s*${str}\\s*)?\\)\\s+(gte|gt|is|eq|===|==|>=|>)\\s+(\\d+)$`
 );
+// Сессия 40 (Т31-3 А): личная сотрудника — sgPersonal("hacks", "3") gte 2, «за N мин» — sgPersonalWin("hacks", "3", 5) gte 2.
+const personalCondRe = new RegExp(
+	`^sgPersonal(Win)?\\(\\s*${str}\\s*,\\s*${str}\\s*(?:,\\s*(\\d+)\\s*)?\\)\\s+(gte|gt|isnot|is|eq|neq|lt|===|==|!==|!=|>=|>|<)\\s+(-?\\d+(?:\\.\\d+)?)$`
+);
+const personalOps: Record<string, CondOp> = {gte: 'ge', '>=': 'ge', gt: 'gt', '>': 'gt', is: 'eq', eq: 'eq', '==': 'eq', '===': 'eq', isnot: 'ne', neq: 'ne', '!=': 'ne', '!==': 'ne', lt: 'lt', '<': 'lt'};
 const enteredCodeRe = new RegExp(`setup\\.entered\\(\\s*${str}\\s*,\\s*${str}\\s*\\)`, 'g');
 
 /**
@@ -157,6 +164,26 @@ function unquote(s: string) {
 
 /** Строка условия про заходы на экран или введённый код (шаг 3.5). */
 function parseSpecial(part: string): Cond | undefined {
+	const pv = personalCondRe.exec(part);
+
+	if (pv) {
+		const name = unquote(pv[2]);
+		const person = unquote(pv[3]);
+		const win = !!pv[1];
+
+		if (name === undefined || person === undefined || win !== (pv[4] !== undefined)) {
+			return undefined;
+		}
+		return {
+			name: name.replace(/^\$/, ''),
+			kind: 'personal',
+			person,
+			op: personalOps[pv[5]],
+			value: Number(pv[6]),
+			...(win ? {minutes: Number(pv[4])} : {})
+		};
+	}
+
 	const v = visitsRe.exec(part);
 
 	if (v) {
@@ -269,6 +296,15 @@ export function parseExpr(expr: string): {conds: Cond[]; join: 'and' | 'or'} | u
 }
 
 function writeSpecial(c: Cond) {
+	if (c.kind === 'personal') {
+		const m = Math.max(0, Math.round(Number(c.minutes) || 0));
+		const call = m
+			? `sgPersonalWin(${literal(c.name)}, ${literal(c.person ?? '')}, ${m})`
+			: `sgPersonal(${literal(c.name)}, ${literal(c.person ?? '')})`;
+		const op = c.op === 'on' || c.op === 'off' ? 'ge' : c.op;
+
+		return `${call} ${opWrite[op]} ${Number(c.value) || 0}`;
+	}
 	if (c.kind === 'entered') {
 		const call = `setup.entered(${literal(c.person ?? '')}, ${literal(c.code ?? '')})`;
 

@@ -4,7 +4,7 @@
 // персонажей и коды телефона в таблице «Коды». Поля — как во вкладках редактора приложения.
 
 import * as React from 'react';
-import {AppGame, jsonText} from '../../util/signaly/signaly-app';
+import {AppGame, jsonText, tickerDefaults} from '../../util/signaly/signaly-app';
 import {
 	defaultChat,
 	defaultPalette,
@@ -455,6 +455,24 @@ export const PhoneRuleForm: React.FC<{rule: AppGame; set: (patch: AppGame) => vo
 	const refs = React.useContext(AppRefsContext);
 	const str = (key: string) => String(x?.[key] ?? '');
 	const on = str('on') || 'event';
+	// Сессия 40 (П-79): правило по личной переменной — у каждого персонажа своё (или у одного), «за N мин».
+	const personal = (on === 'var' || on === 'limit') && refs.shared.some(v => v.name === str('var') && v.personal);
+	const winAcc = (
+		<>
+			{on === 'var' && (
+				<NumField hint={l('rules.winHint')} label={l('rules.win')} max={720} onChange={win => set({win: Math.round(win)})} value={Number(x.win) || 0} />
+			)}
+			{personal && (
+				<ChoiceField
+					hint={l('rules.accHint')}
+					label={l('rules.acc')}
+					onChange={acc => set({acc})}
+					options={[{label: l('rules.accAny'), value: ''}, ...refs.accounts.map(a => ({label: accountLabel(a), value: a.id}))]}
+					value={str('acc')}
+				/>
+			)}
+		</>
+	);
 
 	return (
 		<>
@@ -485,6 +503,7 @@ export const PhoneRuleForm: React.FC<{rule: AppGame; set: (patch: AppGame) => vo
 						options={['max', 'min', 'any'].map(v => ({label: l(`rules.sides.${v}`), value: v}))}
 						value={str('side') || 'max'}
 					/>
+					{winAcc}
 				</>
 			)}
 			{on === 'phone' && (
@@ -537,11 +556,12 @@ export const PhoneRuleForm: React.FC<{rule: AppGame; set: (patch: AppGame) => vo
 						value={str('op') || '='}
 					/>
 					<TextField hint={l('rules.valueHint')} label={l('rules.value')} onChange={value => set({value})} value={str('value')} />
+					{winAcc}
 				</>
 			)}
 			{on !== 'chapter' && <ChaptersChecks label={l('rules.chapters')} onChange={chapters => set({chapters})} value={x.chapters} />}
 			<h3>{l('code.actions')}</h3>
-			<AppActions actions={x.actions} onChange={actions => set({actions})} self={on === 'phone'} />
+			<AppActions actions={x.actions} hit={personal} onChange={actions => set({actions})} self={on === 'phone'} />
 		</>
 	);
 };
@@ -577,6 +597,25 @@ export const EventsTab: React.FC<TabProps & {sub: EventsSub; setSub: (s: EventsS
 						<ChapterField label={l('notices.chapter')} onChange={chapter => set({chapter})} value={x.chapter} zero={l('notices.manual')} />
 						<NumField label={l('notices.minutes')} onChange={minutes => set({minutes})} value={Number(x.minutes) || 0} />
 						<div className="signaly-field-hint">{l('notices.hint')}</div>
+						{/* Сессия 40 (П-79, основа 4): событие — картинка, mp3, бегущая строка, когда уходит, архив. */}
+						<h3>{l('notices.event')}</h3>
+						<TextField hint={l('notices.imgHint')} label={l('notices.img')} onChange={img => set({img: img.trim()})} value={str('img')} />
+						<TextField hint={l('notices.mp3Hint')} label={l('notices.mp3')} onChange={mp3 => set({mp3: mp3.trim()})} value={str('mp3')} />
+						{str('mp3') !== '' && <CheckField hint={l('notices.playNowHint')} label={l('notices.playNow')} onChange={playNow => set({playNow})} value={!!x.playNow} />}
+						<CheckField hint={l('notices.tickerHint')} label={l('notices.ticker')} onChange={ticker => set({ticker})} value={!!x.ticker} />
+						{!!x.ticker && (
+							<>
+								<CheckField label={l('notices.open')} onChange={open => set({open})} value={x.open !== false} />
+								<NumField hint={l('notices.repeatHint')} label={l('notices.repeat')} max={99} onChange={repeat => set({repeat: Math.round(repeat)})} value={Number(x.repeat) || 0} />
+								<div className="signaly-field-label">{l('notices.leave')}</div>
+								<NumField hint={l('notices.leaveMinHint')} label={l('notices.leaveMin')} onChange={leaveMin => set({leaveMin})} value={Number(x.leaveMin) || 0} />
+								<CheckField label={l('notices.leaveOpen')} onChange={leaveOpen => set({leaveOpen})} value={!!x.leaveOpen} />
+								<CheckField label={l('notices.leaveChapter')} onChange={leaveChapter => set({leaveChapter})} value={!!x.leaveChapter} />
+								<div className="signaly-field-hint">{l('notices.leaveHint')}</div>
+							</>
+						)}
+						<CheckField hint={l('notices.saveHint')} label={l('notices.save')} onChange={save => set({save})} value={x.save !== false} />
+						{x.save !== false && <TextField hint={l('notices.folderHint')} label={l('notices.folder')} onChange={folder => set({folder})} value={str('folder')} />}
 					</>
 				);
 			case 'alarms':
@@ -708,7 +747,77 @@ export const EventsTab: React.FC<TabProps & {sub: EventsSub; setSub: (s: EventsS
 				</div>
 				<div className="signaly-phone-form">{form()}</div>
 			</div>
+			{sub === 'notices' && <TickerSettings game={game} setGame={setGame} />}
 		</>
+	);
+};
+
+/** Сессия 40 (П-79, основа 4): бегущая строка — под шапкой; лента последних K событий по кругу; реклама по расписанию. */
+const TickerSettings: React.FC<{game: AppGame; setGame: (g: AppGame) => void}> = ({game, setGame}) => {
+	const l = usePhoneL();
+	const refs = React.useContext(AppRefsContext);
+	const tk: AppGame = {...tickerDefaults, ...(game.ticker && typeof game.ticker === 'object' ? game.ticker : {})};
+	const set = (patch: AppGame) => {
+		const next: AppGame = {...(game.ticker && typeof game.ticker === 'object' ? game.ticker : {}), ...patch};
+
+		// Пишется только изменённое (как у остального пакета).
+		Object.keys(next).forEach(k => {
+			if (JSON.stringify(next[k]) === JSON.stringify((tickerDefaults as AppGame)[k])) {
+				delete next[k];
+			}
+		});
+
+		const g: AppGame = {...game, ticker: next};
+
+		if (!Object.keys(next).length) {
+			delete g.ticker;
+		}
+		setGame(g);
+	};
+	const ads: string[] = Array.isArray(tk.ads) ? tk.ads : [];
+
+	return (
+		<fieldset className="signaly-block-row signaly-ticker-settings">
+			<legend>{l('ticker.title')}</legend>
+			<div className="signaly-field-hint">{l('ticker.intro')}</div>
+			<NumField hint={l('ticker.speedHint')} label={l('ticker.speed')} max={400} min={10} onChange={speed => set({speed: Math.round(speed)})} value={Number(tk.speed) || 60} />
+			<ColorInput
+				extra={
+					<button className="signaly-button" disabled={!tk.color} onClick={() => set({color: ''})} type="button">
+						{l('ticker.colorChapter')}
+					</button>
+				}
+				label={tk.color ? l('ticker.color') : l('ticker.colorNone')}
+				onChange={color => set({color})}
+				value={String(tk.color || '')}
+			/>
+			<NumField hint={l('ticker.kHint')} label={l('ticker.k')} max={20} min={1} onChange={k => set({k: Math.round(k)})} value={Number(tk.k) || 5} />
+			<ChapterField label={l('ticker.chapter')} onChange={chapter => set({chapter})} value={tk.chapter} />
+			<AccountsField label={l('ticker.who')} onChange={who => set({who})} value={tk.who} />
+			<h4>{l('ticker.ads')}</h4>
+			<NumField hint={l('ticker.adsEveryHint')} label={l('ticker.adsEvery')} onChange={adsEvery => set({adsEvery})} value={Number(tk.adsEvery) || 0} />
+			<ChoiceField
+				label={l('ticker.adsOrder')}
+				onChange={adsOrder => set({adsOrder})}
+				options={[
+					{label: l('ticker.adsSeq'), value: 'seq'},
+					{label: l('ticker.adsRandom'), value: 'random'}
+				]}
+				value={tk.adsOrder === 'random' ? 'random' : 'seq'}
+			/>
+			<div className="signaly-codes-people signaly-phone-checks" role="group" aria-label={l('ticker.adsList')}>
+				{refs.notices.length === 0 && <div className="signaly-field-hint">{l('ticker.noNotices')}</div>}
+				{refs.notices.map(n => (
+					<CheckField
+						key={String(n.id)}
+						label={String(n.name || n.title || n.id)}
+						onChange={on => set({ads: on ? [...ads, String(n.id)] : ads.filter(id => id !== n.id)})}
+						value={ads.includes(String(n.id))}
+					/>
+				))}
+			</div>
+			<div className="signaly-field-hint">{l('ticker.adsHint')}</div>
+		</fieldset>
 	);
 };
 

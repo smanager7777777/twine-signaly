@@ -24,7 +24,13 @@ export const HeaderTab: React.FC<TabProps> = ({game, setGame}) => {
 	const header: AppGame = {...defaultHeader, ...(game.header ?? {})};
 	const items: any[] = Array.isArray(header.items) ? header.items : [];
 	const info: any[] = Array.isArray(header.info) ? header.info : [];
-	const setHeader = (patch: AppGame) => setGame({...game, header: {...header, ...patch}});
+	const setHeader = (patch: AppGame) => {
+		const next: AppGame = {...header, ...patch};
+
+		// undefined — поле убрать (значение по умолчанию не пишется).
+		Object.keys(patch).forEach(k => patch[k] === undefined && delete next[k]);
+		setGame({...game, header: next});
+	};
 	const setItem = (i: number, patch: AppGame) => setHeader({items: items.map((x, k) => (k === i ? {...x, ...patch} : x))});
 	const setInfo = (i: number, patch: AppGame) => setHeader({info: info.map((x, k) => (k === i ? {...x, ...patch} : x))});
 	const chapters: any[] = Array.isArray(header.chapters) ? header.chapters : [];
@@ -100,8 +106,23 @@ export const HeaderTab: React.FC<TabProps> = ({game, setGame}) => {
 		<>
 			<h3>{l('header.lines')}</h3>
 			<TextField hint={l('header.titleHint', {v: '{{имя}}', interpolation: {skipOnVariables: true}})} label={l('header.title')} onChange={title => setHeader({title})} value={String(header.title ?? '')} />
-			<TextField hint={l('header.subHint')} label={l('header.sub')} onChange={sub => setHeader({sub})} value={String(header.sub ?? '')} />
+			<TextField hint={l('header.subHint') + ' ' + l('header.subDash')} label={l('header.sub')} onChange={sub => setHeader({sub})} value={String(header.sub ?? '')} />
 			<CheckField label={l('header.chapter')} onChange={chapter => setHeader({chapter})} value={header.chapter !== false} />
+			{/* Сессия 40 (долги П19): размер шапки и «в шапке не больше N показателей». */}
+			<ChoiceField
+				hint={l('header.sizeHint')}
+				label={l('header.size')}
+				onChange={size => setHeader({size: size === 'normal' ? undefined : size})}
+				options={['compact', 'normal', 'large'].map(v => ({label: l(`header.sizes.${v}`), value: v}))}
+				value={header.size === 'compact' || header.size === 'large' ? header.size : 'normal'}
+			/>
+			<NumField
+				hint={l('header.maxItemsHint')}
+				label={l('header.maxItems')}
+				max={50}
+				onChange={n => setHeader({maxItems: Math.round(n) || undefined})}
+				value={Number(header.maxItems) || 0}
+			/>
 			<h3>{l('header.chapters')}</h3>
 			<div className="signaly-field-hint">{l('header.chaptersHint')}</div>
 			{chapters.map((c, i) => (
@@ -141,6 +162,8 @@ export const HeaderTab: React.FC<TabProps> = ({game, setGame}) => {
 					</legend>
 					<ChoiceField label={l('header.var')} onChange={v => setItem(i, {var: v})} options={varOptions(String(it.var ?? ''))} value={String(it.var ?? '')} />
 					<TextField hint={l('header.labelHint')} label={l('header.label')} onChange={label => setItem(i, {label})} value={String(it.label ?? '')} />
+					{/* Сессия 40 (П-79, Т13-5 А): показатель «за N мин» — сумма прибавлений за окно. */}
+					<NumField hint={l('header.winHint')} label={l('rules.win')} max={720} onChange={win => setItem(i, {win: Math.round(win) || undefined})} value={Number(it.win) || 0} />
 					<ChoiceField
 						label={l('header.show')}
 						onChange={show => setItem(i, {show})}

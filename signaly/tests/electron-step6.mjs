@@ -196,7 +196,7 @@ check('форма блока открылась', (await panel().getByText('Кн
 
 const moved = storyFile();
 
-check('движок 34 поставлен', moved.includes('Версия движка: 34'));
+check('движок 35 поставлен', moved.includes('Версия движка: 35'));
 
 await fill('Переменная', '$mode');
 await select('Вид', 'amber');

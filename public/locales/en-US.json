@@ -1425,7 +1425,8 @@
 					"var": "Variable",
 					"visits": "Screen visits",
 					"entered": "Employee entered a code",
-					"phone": "Came from a phone"
+					"phone": "Came from a phone",
+					"personal": "Employee's personal variable"
 				},
 				"screen": "Screen",
 				"visitOps": {
@@ -1459,7 +1460,18 @@
 					"ge": "came at least … times",
 					"eq": "came exactly … times"
 				},
-				"phoneHint": "Vote results and variables from the master console are written to variables — use the \"Variable\" condition."
+				"phoneHint": "Vote results and variables from the master console are written to variables — use the \"Variable\" condition.",
+				"personalVar": "Personal variable",
+				"personalWin": "Over N minutes (0 — the value itself)",
+				"personalWinHint": "Sum of additions over the last N minutes.",
+				"personalOps": {
+					"eq": "equals",
+					"ne": "not equal",
+					"gt": "greater than",
+					"lt": "less than",
+					"ge": "at least"
+				},
+				"personalHint": "The centre keeps the value (personal — «Variables» window → «Each has their own»)."
 			},
 			"states": {
 				"title": "States",
@@ -1513,7 +1525,15 @@
 			},
 			"shared": "Shared with phones",
 			"sharedHint": "The network center (master's phone) keeps the value: the terminal, phone codes (\"Terminal variable\" action), rules in the Events window and the master console see and change it. In app texts — {{code}}. In StoryInit — the line <<sg-shared …>>.",
-			"sharedShort": "shared"
+			"sharedShort": "shared",
+			"personal": "Each has their own (personal)",
+			"personalHint": "Each character has their own value: {{own}} on the phone — own, {{other}} — someone else's. Terminal: «Personal variable» action of a code, in conditions — sgPersonal(\"name\", \"3\") and sgPersonalWin(\"name\", \"3\", 5).",
+			"personalTable": "Initial value and maximum per character",
+			"personalNoAccounts": "No app characters: add them in the «Codes» window (employee → «App character»).",
+			"personalInit": "Initial — {{who}}",
+			"personalMax": "Maximum — {{who}}",
+			"personalTableHint": "Empty «Initial» — the common initial value ({{value}}); empty «Maximum» — as set for the header scale and the limit.",
+			"personalShort": "personal"
 		},
 		"actions": {
 			"button": "Action",
@@ -1546,7 +1566,8 @@
 				"progress": "Progress of the person +N",
 				"back": "Return to the previous screen",
 				"music": "Music",
-				"net": "To phones: …"
+				"net": "To phones: …",
+				"personal": "Personal variable"
 			},
 			"add": "Add action",
 			"addChoose": "Choose…",
@@ -1760,7 +1781,27 @@
 				"blocksFromApp": "Comma-separated. App blocks in the story: {{list}}.",
 				"allGlitches": "all glitches",
 				"unknownGlitch": "{{name}} — not in the app!",
-				"eventsFromApp": "App rule events in the story: {{list}}."
+				"eventsFromApp": "App rule events in the story: {{list}}.",
+				"ticker": "To the news ticker",
+				"tickerHint": "The notification goes as a line under the phone header (tap — open), not as a window.",
+				"repeat": "Ticker passes",
+				"repeatHint": "Empty — as set in the app; 0 — until removed."
+			},
+			"personal": {
+				"name": "Variable",
+				"none": "No personal variables: «Variables» window → shared with phones → «Each has their own».",
+				"op": "What to do",
+				"add": "add",
+				"set": "set",
+				"amount": "How much to add (can be negative)",
+				"value": "Value",
+				"who": "Whose",
+				"self": "of the one who entered the code (personal code)",
+				"one": "of employee No. …",
+				"all": "everyone's",
+				"person": "Employee number",
+				"selfHint": "The terminal asks for the personal code to know who entered. The centre keeps the value; without a connection the addition waits.",
+				"hint": "The centre keeps the value; without a connection the addition waits. In conditions — sgPersonal(\"name\", \"3\")."
 			}
 		},
 		"keys": {
@@ -2707,7 +2748,8 @@
 					"vote": "Vote",
 					"color": "Interface colour",
 					"torch": "Flash (torch)",
-					"beep": "Short signal"
+					"beep": "Short signal",
+					"unticker": "Remove from the ticker"
 				},
 				"to": "To whom",
 				"toSelf": "whoever entered the code",
@@ -2775,7 +2817,30 @@
 					"beep": "signal",
 					"ok": "success",
 					"err": "error"
-				}
+				},
+				"toHit": "The one it fired for",
+				"ticker": "To the news ticker",
+				"tickerAsNotice": "as set in the event",
+				"tickerYes": "yes — to the ticker",
+				"tickerNo": "no — as a window",
+				"repeat": "Ticker passes",
+				"repeatHint": "Empty — as set in the event; 0 — until removed.",
+				"untickerNotice": "Which event to remove from the ticker",
+				"untickerAll": "all ticker events",
+				"alarmOne": "Only this phone",
+				"alarmOneHint": "Alarm on one phone only (overrides the common one); cleared by a code or phrase on this phone — «Alarm: off» with the same tick.",
+				"alarmOneWho": "On whose phone",
+				"alarmOneSelf": "Nothing ticked — on the phone of the one who entered the code.",
+				"alarmOneHit": "Nothing ticked — on the phone the rule fired for.",
+				"personal": "personal",
+				"accs": "Whose value",
+				"accsSelf": "of the one who entered the code",
+				"accsHit": "of the one it fired for",
+				"accsRuleAll": "everyone's",
+				"accsAll": "everyone's",
+				"accsSome": "of the selected",
+				"accsWho": "Whose to change",
+				"termPersonalHint": "Personal variable: each character has their own value (on the phone — {{example}})."
 			},
 			"block": {
 				"button": "App block",
@@ -2896,7 +2961,14 @@
 				"whenMode": "If the condition is not met",
 				"whenModeDenied": "“NO ACCESS” and the answer",
 				"whenModeInactive": "“CODE NOT ACTIVE YET” and the answer",
-				"whenModeWrong": "as a wrong code (silently)"
+				"whenModeWrong": "as a wrong code (silently)",
+				"whenAcc": "Whose personal value",
+				"whenAccOwn": "own (of the one who entered)",
+				"after": "After entry",
+				"afterHint": "Answer window — as usual; «at once» — open what the code opened without a window. A refusal is always a window.",
+				"afterAuto": "as usual (window; hidden device or program — at once)",
+				"afterWindow": "show the answer window",
+				"afterNow": "open at once, no window"
 			},
 			"person": {
 				"title": "On the phone",
@@ -2951,7 +3023,9 @@
 				"notesHint": "Shown in the character’s NOTES tab (needs the Notes function).",
 				"note": "Note {{n}}",
 				"noteAdd": "+ Note",
-				"noteDel": "Remove note"
+				"noteDel": "Remove note",
+				"tester": "Tester",
+				"testerHint": "Notes from the pack get a «Send to master» button (arrives in the master phone «ПЕРЕПИСКА»)."
 			},
 			"general": {
 				"pack": "Package",
@@ -3149,7 +3223,29 @@
 				"chapter": "Automatically in chapter",
 				"manual": "no, manual only",
 				"minutes": "Minutes after chapter start",
-				"hint": "The network centre runs the timer from the moment the chapter reached the centre."
+				"hint": "The network centre runs the timer from the moment the chapter reached the centre.",
+				"event": "Event (picture, sound, ticker)",
+				"img": "Picture",
+				"imgHint": "A file from the game folder media/app/ (e.g. ev.png); empty — no picture.",
+				"mp3": "Sound (mp3)",
+				"mp3Hint": "A file from media/app/; on arrival — a short beep, the mp3 — on tap.",
+				"playNow": "Play at once",
+				"playNowHint": "The mp3 plays on arrival (announcements).",
+				"ticker": "To the news ticker",
+				"tickerHint": "Instead of a window — a line under the header; a tap opens the event.",
+				"open": "A tap on the line opens the whole event",
+				"repeat": "Ticker passes",
+				"repeatHint": "0 — until removed.",
+				"leave": "Leaves the ticker",
+				"leaveMin": "After N minutes",
+				"leaveMinHint": "0 — not by time.",
+				"leaveOpen": "After it is opened",
+				"leaveChapter": "At the end of the chapter",
+				"leaveHint": "The first that happens; without settings — pushed out by newer ones. Remove by a code, a rule or the master phone — «Remove from the ticker».",
+				"save": "Keep in «Data»",
+				"saveHint": "An opened event stays in the archive («Data» tab).",
+				"folder": "Archive folder",
+				"folderHint": "Empty — «События»."
 			},
 			"alarms": {
 				"title": "Title on the screen",
@@ -3277,7 +3373,12 @@
 					"on": "only with the screen on",
 					"off": "only with the screen off"
 				},
-				"screenHint": "The Android service watches — the rule also fires with the app minimized or the screen off (photo and QR — only while the app is open)."
+				"screenHint": "The Android service watches — the rule also fires with the app minimized or the screen off (photo and QR — only while the app is open).",
+				"win": "Over N minutes",
+				"winHint": "0 — the value itself; otherwise — the sum of additions over the last N minutes (counted by the centre).",
+				"acc": "Whose personal value",
+				"accHint": "Personal variable: the rule works for each character separately; actions can go «to the one it fired for».",
+				"accAny": "anyone (each separately)"
 			},
 			"votes": {
 				"title": "Question for players",
@@ -3527,7 +3628,40 @@
 				"tapBody": "Window text",
 				"tapBlockSel": "Block",
 				"about": "Window when the chapter is tapped",
-				"aboutHint": "Empty — as in the previous entry; none — common summary."
+				"aboutHint": "Empty — as in the previous entry; none — common summary.",
+				"subDash": "«-» — no second line.",
+				"size": "Header size",
+				"sizeHint": "Height of scales and labels.",
+				"sizes": {
+					"compact": "compact",
+					"normal": "normal",
+					"large": "large"
+				},
+				"maxItems": "No more than N indicators in the header",
+				"maxItemsHint": "0 — all; the rest — in the window on tap, «+N» in the header.",
+				"winHint": "0 — the value; otherwise — the sum of additions over the last N minutes."
+			},
+			"ticker": {
+				"title": "News ticker",
+				"intro": "A line under the phone header: the latest ticker events in a loop and scheduled ads.",
+				"speed": "Speed",
+				"speedHint": "Pixels per second, 10–400 (60 by default).",
+				"color": "Ticker colour",
+				"colorNone": "Ticker colour — by chapter",
+				"colorChapter": "chapter colour",
+				"k": "Latest events in the loop",
+				"kHint": "1–20 (5 by default).",
+				"chapter": "From chapter",
+				"who": "To whom",
+				"ads": "Ads",
+				"adsEvery": "Every N minutes",
+				"adsEveryHint": "0 — no ads. Each phone has its own queue.",
+				"adsOrder": "Order",
+				"adsSeq": "in order",
+				"adsRandom": "random",
+				"adsList": "Ad notices",
+				"noNotices": "No notices.",
+				"adsHint": "Ticked notices go to the ticker on schedule."
 			}
 		},
 		"eventsWindow": {

@@ -184,6 +184,26 @@ export interface NetAction {
 	b: string;
 	/** '' — всем, 'self' — тому, кто ввёл код, иначе номера сотрудников через запятую. */
 	to: string;
+	/** Сессия 40 (Т31-5 А): уведомление — в бегущую строку (слово ticker) и проходов (repeat N; 0 — пока не уберут). */
+	ticker?: boolean;
+	repeat?: number;
+	raw?: string;
+}
+
+/**
+ * Сессия 40 (Т31-2 А): личная переменная («у каждого своя») — значение у каждого персонажа своё, хранит центр.
+ *   <<sg-personal-add "hacks" 1>>        +1 у того, кто ввёл код (личный код)
+ *   <<sg-personal-add "hacks" 1 "3">>    +1 у сотрудника №3
+ *   <<sg-personal-add "hacks" 1 "all">>  +1 у всех
+ *   <<sg-personal-set "hacks" 0 "all">>  записать
+ */
+export interface PersonalAction {
+	type: 'personal';
+	name: string;
+	op: 'add' | 'set';
+	value: VarValue;
+	/** '' — у вводящего, 'all' — у всех, иначе номер сотрудника. */
+	who: string;
 	raw?: string;
 }
 
@@ -209,6 +229,7 @@ export type Action =
 	| BackAction
 	| MusicAction
 	| NetAction
+	| PersonalAction
 	| CodeAction;
 export type ActionType = Action['type'];
 
@@ -552,6 +573,35 @@ function parseDelay(piece: string): DelayAction | undefined {
 	return {type: 'delay', seconds, actions: pieces.map(parseAction), multiline: piece.includes('\n'), raw: piece};
 }
 
+const personalRe = /^<<sg-personal-(add|set)\s+("[^"]*"|'[^']*')\s+([^\s>]+|"(?:\\.|[^"\\])*")(?:\s+("[^"]*"|'[^']*'))?\s*>>$/;
+
+function parsePersonal(piece: string): PersonalAction | undefined {
+	const m = personalRe.exec(piece);
+
+	if (!m) {
+		return undefined;
+	}
+
+	const nameV = parseLiteral(m[2]);
+	const value = parseLiteral(m[3]);
+	const who = m[4] === undefined ? '' : parseLiteral(m[4]);
+
+	if (typeof nameV !== 'string' || !/^\$?[A-Za-z_]\w*$/.test(nameV) || value === undefined || typeof who !== 'string') {
+		return undefined;
+	}
+	if (m[1] === 'add' && typeof value !== 'number') {
+		return undefined;
+	}
+	return {type: 'personal', name: nameV.replace(/^\$/, ''), op: m[1] as 'add' | 'set', value, who: who.trim(), raw: piece};
+}
+
+export function writePersonalAction(action: PersonalAction) {
+	const value = action.op === 'add' ? String(Number(action.value) || 0) : literal(action.value);
+	const who = action.who.trim();
+
+	return `<<sg-personal-${action.op} ${arg(action.name)} ${value}${who ? ` ${arg(who)}` : ''}>>`;
+}
+
 function parseProgress(piece: string): ProgressAction | undefined {
 	const m = /^<<sg-progress(?:\s+(-?\d+(?:\.\d+)?))?\s*>>$/.exec(piece);
 
@@ -629,12 +679,34 @@ function parseNet(piece: string): NetAction | undefined {
 	const base = {type: 'net' as const, to, raw: piece};
 	const a = text(rest[0]);
 	const b = text(rest[1]);
+	let ticker = false;
+	let repeat: number | undefined;
 
+	// Сессия 40 (Т31-5 А): у уведомления — ticker и repeat N после текста.
+	if (op === 'notify' && rest.length > 2) {
+		const extra = rest.splice(2);
+
+		for (let i = 0; i < extra.length; i++) {
+			if (extra[i] === 'ticker' && !ticker) {
+				ticker = true;
+			} else if (extra[i] === 'repeat' && repeat === undefined && /^\d+$/.test(extra[i + 1] ?? '')) {
+				repeat = Number(extra[++i]);
+			} else {
+				return undefined;
+			}
+		}
+		if (!ticker && repeat !== undefined) {
+			return undefined;
+		}
+	}
 	if (rest.length > 2) {
 		return undefined;
 	}
 	switch (op) {
 		case 'notify':
+			return a === undefined || b === undefined
+				? undefined
+				: {...base, op, a, b, ...(ticker ? {ticker} : {}), ...(repeat !== undefined ? {repeat} : {})};
 		case 'open':
 		case 'alarm':
 			if (op === 'alarm' && rest[0] === 'off' && rest.length === 1) {
@@ -666,6 +738,11 @@ export function writeNetAction(action: NetAction) {
 
 	switch (action.op) {
 		case 'notify':
+			return (
+				`<<sg-net notify ${q(action.a)} ${q(action.b)}` +
+				(action.ticker ? ' ticker' + (action.repeat !== undefined ? ` repeat ${Math.max(0, Math.round(action.repeat))}` : '') : '') +
+				`${to}>>`
+			);
 		case 'open':
 			return `<<sg-net ${action.op} ${q(action.a)} ${q(action.b)}${to}>>`;
 		case 'alarm':
@@ -698,6 +775,7 @@ export function parseAction(piece: string): Action {
 		parseProgress(piece) ??
 		parseMusic(piece) ??
 		parseNet(piece) ??
+		parsePersonal(piece) ??
 		(/^<<sg-back\s*>>$/.test(piece) ? {type: 'back', raw: piece} : undefined) ?? {type: 'code', code: piece, raw: piece}
 	);
 }
@@ -849,6 +927,8 @@ export function writeAction(action: Action): string {
 			return writeMusicAction(action);
 		case 'net':
 			return writeNetAction(action);
+		case 'personal':
+			return writePersonalAction(action);
 		default:
 			return action.code;
 	}
@@ -1177,6 +1257,8 @@ export function newAction(type: ActionType, variable?: {name: string; type?: str
 			return {type: 'music', op: 'toggle', target: 'ambient', amount: 0};
 		case 'net':
 			return {type: 'net', op: 'notify', a: 'ТЕРМИНАЛ', b: '', to: ''};
+		case 'personal':
+			return {type: 'personal', name: variable?.name ?? 'hacks', op: 'add', value: 1, who: ''};
 		default:
 			return {type: 'code', code: ''};
 	}

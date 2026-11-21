@@ -20,6 +20,8 @@ import {
 	withVariables
 } from '../../util/signaly/signaly-variables';
 import {CheckField, ChoiceField, TextField} from '../signaly-appearance/signaly-appearance-fields';
+import {codesTag, readCodes} from '../../util/signaly/signaly-codes';
+import {accountsOf} from '../../util/signaly/signaly-app-model';
 import '../signaly-appearance/signaly-appearance.css';
 import '../signaly-kinds/signaly-kinds.css';
 import '../signaly-sounds/signaly-sounds.css';
@@ -67,6 +69,11 @@ export const SignalyVariablesWindow: React.FC<SignalyVariablesWindowProps> = pro
 		[story.passages]
 	);
 	const scriptLabel = l('script');
+	// Сессия 40 (Т31-1 А): персонажи приложения — для «у каждого своя» (начальное и максимум у персонажа).
+	const accounts = React.useMemo(
+		() => story.passages.filter(p => p.tags.includes(codesTag)).flatMap(p => accountsOf(readCodes(p.text))),
+		[story.passages]
+	);
 
 	function change(next: Row[]) {
 		setRows(next);
@@ -93,7 +100,13 @@ export const SignalyVariablesWindow: React.FC<SignalyVariablesWindowProps> = pro
 	}
 
 	function save() {
-		const variables = rows.map(({name, label, value, shared}) => (shared ? {name, label, value, shared} : {name, label, value}));
+		const variables = rows.map(({name, label, value, shared, personal, byAcc, maxBy}) =>
+			shared && personal
+				? {name, label, value, shared, personal, byAcc: byAcc ?? {}, maxBy: maxBy ?? {}}
+				: shared
+				? {name, label, value, shared}
+				: {name, label, value}
+		);
 		const renames = rows.filter(r => r.origin && r.origin !== r.name);
 
 		if (init) {
@@ -235,9 +248,85 @@ export const SignalyVariablesWindow: React.FC<SignalyVariablesWindowProps> = pro
 				<CheckField
 					hint={l('sharedHint', {code: `{{${row.name}}}`, interpolation: {escapeValue: false}})}
 					label={l('shared')}
-					onChange={shared => setRow({shared})}
+					onChange={shared => setRow(shared ? {shared} : {shared, personal: false})}
 					value={!!row.shared}
 				/>
+				{row.shared && (
+					<CheckField
+						hint={l('personalHint', {own: `{{${row.name}}}`, other: `{{${row.name}@Имя}}`, interpolation: {escapeValue: false}})}
+						label={l('personal')}
+						onChange={personal => setRow({personal, byAcc: row.byAcc ?? {}, maxBy: row.maxBy ?? {}})}
+						value={!!row.personal}
+					/>
+				)}
+				{row.shared && row.personal && (
+					<>
+						<h3>{l('personalTable')}</h3>
+						{accounts.length === 0 ? (
+							<p className="signaly-field-hint">{l('personalNoAccounts')}</p>
+						) : (
+							<table className="signaly-phone-table signaly-variables-personal">
+								<tbody>
+									{accounts.map(a => {
+										const who = `№${a.num}${a.name ? ` ${a.name}` : ''}`;
+										const by = row.byAcc ?? {};
+										const mx = row.maxBy ?? {};
+
+										return (
+											<tr key={a.id}>
+												<td>
+													<b>{who}</b>
+												</td>
+												<td>
+													<TextField
+														label={l('personalInit', {who})}
+														onChange={input => {
+															const next = {...by};
+															const t = input.trim();
+
+															if (t === '') {
+																delete next[a.id];
+															} else {
+																next[a.id] =
+																	type === 'number'
+																		? isNaN(Number(t.replace(',', '.')))
+																			? t
+																			: Number(t.replace(',', '.'))
+																		: type === 'bool'
+																		? t === 'да' || t === 'true' || t === '1'
+																		: input;
+															}
+															setRow({byAcc: next});
+														}}
+														value={by[a.id] === undefined ? '' : String(by[a.id])}
+													/>
+												</td>
+												<td>
+													<TextField
+														label={l('personalMax', {who})}
+														onChange={input => {
+															const next = {...mx};
+															const n = Number(input.trim().replace(',', '.'));
+
+															if (input.trim() === '' || !isFinite(n) || n <= 0) {
+																delete next[a.id];
+															} else {
+																next[a.id] = n;
+															}
+															setRow({maxBy: next});
+														}}
+														value={mx[a.id] === undefined ? '' : String(mx[a.id])}
+													/>
+												</td>
+											</tr>
+										);
+									})}
+								</tbody>
+							</table>
+						)}
+						<p className="signaly-field-hint">{l('personalTableHint', {value: String(row.value)})}</p>
+					</>
+				)}
 				<h3>{l('usedIn')}</h3>
 				{used.length ? (
 					<ul className="signaly-variables-used">
@@ -286,7 +375,7 @@ export const SignalyVariablesWindow: React.FC<SignalyVariablesWindowProps> = pro
 								{variableTitle(r)}
 								<span className="signaly-sound-file">
 									{l(`types.${typeOf(r.value)}`)}
-									{r.shared ? ` · ${l('sharedShort')}` : ''}
+									{r.personal ? ` · ${l('personalShort')}` : r.shared ? ` · ${l('sharedShort')}` : ''}
 								</span>
 							</button>
 						))}

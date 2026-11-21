@@ -169,7 +169,9 @@ export const actionTypes = [
 	'color',
 	// Сессия 38 (П16, основа 2): вспышка и короткий сигнал
 	'torch',
-	'beep'
+	'beep',
+	// Сессия 40 (П-79, основа 4): убрать событие из бегущей строки
+	'unticker'
 ];
 /** Эффекты сбоя «искажение экрана». */
 export const glitchEffects = [
@@ -357,7 +359,7 @@ export interface AppRefs {
 	palette: AppGame[];
 	voice: AppGame;
 	/** Сессия 35 (Т4-3): общие с телефонами переменные (StoryInit). */
-	shared: Array<{name: string; label: string; value: unknown}>;
+	shared: Array<{name: string; label: string; value: unknown; personal?: boolean; byAcc?: Record<string, unknown>; maxBy?: Record<string, number>}>;
 }
 
 /** Персонажи приложения из таблицы «Коды»: id аккаунта (или n<номер>), номер, имя. */

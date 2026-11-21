@@ -9,6 +9,7 @@ import {AppGame} from '../../util/signaly/signaly-app';
 import {voiceHints} from '../../util/signaly/signaly-app-model';
 import {CheckField, ChoiceField, TextField} from '../signaly-appearance/signaly-appearance-fields';
 import {
+	accountLabel,
 	AccountsField,
 	AppActions,
 	AppRefsContext,
@@ -137,6 +138,16 @@ export const PhoneCodeForm: React.FC<{
 						value={String(w.op || '>=')}
 					/>
 					<TextField hint={l('code.whenValueHint')} label={l('rules.value')} onChange={value => setWhen(i, {value})} value={String(w.value ?? '')} />
+					{/* Сессия 40 (П-79): «за N мин» и чья личная (пусто — своя, у того, кто ввёл). */}
+					<NumField hint={l('rules.winHint')} label={l('rules.win')} max={720} onChange={win => setWhen(i, {win: Math.round(win) || undefined})} value={Number(w.win) || 0} />
+					{refs.shared.some(v => v.name === w.var && v.personal) && (
+						<ChoiceField
+							label={l('code.whenAcc')}
+							onChange={acc => setWhen(i, {acc: acc || undefined})}
+							options={[{label: l('code.whenAccOwn'), value: ''}, ...refs.accounts.map(a => ({label: accountLabel(a), value: a.id}))]}
+							value={String(w.acc ?? '')}
+						/>
+					)}
 				</fieldset>
 			))}
 			{refs.shared.length > 0 && (
@@ -231,6 +242,18 @@ export const PhoneCodeForm: React.FC<{
 			)}
 			<h5 className="signaly-block-subtitle">{l('code.actions')}</h5>
 			<div className="signaly-field-hint">{l('code.actionsHint')}</div>
+			{/* Сессия 40 (П-79, Т9-4 А): после ввода — окно ответа или сразу то, что открыл код. */}
+			<ChoiceField
+				hint={l('code.afterHint')}
+				label={l('code.after')}
+				onChange={after => set({after: after || undefined})}
+				options={[
+					{label: l('code.afterAuto'), value: ''},
+					{label: l('code.afterWindow'), value: 'window'},
+					{label: l('code.afterNow'), value: 'now'}
+				]}
+				value={str('after')}
+			/>
 			<AppActions actions={data.actions} onChange={actions => set({actions})} self />
 		</>
 	);

@@ -64,6 +64,10 @@
 // - сессия 36 (движок 32, ответ Т4-8 Б): у события — слово popup: не переходить на экран, а показать текст пассажа
 //   окном-сообщением поверх экрана (заголовок — название пассажа); ждёт, пока закроют другое окно.
 // - сессия 37 (движок 33, ответ Т6-2 Б): у события-окна — title "…" (свой заголовок) и ack (закрыть только «Принято»).
+// - сессия 40 (движок 35, ответы Т31-1…Т31-5): личные «у каждого своя» — <<sg-personal "имя" by '{…}' max '{…}'>> в StoryInit
+//   (не синхронизируются как общие); действия <<sg-personal-add "имя" N ["3" | "all"]>>, <<sg-personal-set …>> (без номера —
+//   у того, кто ввёл код); в условиях sgPersonal("имя", "3") и sgPersonalWin("имя", "3", минут); без связи прибавка ждёт
+//   в очереди модуля и сразу видна на терминале; <<sg-net notify … ticker [repeat N]>> — в бегущую строку телефонов.
 //
 // Код написан без обратных кавычек и без «${», потому что хранится в шаблонной
 // строке.
@@ -79,7 +83,7 @@ import {tipBase} from './signaly-tip';
 const glitchBase = [...glitchRules(defaultGlitch, ':where(.glitchy)'), glitchKeyframes].join('\n');
 
 /** Версия движка. Увеличивать при каждом изменении кода ниже. */
-export const signalyEngineVersion = 34;
+export const signalyEngineVersion = 35;
 
 export const signalyEngineStart =
 	'/* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */';
@@ -2011,12 +2015,24 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 				return;
 			}
 
-			var a = blockArgs(this, ['id'], ['pin', 'var'], []);
+			var a = blockArgs(this, ['id'], ['pin', 'var', 'phone'], []);
+			var app = '';
 
+			// Сессия 40 (движок 35): id персонажа приложения — для личных переменных («var:имя@id»).
+			if (a.phone !== undefined) {
+				try {
+					var pd = JSON.parse(String(a.phone));
+
+					app = pd && pd.id ? String(pd.id) : '';
+				} catch (e) {
+					app = '';
+				}
+			}
 			codeCollect.people.push({
 				id: a.id === undefined ? '' : String(a.id),
 				pin: a.pin === undefined ? '' : String(a.pin).trim(),
-				variable: a['var'] === undefined ? '' : String(a['var']).replace(/^\$/, '')
+				variable: a['var'] === undefined ? '' : String(a['var']).replace(/^\$/, ''),
+				app: app
 			});
 		}
 	});
@@ -2079,7 +2095,9 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 				pin:
 					who.length > 0 ||
 					a.once === 'each' ||
-					/<<sg-progress[\s>]|\b_who\b|<<sg-net\s[^>]*\bto\s+self\b/.test(actions + answer + (a.title === undefined ? '' : a.title))
+					/<<sg-progress[\s>]|\b_who\b|<<sg-net\s[^>]*\bto\s+self\b/.test(actions + answer + (a.title === undefined ? '' : a.title)) ||
+					// Сессия 40: «Личная переменная» без номера — у того, кто ввёл код.
+					/<<sg-personal-(?:add|set)\s+(?:"[^"]*"|'[^']*')\s+(?:"(?:\\.|[^"\\])*"|[^\s>"]+)\s*>>/.test(actions)
 			});
 		}
 	});
@@ -2766,7 +2784,18 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		}
 		switch (String(a[0])) {
 			case 'notify':
-				N.notify(a[1], a[2], list);
+				// Сессия 40 (Т31-5 А): ticker [repeat N] — в бегущую строку телефонов.
+				if (a.indexOf('ticker') > 2) {
+					var nb = {title: String(a[1] || ''), text: String(a[2] || ''), ticker: true};
+					var rp = a.indexOf('repeat');
+
+					if (rp > 2 && isFinite(Number(a[rp + 1]))) {
+						nb.repeat = Math.max(0, Math.round(Number(a[rp + 1])));
+					}
+					N.msg(list, 'notify', nb);
+				} else {
+					N.notify(a[1], a[2], list);
+				}
 				break;
 			case 'open':
 				N.open(a[1], a[2], list);
@@ -8956,6 +8985,248 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			netFlush();
 			shareSync();
 		}, 500);
+	}
+
+	/* Сессия 40 (движок 35, Т31-1…Т31-3): личные переменные «у каждого своя». Значение у каждого персонажа
+	   своё — состояние центра «var:имя@id» (id персонажа приложения — из phone '{…}' сотрудника «Кодов»,
+	   иначе «@#номер» — id найдёт центр). Строка <<sg-personal "имя" by '{…}' max '{…}'>> в StoryInit: начальное
+	   у персонажа (by), иначе $имя из StoryInit. Без связи прибавка ждёт в очереди модуля и сразу видна здесь
+	   (pvPending); «за N мин» — состояние центра «win:…», а если центр это окно не считает — по прибавкам, которые
+	   видел терминал (pvHist). */
+	var pvNames = {};
+	var pvPending = {};
+	var pvHist = {};
+	var pvSeen = {};
+	var PV_KEEP = 720 * 60000;
+
+	setup.signaly.personal = pvNames;
+	try {
+		pvPending = JSON.parse(localStorage.getItem('sg-pv-pending') || '{}') || {};
+		pvHist = JSON.parse(localStorage.getItem('sg-pv-hist') || '{}') || {};
+	} catch (e) {
+		pvPending = {};
+		pvHist = {};
+	}
+
+	function pvSave() {
+		try {
+			localStorage.setItem('sg-pv-pending', JSON.stringify(pvPending));
+			localStorage.setItem('sg-pv-hist', JSON.stringify(pvHist));
+		} catch (e) {
+			// память браузера недоступна — без запаса
+		}
+	}
+
+	Macro.add('sg-personal', {
+		handler: function () {
+			var n = String(this.args[0] || '').replace(/^\$/, '');
+			var o = {by: {}, max: {}, init: State.variables[n]};
+
+			for (var i = 1; i < this.args.length - 1; i += 2) {
+				var w = String(this.args[i]);
+
+				if (w === 'by' || w === 'max') {
+					try {
+						var v = JSON.parse(String(this.args[i + 1]));
+
+						if (v && typeof v === 'object') {
+							o[w] = v;
+						}
+					} catch (e) {
+						console.error('СИГНАЛЫ: <<sg-personal>> — не читается', this.args[i + 1]);
+					}
+				}
+			}
+			if (n) {
+				pvNames[n] = o;
+			}
+		}
+	});
+
+	// Сотрудник (номер «3», «#3», id персонажа или имя) → id персонажа приложения.
+	function pvId(who) {
+		var w = String(who === undefined || who === null ? '' : who).trim();
+		var num = w.replace(/^#/, '');
+		var people = codes().people;
+		var p = people.filter(function (x) {
+			return x.id === num;
+		})[0] || people.filter(function (x) {
+			return x.app && x.app === w;
+		})[0];
+		var N = window.SgTermNet;
+
+		if (p && p.app) {
+			return p.app;
+		}
+		return N && N.accOf ? N.accOf(w) : '';
+	}
+
+	function pvKey(name, who) {
+		var n = String(name).replace(/^\$/, '');
+		var id = pvId(who);
+		var w = String(who === undefined || who === null ? '' : who).trim().replace(/^#/, '');
+
+		return 'var:' + n + '@' + (id || (/^\d+$/.test(w) ? '#' + w : w));
+	}
+
+	function pvInit(name, id) {
+		var o = pvNames[name];
+
+		if (o && id && o.by && o.by[id] !== undefined && o.by[id] !== '') {
+			return o.by[id];
+		}
+		return o && o.init !== undefined ? o.init : 0;
+	}
+
+	function pvPrune(t) {
+		Object.keys(pvHist).forEach(function (k) {
+			pvHist[k] = pvHist[k].filter(function (e) {
+				return e[0] >= t - PV_KEEP;
+			});
+			if (!pvHist[k].length) {
+				delete pvHist[k];
+			}
+		});
+	}
+
+	function pvRecord(key, n) {
+		if (n > 0) {
+			var t = Date.now();
+
+			(pvHist[key] = pvHist[key] || []).push([t, n]);
+			pvPrune(t);
+		}
+	}
+
+	window.sgPersonal = setup.signaly.sgPersonal = function (name, who) {
+		var N = window.SgTermNet;
+		var n = String(name).replace(/^\$/, '');
+		var key = pvKey(n, who);
+		var v = N && N.state ? N.state[key] : undefined;
+
+		if (v === undefined || v === null) {
+			v = pvInit(n, key.slice(key.indexOf('@') + 1));
+		}
+		if (pvPending[key]) {
+			v = (Number(v) || 0) + pvPending[key];
+		}
+		return v;
+	};
+
+	window.sgPersonalWin = setup.signaly.sgPersonalWin = function (name, who, min) {
+		var N = window.SgTermNet;
+		var n = String(name).replace(/^\$/, '');
+		var key = pvKey(n, who);
+		var m = Number(min) || 0;
+		var wk = 'win:' + key.slice(4) + ':' + m;
+		var t = Date.now();
+
+		if (m <= 0) {
+			return 0;
+		}
+		if (N && N.state && typeof N.state[wk] === 'number') {
+			return N.state[wk] + (pvPending[key] > 0 ? pvPending[key] : 0);
+		}
+		return (pvHist[key] || []).reduce(function (s, e) {
+			return e[0] >= t - m * 60000 ? s + e[1] : s;
+		}, 0);
+	};
+
+	// Кому: пусто — тот, кто ввёл код; «all» — все персонажи; иначе номер сотрудника.
+	function pvWho(who) {
+		var w = String(who === undefined || who === null ? '' : who).trim();
+
+		if (w === '' || w === 'self') {
+			var me = codePerson ? codePerson.id : State.temporary.who;
+
+			return me ? [String(me)] : null;
+		}
+		if (w === 'all' || w === '*') {
+			var ids = codes()
+				.people.map(function (p) {
+					return p.app;
+				})
+				.filter(Boolean);
+			var N = window.SgTermNet;
+
+			if (!ids.length && N && N.state && Array.isArray(N.state.accs)) {
+				ids = N.state.accs.map(function (x) {
+					return x.id;
+				});
+			}
+			return ids;
+		}
+		return [w];
+	}
+
+	function pvChange(args, set) {
+		var N = window.SgTermNet;
+		var n = String(args[0] || '').replace(/^\$/, '');
+		var list = pvWho(args[2]);
+
+		if (preview || !N || !n) {
+			return;
+		}
+		if (list === null) {
+			console.warn('СИГНАЛЫ: «у того, кто ввёл код» — неизвестно, кто ввёл; личная переменная не изменена');
+			return;
+		}
+		list.forEach(function (who) {
+			var key = pvKey(n, who);
+
+			if (set) {
+				N.send({t: 'set', key: key, value: args[1] === undefined ? null : args[1]});
+				delete pvPending[key];
+			} else {
+				var d = Number(args[1]);
+
+				d = isFinite(d) ? d : 1;
+				N.send({t: 'set', key: key, add: d, base: Number(pvInit(n, key.slice(key.indexOf('@') + 1))) || 0});
+				pvRecord(key, d);
+				if (!N.on) {
+					pvPending[key] = (pvPending[key] || 0) + d;
+				}
+			}
+		});
+		pvSave();
+		setTimeout(checkEvents, 0);
+	}
+
+	Macro.add('sg-personal-add', {
+		handler: function () {
+			pvChange(this.args.length > 1 ? this.args : [this.args[0], 1, this.args[2]], false);
+		}
+	});
+	Macro.add('sg-personal-set', {
+		handler: function () {
+			pvChange(this.args, true);
+		}
+	});
+
+	if (window.SgTermNet) {
+		window.SgTermNet.listen(function (type, o) {
+			var N = window.SgTermNet;
+
+			if (type === 'status' && o && o.t === 'welcome') {
+				// очередь модуля ушла центру — запас больше не нужен; что уже есть у центра — не прибавки
+				pvPending = {};
+				Object.keys(N.state || {}).forEach(function (k) {
+					if (/^var:[^@]+@/.test(k)) {
+						pvSeen[k] = N.state[k];
+					}
+				});
+				pvSave();
+			} else if (type === 'state' && o && /^var:[^@]+@/.test(o.key)) {
+				var was = pvSeen[o.key];
+
+				if (o.by !== N.dev && typeof was === 'number' && typeof o.value === 'number' && o.value > was) {
+					pvRecord(o.key, o.value - was);
+					pvSave();
+				}
+				pvSeen[o.key] = o.value;
+				setTimeout(checkEvents, 0);
+			}
+		});
 	}
 
 	/* ----- Предзагрузка картинок (этап 6, ответ 6А) ----- */

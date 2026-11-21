@@ -63,7 +63,7 @@ const storyFile = () =>
 		.replace(/&#39;/g, "'")
 		.replace(/&amp;/g, '&');
 
-check('в истории движок 34', storyFile().includes('Версия движка: 34'));
+check('в истории движок 35', storyFile().includes('Версия движка: 35'));
 
 const openPassage = async name => {
 	// Окна других пассажей — закрыть (редактор берётся первый на странице).
@@ -143,7 +143,7 @@ check('в истории: пассаж «Приложение» (app-settings) �
 check('блок в папке: «Схемы/Отсек 1/План отсека» с картинкой media/app/plan.png', story.includes('name="Схемы/Отсек 1/План отсека"') && story.includes('<<app-img "media/app/plan.png"'));
 check('персонажи — сотрудники «Кодов» с данными телефона', (story.match(/<<sg-person "\d+" pin "" phone '/g) || []).length === 2);
 check('коды телефона — в «Кодах» с where phone', (story.match(/where phone>>/g) || []).length === 3);
-check('в истории движок 34', story.includes('Версия движка: 34'));
+check('в истории движок 35', story.includes('Версия движка: 35'));
 check('цвет тега app-block на карте — синий', story.includes('<tw-tag name="app-block" color="blue">'), (story.match(/<tw-tag[^>]*>/g) || []).join(' '));
 
 // 2. Собрать пакет — тот же пакет, версия +1.

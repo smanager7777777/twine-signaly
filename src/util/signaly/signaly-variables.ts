@@ -25,6 +25,54 @@ export interface Variable {
 	 * меняют терминал, коды телефонов, правила и пульт. В разделе — строка <<sg-shared "имя" …>>.
 	 */
 	shared?: boolean;
+	/**
+	 * Сессия 40 (Т31-1 А, П-79): «у каждого своя» — личная: значение у каждого персонажа своё
+	 * (центр — «var:имя@id»). Всегда вместе с shared. В разделе — строка <<sg-personal "имя" by '{…}' max '{…}'>>.
+	 */
+	personal?: boolean;
+	/** Своё начальное у персонажа (id аккаунта → значение); нет — общее начальное. */
+	byAcc?: Record<string, VarValue>;
+	/** Свой максимум (шкала и предел) у персонажа (id аккаунта → число). */
+	maxBy?: Record<string, number>;
+}
+
+/** Сессия 40: JSON в апострофах строки <<sg-personal>> — без ' < > [ ] (их не примут за команду или ссылку). */
+export function personalJson(v: unknown) {
+	return JSON.stringify(v)
+		.replace(/'/g, '\\u0027')
+		.replace(/</g, '\\u003c')
+		.replace(/>/g, '\\u003e')
+		.replace(/\[/g, '\\u005b')
+		.replace(/\]/g, '\\u005d');
+}
+
+const personalLineRe = /<<sg-personal\s+"([^"]+)"((?:\s+(?:by|max)\s+'[^']*')*)\s*>>/g;
+
+/** Сессия 40: личные из строк <<sg-personal "имя" by '{…}' max '{…}'>>. */
+export function personalLines(text: string) {
+	const out = new Map<string, {byAcc: Record<string, VarValue>; maxBy: Record<string, number>}>();
+
+	for (const m of text.matchAll(personalLineRe)) {
+		const one = {byAcc: {} as Record<string, VarValue>, maxBy: {} as Record<string, number>};
+
+		for (const w of m[2].matchAll(/(by|max)\s+'([^']*)'/g)) {
+			try {
+				const v = JSON.parse(w[2]);
+
+				if (v && typeof v === 'object' && !Array.isArray(v)) {
+					if (w[1] === 'by') {
+						one.byAcc = v;
+					} else {
+						one.maxBy = v;
+					}
+				}
+			} catch (e) {
+				// сломанный JSON — как пусто
+			}
+		}
+		out.set(m[1].replace(/^\$/, ''), one);
+	}
+	return out;
 }
 
 /** Строка раздела «Переменные» со списком общих переменных. */
@@ -137,11 +185,18 @@ export function readVariables(text: string): ReadVariables {
 	const block = findBlock(text, variablesMarkers);
 	const inner = block ? readSimple(block.inner) : [];
 	const shared = new Set(block ? sharedNames(block.inner) : []);
+	const personal = block ? personalLines(block.inner) : new Map();
 	const rest = block ? text.slice(0, block.from) + ' '.repeat(block.to - block.from) + text.slice(block.to) : text;
 	const counts = setsOf(rest);
-	const variables: Variable[] = inner.map(({name, label, value}) =>
-		shared.has(name) ? {name, label, value, shared: true} : {name, label, value}
-	);
+	const variables: Variable[] = inner.map(({name, label, value}) => {
+		const p = personal.get(name);
+
+		return p
+			? {name, label, value, shared: true, personal: true, byAcc: p.byAcc, maxBy: p.maxBy}
+			: shared.has(name)
+			? {name, label, value, shared: true}
+			: {name, label, value};
+	});
 	const ranges: Array<{from: number; to: number}> = [];
 	const byCode = new Set<string>();
 
@@ -168,14 +223,24 @@ export function variablesBlock(variables: Variable[]) {
 				`<<set $${v.name} to ${literal(v.value)}>>` +
 				(v.label.trim() ? ` /* ${v.label.trim().replace(/\*\//g, '* /')} */` : '')
 		),
-		...(variables.some(v => v.shared)
+		...(variables.some(v => v.shared && !v.personal)
 			? [
 					`<<sg-shared ${variables
-						.filter(v => v.shared)
+						.filter(v => v.shared && !v.personal)
 						.map(v => `"${v.name}"`)
 						.join(' ')}>> /* общие с телефонами */`
 			  ]
 			: []),
+		// Сессия 40 (Т31-1 А): личные — по строке на переменную.
+		...variables
+			.filter(v => v.personal)
+			.map(
+				v =>
+					`<<sg-personal "${v.name}"` +
+					(v.byAcc && Object.keys(v.byAcc).length ? ` by '${personalJson(v.byAcc)}'` : '') +
+					(v.maxBy && Object.keys(v.maxBy).length ? ` max '${personalJson(v.maxBy)}'` : '') +
+					'>> /* у каждого своя */'
+			),
 		variablesMarkers.end
 	].join('\n');
 }
@@ -291,10 +356,53 @@ export function knownVariables(passages: Array<{name: string; text: string}>, in
 }
 
 /** Сессия 35: общие с телефонами переменные StoryInit ({name, label, value} — как game.shared пакета). */
-export function sharedVariables(initText: string) {
+export function sharedVariables(initText: string): SharedVariable[] {
 	return readVariables(initText)
 		.variables.filter(v => v.shared)
-		.map(({name, label, value}) => ({name, label, value}));
+		.map(({name, label, value, personal, byAcc, maxBy}) =>
+			personal ? {name, label, value, personal: true, byAcc: byAcc ?? {}, maxBy: maxBy ?? {}} : {name, label, value}
+		);
+}
+
+/** Общая переменная пакета (game.shared); личная — с personal, byAcc, maxBy (сессия 40). */
+export interface SharedVariable {
+	name: string;
+	label: string;
+	value: VarValue;
+	personal?: boolean;
+	byAcc?: Record<string, VarValue>;
+	maxBy?: Record<string, number>;
+}
+
+const plainObject = (v: unknown): v is Record<string, any> => !!v && typeof v === 'object' && !Array.isArray(v); // eslint-disable-line @typescript-eslint/no-explicit-any
+
+/** Сессия 40: начальные у персонажей — только значения переменной; максимумы — только числа больше 0. */
+function cleanBy(v: unknown) {
+	const out: Record<string, VarValue> = {};
+
+	if (plainObject(v)) {
+		Object.keys(v).forEach(k => {
+			if (isValue(v[k]) && v[k] !== '') {
+				out[k] = v[k];
+			}
+		});
+	}
+	return out;
+}
+
+function cleanMax(v: unknown) {
+	const out: Record<string, number> = {};
+
+	if (plainObject(v)) {
+		Object.keys(v).forEach(k => {
+			const n = Number(v[k]);
+
+			if (isFinite(n) && n > 0) {
+				out[k] = n;
+			}
+		});
+	}
+	return out;
 }
 
 const isValue = (v: unknown): v is VarValue => typeof v === 'number' || typeof v === 'boolean' || typeof v === 'string';
@@ -304,7 +412,10 @@ const isValue = (v: unknown): v is VarValue => typeof v === 'number' || typeof v
  * со значением и подписью из пакета; остальные — без галочки. Возвращает новый текст StoryInit
  * или undefined, если ничего не меняется.
  */
-export function withShared(initText: string, shared: Array<{name: string; label?: string; value?: VarValue}>) {
+export function withShared(
+	initText: string,
+	shared: Array<{name: string; label?: string; value?: VarValue; personal?: boolean; byAcc?: unknown; maxBy?: unknown}>
+) {
 	const {variables} = readVariables(initText);
 	const names = new Set(shared.map(v => v.name));
 	const next: Variable[] = variables.map(v => {
@@ -318,6 +429,11 @@ export function withShared(initText: string, shared: Array<{name: string; label?
 
 		if (names.has(v.name)) {
 			out.shared = true;
+			if (own?.personal) {
+				out.personal = true;
+				out.byAcc = cleanBy(own.byAcc);
+				out.maxBy = cleanMax(own.maxBy);
+			}
 		}
 		return out;
 	});
@@ -326,12 +442,17 @@ export function withShared(initText: string, shared: Array<{name: string; label?
 		if (!next.some(x => x.name === v.name) && variableNameRe.test(v.name)) {
 			const value: VarValue = isValue(v.value) ? v.value : 0;
 
-			next.push({name: v.name, label: v.label ?? '', value, shared: true});
+			next.push(
+				v.personal
+					? {name: v.name, label: v.label ?? '', value, shared: true, personal: true, byAcc: cleanBy(v.byAcc), maxBy: cleanMax(v.maxBy)}
+					: {name: v.name, label: v.label ?? '', value, shared: true}
+			);
 		}
 	});
 
 	// Ничего не поменялось — StoryInit не трогать (и простые <<set>> вне раздела остаются на месте).
-	const key = (list: Variable[]) => JSON.stringify(list.map(v => [v.name, v.label, v.value, !!v.shared]));
+	const key = (list: Variable[]) =>
+		JSON.stringify(list.map(v => [v.name, v.label, v.value, !!v.shared, !!v.personal, v.personal ? [v.byAcc, v.maxBy] : 0]));
 
 	if (key(next) === key(variables)) {
 		return undefined;

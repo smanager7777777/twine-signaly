@@ -27,6 +27,7 @@ import {
 import {
 	KnownVariable,
 	parseLiteral,
+	readVariables,
 	variableTitle,
 	VarType,
 	VarValue
@@ -129,6 +130,8 @@ export interface CondLists {
 	folders?: string[];
 	/** Сессия 32: названия из данных приложения в истории — для «Телефонам: …». */
 	app?: {glitches: string[]; blocks: string[]; events: string[]};
+	/** Сессия 40 (Т31-1…3): личные переменные («у каждого своя») из окна «Переменные». */
+	personal?: string[];
 }
 
 export const CondListsContext = React.createContext<CondLists>({passages: [], people: [], codes: []});
@@ -172,7 +175,10 @@ export function useCondLists(story: Story, table?: ReturnType<typeof readCodes>)
 			people: tables.flatMap(t => t.people.map(p => p.id.trim())).filter(Boolean),
 			codes: tables.flatMap(t => t.codes.map(c => ({code: c.code.trim(), label: c.label}))).filter(c => c.code !== ''),
 			...musicLists(story),
-			app: appLists(story)
+			app: appLists(story),
+			personal: readVariables(story.passages.find(p => p.name === 'StoryInit')?.text ?? '')
+				.variables.filter(v => v.personal)
+				.map(v => v.name)
 		};
 	}, [story.passages, table]);
 }
@@ -194,6 +200,45 @@ const SpecialRow: React.FC<{cond: Cond; onChange: (c: Partial<Cond>) => void}> =
 	const l = useL();
 	const lists = React.useContext(CondListsContext);
 
+	if (c.kind === 'personal') {
+		// Сессия 40 (Т31-3 А): личная сотрудника (sgPersonal), «за N минут» (sgPersonalWin).
+		return (
+			<>
+				{choice(l('cond.personalVar'), c.name, (lists.personal ?? []).map(n => ({label: `$${n}`, value: n})), name => onChange({name}))}
+				{choice(l('cond.phonePerson'), c.person ?? '', lists.people.map(p => ({label: `№${p}`, value: p})), person => onChange({person}))}
+				<TextField
+					hint={l('cond.personalWinHint')}
+					label={l('cond.personalWin')}
+					onChange={input => {
+						const n = Number(input);
+
+						if (input.trim() === '' || (Number.isInteger(n) && n >= 0)) {
+							onChange({minutes: input.trim() === '' ? 0 : n});
+						}
+					}}
+					value={String(c.minutes ?? 0)}
+				/>
+				{choice(
+					l('cond.op'),
+					c.op,
+					(['eq', 'ne', 'gt', 'lt', 'ge'] as const).map(op => ({label: l(`cond.personalOps.${op}`), value: op})),
+					op => onChange({op: op as CondOp})
+				)}
+				<TextField
+					label={l('valueField')}
+					onChange={input => {
+						const n = Number(input.replace(',', '.'));
+
+						if (input.trim() !== '' && isFinite(n)) {
+							onChange({value: n});
+						}
+					}}
+					value={String(c.value ?? 0)}
+				/>
+				<div className="signaly-field-hint">{l('cond.personalHint')}</div>
+			</>
+		);
+	}
 	if (c.kind === 'phone') {
 		return (
 			<>
@@ -311,10 +356,12 @@ export const CondRows: React.FC<{
 				? {name: '', kind: 'entered', person: lists.people[0] ?? '', code: lists.codes[0]?.code ?? '', op: 'on'}
 				: kind === 'phone'
 				? {name: '', kind: 'phone', phone: 'code', code: '', person: '', op: 'on'}
+				: kind === 'personal'
+				? {name: lists.personal?.[0] ?? 'hacks', kind: 'personal', person: lists.people[0] ?? '1', op: 'ge', value: 1}
 				: {name: variables[0]?.name ?? 'x', op: 'on'}
 		);
 	};
-	const kinds = ['var', 'visits', 'entered', 'phone'];
+	const kinds = ['var', 'visits', 'entered', 'phone', 'personal'];
 
 	return (
 		<>
@@ -326,6 +373,7 @@ export const CondRows: React.FC<{
 						onChange={kind => setKind(index, kind)}
 						options={kinds
 							.filter(k => k !== 'entered' || lists.people.length > 0 || c.kind === 'entered')
+							.filter(k => k !== 'personal' || (lists.personal ?? []).length > 0 || c.kind === 'personal')
 							.map(k => ({label: l(`cond.kinds.${k}`), value: k}))}
 						value={c.kind ?? 'var'}
 					/>

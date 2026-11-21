@@ -58,7 +58,7 @@ describe('новые поля по умолчанию — не отличие (�
 
 describe('движок 34: сетевой модуль с запасным центром', () => {
 	it('модуль ищет новый центр, помнит поколение, уступивший центр — stale', () => {
-		expect(signalyEngineVersion).toBe(34);
+		expect(signalyEngineVersion).toBe(35);
 		expect(signalyNetModule).toContain("o.t === 'stale'");
 		expect(signalyNetModule).toContain('N.searchList');
 		expect(signalyNetModule).toContain('gen: N.gen');

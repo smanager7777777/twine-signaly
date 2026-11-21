@@ -28,7 +28,8 @@ import {
 	netModules,
 	netModuleStates,
 	netOps,
-	netPersonal
+	netPersonal,
+	PersonalAction
 } from '../../util/signaly/signaly-actions';
 import {parseExpr, writeExpr} from '../../util/signaly/signaly-logic';
 import {Value} from '../../util/signaly/signaly-screen-blocks';
@@ -149,6 +150,23 @@ const NetActionFields: React.FC<{action: NetAction; l: L; codes?: boolean; onCha
 			/>
 			{(op === 'notify' || op === 'alarm') && textA(l('net.title'))}
 			{(op === 'notify' || op === 'alarm') && textB(l('net.text'))}
+			{/* Сессия 40 (Т31-5 А): уведомление — в бегущую строку телефонов и проходов. */}
+			{op === 'notify' && (
+				<CheckField
+					hint={l('net.tickerHint')}
+					label={l('net.ticker')}
+					onChange={ticker => onChange(ticker ? {ticker} : {ticker: undefined, repeat: undefined})}
+					value={!!action.ticker}
+				/>
+			)}
+			{op === 'notify' && action.ticker && (
+				<TextField
+					hint={l('net.repeatHint')}
+					label={l('net.repeat')}
+					onChange={v => onChange({repeat: v.trim() === '' ? undefined : Math.max(0, Math.round(Number(v.replace(/[^0-9]/g, '')) || 0))})}
+					value={action.repeat === undefined ? '' : String(action.repeat)}
+				/>
+			)}
 			{op === 'open' && textA(l('net.blocks'), lists.app?.blocks.length ? l('net.blocksFromApp', {list: lists.app.blocks.join(', ')}) : l('net.blocksHint'))}
 			{op === 'open' && textB(l('net.openTitle'))}
 			{(op === 'glitch' || op === 'fix') &&
@@ -225,8 +243,66 @@ export const actionTypes: ActionType[] = [
 	'back',
 	'music',
 	'net',
+	'personal',
 	'code'
 ];
+
+/** Сессия 40 (Т31-2 А): «Личная переменная» — +N или записать у вводящего, у сотрудника №… или у всех. */
+const PersonalActionFields: React.FC<{action: PersonalAction; l: L; codes?: boolean; onChange: (patch: Partial<PersonalAction>) => void}> = props => {
+	const {action, l, codes, onChange} = props;
+	const lists = React.useContext(CondListsContext);
+	const names = lists.personal ?? [];
+	const mode = action.who === 'all' ? 'all' : action.who ? 'one' : 'self';
+
+	return (
+		<>
+			<ChoiceField
+				hint={names.length ? undefined : l('personal.none')}
+				label={l('personal.name')}
+				onChange={name => onChange({name})}
+				options={[...new Set([...names, action.name])].filter(Boolean).map(n => ({label: `$${n}`, value: n}))}
+				value={action.name}
+			/>
+			<ChoiceField
+				label={l('personal.op')}
+				onChange={op => onChange({op: op as 'add' | 'set', value: op === 'add' ? Number(action.value) || 1 : action.value})}
+				options={[
+					{label: l('personal.add'), value: 'add'},
+					{label: l('personal.set'), value: 'set'}
+				]}
+				value={action.op}
+			/>
+			<TextField
+				label={l(action.op === 'add' ? 'personal.amount' : 'personal.value')}
+				onChange={v => {
+					const t = v.trim().replace(',', '.');
+
+					onChange({value: action.op === 'add' ? Number(t) || 0 : t === 'true' || t === 'false' ? t === 'true' : t !== '' && isFinite(Number(t)) ? Number(t) : v});
+				}}
+				value={String(action.value)}
+			/>
+			<ChoiceField
+				label={l('personal.who')}
+				onChange={m => onChange({who: m === 'all' ? 'all' : m === 'one' ? lists.people[0] ?? '1' : ''})}
+				options={[
+					...(codes || mode === 'self' ? [{label: l('personal.self'), value: 'self'}] : []),
+					{label: l('personal.one'), value: 'one'},
+					{label: l('personal.all'), value: 'all'}
+				]}
+				value={mode}
+			/>
+			{mode === 'one' && (
+				<ChoiceField
+					label={l('personal.person')}
+					onChange={who => onChange({who})}
+					options={[...new Set([...lists.people, action.who])].filter(Boolean).map(p => ({label: `№${p}`, value: p}))}
+					value={action.who}
+				/>
+			)}
+			<div className="signaly-field-hint">{l(mode === 'self' ? 'personal.selfHint' : 'personal.hint')}</div>
+		</>
+	);
+};
 
 /** Что нужно спискам действий: переменные, звуки, экраны, файлы папки игры. */
 export interface ActionContext {
@@ -262,6 +338,7 @@ export const ActionList: React.FC<ActionListProps> = props => {
 	const {actions, audio, audioFiles, codes, current, fileChoice, nested, onChange, passages, variables} = props;
 	const {t} = useTranslation();
 	const l: L = (key, options) => t(`signaly.actions.${key}`, options);
+	const lists = React.useContext(CondListsContext);
 	const units = (key: string) => t(`signaly.appearance.units.${key}`);
 	const setActions = onChange;
 	const change = (index: number, action: Action) =>
@@ -743,6 +820,8 @@ export const ActionList: React.FC<ActionListProps> = props => {
 				return <MusicActionFields action={a} l={l} onChange={patch => edit(index, a, patch)} />;
 			case 'net':
 				return <NetActionFields action={a} codes={codes} l={l} onChange={patch => edit(index, a, patch)} />;
+			case 'personal':
+				return <PersonalActionFields action={a} codes={codes} l={l} onChange={patch => edit(index, a, patch)} />;
 			case 'stop':
 				return (
 					<TextField
@@ -808,7 +887,10 @@ export const ActionList: React.FC<ActionListProps> = props => {
 				onChange={type => {
 					if (type) {
 						const v = variables[0];
-						const made = newAction(type as ActionType, v && {name: v.name, type: v.type});
+						const made =
+							type === 'personal'
+								? newAction('personal', {name: lists.personal?.[0] ?? 'hacks'})
+								: newAction(type as ActionType, v && {name: v.name, type: v.type});
 
 						setActions([
 							...actions,

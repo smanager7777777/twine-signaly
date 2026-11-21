@@ -1,5 +1,5 @@
 // Проверка программы (Electron), сессия 39 (= П17): «События» — правило «на самом телефоне» в фоне: «не в приложении дольше N с»
-// и «когда работает» (Т8-6 Б); «Приложение» → «Приборы» — скрытый прибор (Т8-5 А); движок 34 (сетевой модуль с запасным центром).
+// и «когда работает» (Т8-6 Б); «Приложение» → «Приборы» — скрытый прибор (Т8-5 А); движок 35 (сетевой модуль с запасным центром).
 // Запуск: TWEE=<шаблон> PACKS=<папка с app-test-net-pack.sgpack> SHOT=<снимок.png>
 //   xvfb-run -a -s "-screen 0 1600x1000x24" node signaly/tests/electron-app-t8.mjs <playwright>
 import {createRequire} from 'module';
@@ -92,7 +92,7 @@ await appWin().locator('.signaly-app-pending').waitFor({timeout: 15000});
 await appWin().getByRole('button', {name: 'Загрузить в историю'}).click();
 await win.waitForFunction(() => document.querySelector('.signaly-app-message')?.textContent.includes('Загружено'), null, {timeout: 15000});
 await win.waitForTimeout(2500);
-check('пакет загружен, движок 34', passageText('Приложение').includes('<<app-general>>') && storyFile().includes('Версия движка: 34'));
+check('пакет загружен, движок 35', passageText('Приложение').includes('<<app-general>>') && storyFile().includes('Версия движка: 35'));
 await appWin().getByRole('button', {name: 'Закрыть'}).click();
 await win.waitForTimeout(600);
 

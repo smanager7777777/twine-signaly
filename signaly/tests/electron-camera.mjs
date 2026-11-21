@@ -147,7 +147,7 @@ await add('Камера');
 let value = await editorText();
 
 check('команда в тексте', value.includes('<<sg-camera width 1000 height 1000 border 2>>'), value);
-check('движок 34 поставлен', storyFile().includes('Версия движка: 34'));
+check('движок 35 поставлен', storyFile().includes('Версия движка: 35'));
 check('форма: заголовок и источник', (await panel().getByText('Камера', {exact: true}).count()) > 0 && (await panel().getByLabel('Источник', {exact: true}).inputValue()) === 'web');
 check('веб-камера: кнопки в форме нет', (await panel().getByLabel('Надпись кнопки', {exact: true}).count()) === 0);
 await win.screenshot({path: shot('form')});

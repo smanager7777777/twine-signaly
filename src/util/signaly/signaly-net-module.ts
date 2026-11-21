@@ -157,6 +157,32 @@ export const signalyNetModule = String.raw`/* СИГНАЛЫ — сетевой 
   // П13 (Т4-3): общие переменные — состояние центра «var:имя»; прибавить — центр считает сам
   N.share = function (name, value) { return N.set('var:' + String(name).replace(/^\$/, ''), value); };
   N.shareAdd = function (name, n, base) { return N.send({ t: 'set', key: 'var:' + String(name).replace(/^\$/, ''), add: Number(n) || 0, base: base }); };
+  /* П20 (Т12, Т14): личные переменные «у каждого своя» — состояние центра «var:имя@id». Персонаж — номер сотрудника
+     («3» или «#3»), id или имя (персонажей центр кладёт в состояние «accs»). Прибавка по номеру — «var:имя@#N»: id находит центр.
+     Без связи прибавки копятся в очереди и уходят при связи (Т14-4 А). «За N мин» — состояние «win:имя[@id]:N» (считает центр). */
+  N.accOf = function (who) {
+    var w = String(who == null ? '' : who).trim(), l = w.replace(/^#/, '').toLowerCase(), A = [].concat(N.state.accs || []);
+    var a = A.filter(function (x) { return x.id === w; })[0] || A.filter(function (x) { return x.num && String(x.num).toLowerCase() === l; })[0] ||
+      A.filter(function (x) { return String(x.name || '').toLowerCase() === l; })[0];
+    return a ? a.id : '';
+  };
+  function pkey(name, who) {
+    var n = String(name).replace(/^\$/, ''), id = N.accOf(who), w = String(who == null ? '' : who).trim().replace(/^#/, '');
+    return 'var:' + n + '@' + (id || (/^\d+$/.test(w) ? '#' + w : w));
+  }
+  N.personal = function (name, who) { var v = N.state[pkey(name, who)]; return v === undefined ? null : v; };
+  N.personalAll = function (name) {
+    var n = String(name).replace(/^\$/, ''), r = {};
+    [].concat(N.state.accs || []).forEach(function (a) { var v = N.state['var:' + n + '@' + a.id]; r[a.num || a.id] = v === undefined ? null : v; });
+    return r;
+  };
+  N.personalAdd = function (name, who, n) { return N.send({ t: 'set', key: pkey(name, who), add: Number(n) || 0 }); };
+  N.personalSet = function (name, who, value) { return N.send({ t: 'set', key: pkey(name, who), value: value === undefined ? null : value }); };
+  N.win = function (name, who, min) {
+    var n = String(name).replace(/^\$/, ''), id = who == null || who === '' ? '' : N.accOf(who);
+    var v = N.state['win:' + n + (id ? '@' + id : '') + ':' + min];
+    return typeof v === 'number' ? v : 0;
+  };
   function setVars(set) {
     var SC = W.SugarCube, V = SC && SC.State ? SC.State.variables : (N.vars = N.vars || {});
     Object.keys(set).forEach(function (k) { V[k.replace(/^\$/, '')] = set[k]; });
@@ -297,6 +323,9 @@ export const signalyNetModule = String.raw`/* СИГНАЛЫ — сетевой 
     M.add('sg-net-notify', { handler: function () { N.notify(this.args[0], this.args[1], this.args.slice(2)); } });
     M.add('sg-net-event', { handler: function () { N.event(this.args[0]); } });
     M.add('sg-net-set', { handler: function () { N.set(this.args[0], this.args[1]); } });
+    // П20: <<sg-net-padd "hacks" 3 1>> — прибавить личной у сотрудника №3; <<sg-net-pset "hacks" 3 0>> — записать
+    M.add('sg-net-padd', { handler: function () { N.personalAdd(this.args[0], this.args[1], this.args.length > 2 ? this.args[2] : 1); } });
+    M.add('sg-net-pset', { handler: function () { N.personalSet(this.args[0], this.args[1], this.args[2]); } });
     M.add('sg-net-panel', { handler: function () { N.panel(); } });
   }
 

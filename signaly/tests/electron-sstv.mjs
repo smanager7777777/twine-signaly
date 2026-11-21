@@ -232,7 +232,7 @@ let radio = '';
 
 await waitFor(async () => (radio = text('Радио')).includes('Декодер'));
 check('записано: тип decoder, свои цвета, порядок', /<<sg-radio-view "Декодер" type decoder [^>]*lamp "#ff0000"[^>]*decoder "#00ffff"/.test(radio) && radio.indexOf('"Декодер"') < radio.indexOf('"Старое"'), radio);
-check('движок 34', /Версия движка: 34/.test(storyFile()));
+check('движок 35', /Версия движка: 35/.test(storyFile()));
 await rw.getByRole('button', {name: 'Закрыть', exact: true}).click();
 await win.waitForTimeout(500);
 

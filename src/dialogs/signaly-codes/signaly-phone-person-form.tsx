@@ -235,6 +235,8 @@ export const PhonePersonForm: React.FC<{
 			<button className="signaly-small-button" onClick={() => set({notes: [...notes, {id: `pn${Date.now().toString(36)}`, text: ''}]})} type="button">
 				{l('person.noteAdd')}
 			</button>
+			{/* Сессия 40 (П-79, Т16-2 А): тестировщик — у заметок из пакета кнопка «Отправить мастеру». */}
+			<CheckField hint={l('person.testerHint')} label={l('person.tester')} onChange={tester => set({tester: tester || undefined})} value={!!data.tester} />
 			<ChoiceField
 				hint={l(`person.voiceHint.${voice}`)}
 				label={l('person.voice')}

@@ -365,7 +365,7 @@ export const ItemList: React.FC<{
 export function newAction(type: string, self: boolean, refs: AppRefs): AppGame {
 	const a: AppGame = {type};
 
-	if (['open', 'notify', 'glitch', 'fix', 'module', 'app', 'color', 'torch', 'beep'].includes(type)) {
+	if (['open', 'notify', 'glitch', 'fix', 'module', 'app', 'color', 'torch', 'beep', 'unticker'].includes(type)) {
 		a.to = self ? 'self' : [];
 	}
 	if (type === 'torch') {
@@ -403,11 +403,19 @@ export function newAction(type: string, self: boolean, refs: AppRefs): AppGame {
 	return a;
 }
 
-/** Кому: тому, кто ввёл код (self), всем ([]), выбранным (список id). */
-const ToField: React.FC<{a: AppGame; self: boolean; set: (patch: AppGame) => void}> = ({a, self, set}) => {
+/** Кому: тому, кто ввёл код (self), всем ([]), выбранным (список id); сессия 40 — «тому, у кого сработало» (hit). */
+const ToField: React.FC<{a: AppGame; hit?: boolean; self: boolean; set: (patch: AppGame) => void}> = ({a, hit, self, set}) => {
 	const l = usePhoneL();
 	const mode =
-		a.to === 'self' || (a.to == null && self) ? (self ? 'self' : 'all') : Array.isArray(a.to) && a.to.length ? 'some' : 'all';
+		a.to === 'hit'
+			? 'hit'
+			: a.to === 'self' || (a.to == null && self)
+			? self
+				? 'self'
+				: 'all'
+			: Array.isArray(a.to) && a.to.length
+			? 'some'
+			: 'all';
 	const [some, setSome] = React.useState(mode === 'some');
 	const shown = some && mode !== 'self' ? 'some' : mode;
 
@@ -417,10 +425,11 @@ const ToField: React.FC<{a: AppGame; self: boolean; set: (patch: AppGame) => voi
 				label={l('act.to')}
 				onChange={v => {
 					setSome(v === 'some');
-					set({to: v === 'self' ? 'self' : []});
+					set({to: v === 'self' ? 'self' : v === 'hit' ? 'hit' : []});
 				}}
 				options={[
 					...(self ? [{label: l('act.toSelf'), value: 'self'}] : []),
+					...(hit || mode === 'hit' ? [{label: l('act.toHit'), value: 'hit'}] : []),
 					{label: l('act.toAll'), value: 'all'},
 					{label: l('act.toSome'), value: 'some'}
 				]}
@@ -433,14 +442,16 @@ const ToField: React.FC<{a: AppGame; self: boolean; set: (patch: AppGame) => voi
 	);
 };
 
-const ActionBody: React.FC<{a: AppGame; self: boolean; set: (patch: AppGame) => void}> = ({a, self, set}) => {
+const ActionBody: React.FC<{a: AppGame; hit?: boolean; self: boolean; set: (patch: AppGame) => void}> = ({a, hit, self, set}) => {
 	const l = usePhoneL();
 	const refs = React.useContext(AppRefsContext);
 	const pick = (list: AppGame[], first?: string) => [
 		...(first !== undefined ? [{label: first, value: ''}] : []),
 		...list.map(x => ({label: String(x.name || x.title || x.id), value: String(x.id)}))
 	];
-	const to = <ToField a={a} self={self} set={set} />;
+	const to = <ToField a={a} hit={hit} self={self} set={set} />;
+	// Сессия 40 (П-79): у кого — личная переменная и авария «только этому телефону»: пусто — кто ввёл / у кого сработало.
+	const accsMode = (accs: unknown) => (Array.isArray(accs) && accs.includes('*') ? 'all' : Array.isArray(accs) && accs.length ? 'some' : '');
 	const text = (key: string, label: string) => (
 		<TextField label={label} onChange={v => set({[key]: v})} value={String(a[key] ?? '')} />
 	);
@@ -465,6 +476,37 @@ const ActionBody: React.FC<{a: AppGame; self: boolean; set: (patch: AppGame) => 
 					/>
 					{text('title', l('act.noticeTitle'))}
 					{text('text', l('act.noticeText'))}
+					{/* Сессия 40 (П-79, основа 4): у действия можно перебить «в бегущую строку» и число проходов. */}
+					<ChoiceField
+						label={l('act.ticker')}
+						onChange={v => set({ticker: v === 'yes' ? true : v === 'no' ? false : undefined})}
+						options={[
+							{label: l('act.tickerAsNotice'), value: ''},
+							{label: l('act.tickerYes'), value: 'yes'},
+							{label: l('act.tickerNo'), value: 'no'}
+						]}
+						value={a.ticker === true ? 'yes' : a.ticker === false ? 'no' : ''}
+					/>
+					{a.ticker !== false && (
+						<TextField
+							hint={l('act.repeatHint')}
+							label={l('act.repeat')}
+							onChange={v => set({repeat: v.trim() === '' || !isFinite(Number(v)) ? undefined : Math.max(0, Math.round(Number(v)))})}
+							value={a.repeat == null ? '' : String(a.repeat)}
+						/>
+					)}
+					{to}
+				</>
+			);
+		case 'unticker':
+			return (
+				<>
+					<ChoiceField
+						label={l('act.untickerNotice')}
+						onChange={notice => set({notice})}
+						options={pick(refs.notices, l('act.untickerAll'))}
+						value={String(a.notice ?? '')}
+					/>
 					{to}
 				</>
 			);
@@ -486,6 +528,16 @@ const ActionBody: React.FC<{a: AppGame; self: boolean; set: (patch: AppGame) => 
 						]}
 						value={a.on === false ? 'off' : 'on'}
 					/>
+					{/* Сессия 40 (П-79, Т20-3 А): авария одному телефону — снимается только на нём. */}
+					<CheckField hint={l('act.alarmOneHint')} label={l('act.alarmOne')} onChange={one => set({one: one || undefined, ...(one ? {} : {accs: undefined})})} value={!!a.one} />
+					{a.one && (
+						<AccountsField
+							hint={l(self ? 'act.alarmOneSelf' : 'act.alarmOneHit')}
+							label={l('act.alarmOneWho')}
+							onChange={accs => set({accs: accs.length ? accs : undefined})}
+							value={Array.isArray(a.accs) ? a.accs : []}
+						/>
+					)}
 				</>
 			);
 		case 'glitch':
@@ -533,6 +585,8 @@ const ActionBody: React.FC<{a: AppGame; self: boolean; set: (patch: AppGame) => 
 		case 'term': {
 			const name = String(a.name ?? '').replace(/^\$/, '');
 			const shared = refs.shared.some(v => v.name === name);
+			const personal = refs.shared.some(v => v.name === name && v.personal);
+			const am = accsMode(a.accs);
 
 			return (
 				<>
@@ -540,7 +594,7 @@ const ActionBody: React.FC<{a: AppGame; self: boolean; set: (patch: AppGame) => 
 						label={l('act.termName')}
 						onChange={n => set({name: n})}
 						options={[
-							...refs.shared.map(v => ({label: `${v.label || v.name} ($${v.name}) — ${l('act.shared')}`, value: v.name})),
+							...refs.shared.map(v => ({label: `${v.label || v.name} ($${v.name}) — ${l(v.personal ? 'act.personal' : 'act.shared')}`, value: v.name})),
 							...(name && !shared ? [{label: `$${name}`, value: name}] : []),
 							{label: l('act.termOther'), value: ''}
 						]}
@@ -557,7 +611,31 @@ const ActionBody: React.FC<{a: AppGame; self: boolean; set: (patch: AppGame) => 
 						value={a.op === 'add' ? 'add' : ''}
 					/>
 					{text('value', l(a.op === 'add' ? 'act.termAdd' : 'act.termValue'))}
-					<div className="signaly-field-hint">{l(shared ? 'act.termSharedHint' : 'act.termHint', {example: `{{${name}}}`})}</div>
+					{personal && (
+						<>
+							<ChoiceField
+								label={l('act.accs')}
+								onChange={v => set({accs: v === 'all' ? ['*'] : v === 'some' ? (refs.accounts[0] ? [refs.accounts[0].id] : []) : undefined})}
+								options={[
+									{label: l(self ? 'act.accsSelf' : hit ? 'act.accsHit' : 'act.accsRuleAll'), value: ''},
+									{label: l('act.accsAll'), value: 'all'},
+									{label: l('act.accsSome'), value: 'some'}
+								]}
+								value={am}
+							/>
+							{am === 'some' && (
+								<AccountsField
+									hint=""
+									label={l('act.accsWho')}
+									onChange={accs => set({accs: accs.length ? accs : undefined})}
+									value={a.accs}
+								/>
+							)}
+						</>
+					)}
+					<div className="signaly-field-hint">
+						{l(personal ? 'act.termPersonalHint' : shared ? 'act.termSharedHint' : 'act.termHint', {example: `{{${name}}}`})}
+					</div>
 				</>
 			);
 		}
@@ -633,9 +711,11 @@ const ActionBody: React.FC<{a: AppGame; self: boolean; set: (patch: AppGame) => 
 /** Список действий телефона; self — есть «тот, кто ввёл код» (у кода), у правила — нет. */
 export const AppActions: React.FC<{
 	actions: unknown;
+	/** Сессия 40: правило по личной переменной — есть «тому, у кого сработало». */
+	hit?: boolean;
 	onChange: (actions: AppGame[]) => void;
 	self: boolean;
-}> = ({actions, onChange, self}) => {
+}> = ({actions, hit, onChange, self}) => {
 	const {t} = useTranslation();
 	const l = usePhoneL();
 	const refs = React.useContext(AppRefsContext);
@@ -676,7 +756,26 @@ export const AppActions: React.FC<{
 							onClick={() => onChange(list.filter((_, k) => k !== i))}
 						/>
 					</legend>
-					<ActionBody a={a} self={self} set={patch => onChange(list.map((x, k) => (k === i ? {...x, ...patch} : x)))} />
+					<ActionBody
+						a={a}
+						hit={hit}
+						self={self}
+						set={patch =>
+							onChange(
+								list.map((x, k) => {
+									if (k !== i) {
+										return x;
+									}
+
+									const next: AppGame = {...x, ...patch};
+
+									// undefined — поле убрать (не писать «как было»).
+									Object.keys(patch).forEach(key => patch[key] === undefined && delete next[key]);
+									return next;
+								})
+							)
+						}
+					/>
 				</fieldset>
 			))}
 			<ChoiceField

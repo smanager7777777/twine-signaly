@@ -900,7 +900,13 @@ export function gameToStory(
 			passages.find(p => p.name === 'StoryInit')?.text ?? '',
 			(Array.isArray(game.shared) ? game.shared : [])
 				.filter((v: AppGame) => isObject(v) && typeof v.name === 'string')
-				.map((v: AppGame) => ({name: String(v.name).replace(/^\$/, ''), label: v.label, value: v.value}))
+				.map((v: AppGame) => ({
+					name: String(v.name).replace(/^\$/, ''),
+					label: v.label,
+					value: v.value,
+					// Сессия 40 (П-79): «у каждого своя» — начальное и максимум у персонажа
+					...(v.personal ? {personal: true, byAcc: v.byAcc, maxBy: v.maxBy} : {})
+				}))
 		)
 	};
 }
@@ -988,19 +994,45 @@ export function withDefaults(game: AppGame): AppGame {
  * (SG.normalize): условие «когда» у кода, пустые шапка и меню.
  */
 const TAP0 = {kind: 'auto', title: '', text: '', block: ''};
+/** Сессия 40 (П-79, основа 4): поля события у уведомления и бегущая строка — как normEvent и g.ticker приложения. */
+export const eventDefaults = {
+	img: '',
+	mp3: '',
+	playNow: false,
+	ticker: false,
+	open: true,
+	repeat: 0,
+	leaveMin: 0,
+	leaveOpen: false,
+	leaveChapter: false,
+	save: true,
+	folder: ''
+};
+export const tickerDefaults = {speed: 60, color: '', k: 5, chapter: 1, who: [], adsEvery: 0, adsOrder: 'seq', ads: []};
 
 function diffDefaults(game: AppGame): AppGame {
 	const g = withDefaults(game);
 
 	return {
 		...g,
-		codes: g.codes.map((c: AppGame) => ({when: [], whenText: '', whenMode: '', ...c})),
+		// Сессия 40 (П-79): «После ввода», у условия «когда» — «за N мин» и чья личная.
+		codes: g.codes.map((c: AppGame) => ({
+			when: [],
+			whenText: '',
+			whenMode: '',
+			after: '',
+			...c,
+			...(Array.isArray(c.when) ? {when: c.when.map((w: AppGame) => ({win: 0, acc: '', ...w}))} : {})
+		})),
 		header: {
 			title: '',
 			sub: '',
 			chapter: true,
 			infoTitle: '',
 			info: [],
+			// Сессия 40 (долги П19): размер шапки и «не больше N показателей».
+			size: 'normal',
+			maxItems: 0,
 			...(g.header ?? {}),
 			// Сессия 38 (П16): нажатие на части шапки (Т6-8 Б) и текст окна главы — по умолчанию не отличие.
 			taps: {who: {...TAP0, ...(g.header?.taps?.who ?? {})}, chapter: {...TAP0, ...(g.header?.taps?.chapter ?? {})}},
@@ -1013,6 +1045,7 @@ function diffDefaults(game: AppGame): AppGame {
 				fit: false,
 				over: false,
 				layers: [],
+				win: 0,
 				...it,
 				tap: {...TAP0, ...(it.tap ?? {})}
 			}))
@@ -1020,11 +1053,21 @@ function diffDefaults(game: AppGame): AppGame {
 		menu: (Array.isArray(g.menu) ? g.menu : []).map((m: AppGame) => ({chapter: 1, who: [], ...m})),
 		// Сессия 38 (П16, основа 2): правило «на телефоне» — поля по умолчанию не отличие.
 		// Сессия 39 (П17): «когда работает» у правила «на телефоне», скрытые блоки и приборы, скрытые программы и заметки персонажа.
-		rules: (Array.isArray(g.rules) ? g.rules : []).map((r: AppGame) => (r.on === 'phone' ? {sensor: 'shake', seconds: 0, every: 0, who: [], screen: '', ...r} : r)),
+		rules: (Array.isArray(g.rules) ? g.rules : []).map((r: AppGame) =>
+			r.on === 'phone'
+				? {sensor: 'shake', seconds: 0, every: 0, who: [], screen: '', ...r}
+				: r.on === 'var' || r.on === 'limit'
+				? {win: 0, acc: '', ...r}
+				: r
+		),
 		blocks: g.blocks.map((b: AppGame) => ({hidden: false, ...b})),
 		apps: (Array.isArray(g.apps) ? g.apps : []).map((a: AppGame) => ({hidden: false, ...a})),
-		accounts: (Array.isArray(g.accounts) ? g.accounts : []).map((a: AppGame) => ({notes: [], secret: [], ...a})),
-		limits: Array.isArray(g.limits) ? g.limits : []
+		accounts: (Array.isArray(g.accounts) ? g.accounts : []).map((a: AppGame) => ({notes: [], secret: [], tester: false, ...a})),
+		limits: Array.isArray(g.limits) ? g.limits : [],
+		// Сессия 40 (П-79): события у уведомлений, бегущая строка, личные переменные — по умолчанию не отличие.
+		notices: (Array.isArray(g.notices) ? g.notices : []).map((n: AppGame) => ({...eventDefaults, ...n})),
+		ticker: {...tickerDefaults, ...(isObject(g.ticker) ? g.ticker : {})},
+		shared: (Array.isArray(g.shared) ? g.shared : []).map((v: AppGame) => ({personal: false, byAcc: {}, maxBy: {}, ...v}))
 	};
 }
 
