@@ -246,14 +246,14 @@ export const SignalyVariablesWindow: React.FC<SignalyVariablesWindowProps> = pro
 					/>
 				)}
 				<CheckField
-					hint={l('sharedHint', {code: `{{${row.name}}}`, interpolation: {escapeValue: false}})}
+					hint={l('sharedHint', {code: `{{${row.name}}}`, interpolation: {escapeValue: false, skipOnVariables: true}})}
 					label={l('shared')}
 					onChange={shared => setRow(shared ? {shared} : {shared, personal: false})}
 					value={!!row.shared}
 				/>
 				{row.shared && (
 					<CheckField
-						hint={l('personalHint', {own: `{{${row.name}}}`, other: `{{${row.name}@Имя}}`, interpolation: {escapeValue: false}})}
+						hint={l('personalHint', {own: `{{${row.name}}}`, other: `{{${row.name}@Имя}}`, interpolation: {escapeValue: false, skipOnVariables: true}})}
 						label={l('personal')}
 						onChange={personal => setRow({personal, byAcc: row.byAcc ?? {}, maxBy: row.maxBy ?? {}})}
 						value={!!row.personal}
@@ -266,6 +266,13 @@ export const SignalyVariablesWindow: React.FC<SignalyVariablesWindowProps> = pro
 							<p className="signaly-field-hint">{l('personalNoAccounts')}</p>
 						) : (
 							<table className="signaly-phone-table signaly-variables-personal">
+								<thead>
+									<tr>
+										<th>{l('personalWho')}</th>
+										<th>{l('personalInitCol')}</th>
+										<th>{l('personalMaxCol')}</th>
+									</tr>
+								</thead>
 								<tbody>
 									{accounts.map(a => {
 										const who = `№${a.num}${a.name ? ` ${a.name}` : ''}`;

@@ -74,6 +74,25 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 #bar-vars .cells i.ov{animation:ovr .45s steps(2) infinite;position:relative}
 #bar-vars .cells i.bl{animation:blink .7s steps(1) infinite}
 #bar-vars .cells i.gw{position:relative;z-index:1}
+/* П19 (замечание 5): размер шапки — компактно / обычно / крупно; «+N» — показатели в окне по нажатию */
+#bar-vars .hv-more{color:var(--dim);border:1px solid var(--dim);padding:0 5px;margin-right:0}
+#bar.bar-compact{padding:5px 12px}
+#bar.bar-compact #bar-name{font-size:14px}
+#bar.bar-compact #bar-prof{font-size:10px}
+#bar.bar-compact #bar-chap{font-size:10px;padding:2px 6px}
+#bar.bar-compact #bar-vars{margin-top:2px;font-size:10px;letter-spacing:.04em}
+#bar.bar-compact #bar-vars .hv{margin:1px 10px 1px 0}
+#bar.bar-compact #bar-vars .hv b{margin-right:4px}
+#bar.bar-compact #bar-vars .cells i{width:6px;height:7px;margin-right:1px}
+#bar.bar-compact #bar-vars .hv-bar .cells i{width:2px;height:8px;margin-right:2px}
+#bar.bar-compact #bar-vars .hv-fit .cells i{width:auto}
+#bar.bar-large{padding:14px 16px}
+#bar.bar-large #bar-name{font-size:20px}
+#bar.bar-large #bar-prof{font-size:14px}
+#bar.bar-large #bar-vars{margin-top:8px;font-size:15px}
+#bar.bar-large #bar-vars .cells i{width:12px;height:17px;margin-right:3px}
+#bar.bar-large #bar-vars .hv-bar .cells i{width:4px;height:20px;margin-right:4px}
+#bar.bar-large #bar-vars .hv-fit .cells i{width:auto}
 @keyframes ovr{0%{opacity:1;transform:translate(0,0)}25%{opacity:.2;transform:translate(-1px,1px)}50%{opacity:1;transform:translate(1px,-1px) scaleY(1.3);background:#fff}75%{opacity:.5;transform:translate(0,1px)}100%{opacity:1}}
 .tab{display:none;flex:1;overflow-y:auto;padding:14px;-webkit-overflow-scrolling:touch}
 .tab.on{display:block}
@@ -412,6 +431,18 @@ table.meter td,table.meter th{border-bottom:1px solid var(--text-30);padding:2px
 /* П16: вспышка экраном (браузер; в APK — фонарик) */
 #flash{position:fixed;top:0;right:0;bottom:0;left:0;z-index:80;pointer-events:none;background:#fff;opacity:0}
 #flash.on{opacity:.9}
+/* П20: личные переменные на пульте */
+.pv-wrap{overflow-x:auto;margin-bottom:8px}
+.pv-table{border-collapse:collapse;font-size:13px;width:100%}
+.pv-table th,.pv-table td{border:1px solid var(--dim);padding:4px 6px;text-align:left;white-space:nowrap}
+.pv-table th{color:var(--accent);font-weight:normal}
+.ccard .ct2{color:var(--accent);letter-spacing:.1em;font-size:12px;margin:10px 0 4px}
+.pv-log{font-size:12px;color:var(--dim);padding:1px 0}
+.clog .cl div{white-space:pre-wrap}
+/* П20: бегущая строка под шапкой */
+#ticker{overflow:hidden;white-space:nowrap;border-bottom:1px solid var(--dim);background:var(--panel);color:var(--accent);font-size:13px;letter-spacing:.06em;height:24px;line-height:24px;cursor:pointer;position:relative}
+#ticker[hidden]{display:none}
+#ticker .tk-run{display:inline-block;will-change:transform;padding:0 8px}
 
 </style>
 <style id="sg-theme"></style>
@@ -428,8 +459,8 @@ table.meter td,table.meter th{border-bottom:1px solid var(--text-30);padding:2px
   } catch (e) { /* не важно */ }
 })();
 </script>
-<meta name="generator" content="signaly-app 0.1.0 (2026-11-20)">
-<script>window.SG_APP_VERSION = "0.1.0 (2026-11-20)";</script>
+<meta name="generator" content="signaly-app 0.1.0 (2026-11-21)">
+<script>window.SG_APP_VERSION = "0.1.0 (2026-11-21)";</script>
 </head>
 <body class="fx-scan fx-glow">
 <div id="app">
@@ -462,6 +493,7 @@ table.meter td,table.meter th{border-bottom:1px solid var(--text-30);padding:2px
       </div>
       <div id="bar-vars" hidden></div>
     </header>
+    <div id="ticker" hidden><div class="tk-run"></div></div>
     <div id="banners"></div>
     <main id="tab-data" class="tab on"></main>
     <main id="tab-code" class="tab">
@@ -10854,6 +10886,7 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
       a.voiceMode = ['button', 'screen', 'always'].indexOf(a.voiceMode) >= 0 ? a.voiceMode : (a.modules.indexOf('voice') >= 0 ? 'button' : 'off');
       // П17 (Т8-5 А): скрытые программы — функция есть, но вкладки не видно; код («Функция приложения» → «открыть скрытую») открывает её до выхода
       a.secret = Array.isArray(a.secret) ? a.secret : [];
+      a.tester = !!a.tester;   // П20 (Т16-2 А): тестировщик — у его заметок из пакета кнопка «Отправить мастеру»
       // П17: заметки с начала игры («Заметки» персонажа: памятка, список проверки тестировщика)
       a.notes = Array.isArray(a.notes) ? a.notes.filter(function (n) { return n && typeof n.text === 'string'; }).map(function (n, i) { return { id: n.id || 'pn' + (i + 1), text: n.text }; }) : [];
     });
@@ -10897,7 +10930,18 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
       n.to = Array.isArray(n.to) ? n.to : [];
       n.chapter = +n.chapter || 0;
       n.minutes = +n.minutes || 0;
+      normEvent(n);
     });
+    // П20 (основа 4, Т18-3, Т21-2…4): бегущая строка — под шапкой; лента последних K событий по кругу; реклама по расписанию
+    var tk = g.ticker = Object.assign({ speed: 60, color: '', k: 5, chapter: 1, who: [], adsEvery: 0, adsOrder: 'seq', ads: [] }, g.ticker || {});
+    tk.speed = Math.max(10, Math.min(400, +tk.speed || 60));
+    tk.color = hexOk(tk.color) || '';
+    tk.k = Math.max(1, Math.min(20, Math.round(+tk.k || 5)));
+    tk.chapter = +tk.chapter || 1;
+    tk.who = Array.isArray(tk.who) ? tk.who : [];
+    tk.adsEvery = Math.max(0, +tk.adsEvery || 0);
+    tk.adsOrder = tk.adsOrder === 'random' ? 'random' : 'seq';
+    tk.ads = Array.isArray(tk.ads) ? tk.ads.filter(function (x) { return typeof x === 'string'; }) : [];
     g.alarms = Array.isArray(g.alarms) ? g.alarms : [];
     g.alarms.forEach(function (a) {
       a.id = a.id || uid('r');
@@ -10927,6 +10971,11 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
       v.name = v.name.replace(/^\$/, '');
       v.label = v.label || '';
       if (v.value === undefined) v.value = 0;
+      // П20 (Т12, Т20): «у каждого своя» — личная переменная: значение у каждого персонажа своё (ключ центра var:имя@id);
+      // byAcc — своё начальное у персонажа (Т12-1 А), maxBy — свой максимум шкалы и предела (Т20-2 Б)
+      v.personal = !!v.personal;
+      v.byAcc = v.byAcc && typeof v.byAcc === 'object' && !Array.isArray(v.byAcc) ? v.byAcc : {};
+      v.maxBy = v.maxBy && typeof v.maxBy === 'object' && !Array.isArray(v.maxBy) ? v.maxBy : {};
     });
     // П15: пределы общих переменных — [{var, min, max}] ('' — нет предела); центр не даёт выйти за предел
     g.limits = (Array.isArray(g.limits) ? g.limits : []).filter(function (l) { return l && l.var; }).map(function (l) {
@@ -10939,6 +10988,8 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
       r.on = r.on || 'event';
       r.event = r.event || '';
       if (r.on === 'var') { r.var = String(r.var || '').replace(/^\$/, ''); r.op = r.op || '='; if (r.value === undefined) r.value = ''; }
+      // П20 (Т13): win — «за N минут» (сумма прибавлений за N мин; 0 — само значение); acc — у личной: '' — у любого (у каждого), id — у этого персонажа
+      if (r.on === 'var' || r.on === 'limit') { r.win = Math.max(0, Math.min(WIN_MAX, +r.win || 0)); r.acc = typeof r.acc === 'string' ? r.acc : ''; }
       // П15: «общая переменная упёрлась в предел» (game.limits): side — max / min / any
       if (r.on === 'limit') { r.var = String(r.var || '').replace(/^\$/, ''); r.side = r.side === 'min' || r.side === 'any' ? r.side : 'max'; }
       // П16 (основа 2): событие на самом телефоне — встряхнули, экраном вниз/вверх, экран заблокирован дольше N с…; выполняет телефон
@@ -11010,13 +11061,35 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
     c.term = !!c.term;                                              // фраза «для терминала» (П-60): слышит любой телефон с голосом, молча передаёт терминалу
     // П14 (Т4-5 А): «когда» — код срабатывает, только если верны все условия по общим переменным; иначе «нет доступа» и whenText
     c.when = (Array.isArray(c.when) ? c.when : []).filter(function (w) { return w && w.var; }).map(function (w) {
-      return { var: String(w.var).replace(/^\$/, ''), op: w.op || '>=', value: w.value == null ? '' : String(w.value) };
+      // П20: win — «за N минут»; acc — чья личная ('' — своя, id — чужая, Т12-3 А)
+      return { var: String(w.var).replace(/^\$/, ''), op: w.op || '>=', value: w.value == null ? '' : String(w.value),
+        win: Math.max(0, Math.min(WIN_MAX, +w.win || 0)), acc: typeof w.acc === 'string' ? w.acc : '' };
     });
     c.whenText = c.whenText || '';
     // П15 (Т6-7 Б): условие не выполнено — '' «нет доступа» / 'wrong' как неверный код / 'inactive' «код пока не активен»
     c.whenMode = c.whenMode === 'wrong' || c.whenMode === 'inactive' ? c.whenMode : '';
+    // П20 (Т9-4, Т11-4 А, Т15): «После ввода» — '' по умолчанию (окно; только скрытый прибор или программа — сразу),
+    // 'window' — показать окно ответа, 'now' — сразу открыть то, что открыл код (первое по порядку), без окна
+    c.after = c.after === 'window' || c.after === 'now' ? c.after : '';
     return c;
   }
+
+  /* П20 (основа 4): содержимое события (уведомления) — картинка, mp3, в бегущую строку, когда уходит, архив. */
+  function normEvent(n) {
+    n.img = typeof n.img === 'string' ? n.img : '';            // картинка из медиа пакета (Т18-4 А); видео — позже
+    n.mp3 = typeof n.mp3 === 'string' ? n.mp3 : '';            // звук: при приходе — короткий сигнал, mp3 — по нажатию (Т21-5 А)
+    n.playNow = !!n.playNow;                                    // «играть сразу» — mp3 при приходе (общие объявления)
+    n.ticker = !!n.ticker;                                      // в бегущую строку (вместо окна)
+    n.open = n.open !== false;                                  // нажатие на строку открывает событие целиком (Т21-1 А)
+    n.repeat = Math.max(0, Math.min(99, Math.round(+n.repeat || 0)));   // проходов строки; 0 — пока не уберут (Т18-3 А)
+    n.leaveMin = Math.max(0, +n.leaveMin || 0);                 // уходит из строки через N мин
+    n.leaveOpen = !!n.leaveOpen;                                // … после открытия
+    n.leaveChapter = !!n.leaveChapter;                          // … в конце главы (первое сработавшее; без настроек — вытесняется новыми, Т21-7 А)
+    n.save = n.save !== false;                                  // открытое — в «Данных» (Т21-8 А); галочка «не сохранять» — save: false
+    n.folder = typeof n.folder === 'string' ? n.folder : '';    // своя папка ('' — «События»)
+    return n;
+  }
+  var EVENT_KEYS = ['img', 'mp3', 'playNow', 'ticker', 'open', 'repeat', 'leaveMin', 'leaveOpen', 'leaveChapter', 'save', 'folder'];
 
   /* Папки: раздел блока — путь через «/», например «Процедуры/Медицина». */
   function folderPath(section) {
@@ -11079,6 +11152,7 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
      game.header: title / sub — строки шапки (пусто — имя и профессия; {{имя}} — общая переменная, {name} {prof} {chapter});
      chapter — показывать главу справа; items — показатели (общая переменная: подпись или без, числом или квадратиками);
      infoTitle и info — окно по нажатию на шапку (разделы: заголовок, текст, кому, с главы).
+     П19: size — 'compact' / 'normal' / 'large' (высота шкал и подписей), maxItems — в шапке не больше N показателей.
      game.menu: [{tab, label, hidden}] — порядок, названия и скрытые вкладки нижнего меню (пусто — как было). */
   var MENU_TABS = [['data', 'ДАННЫЕ'], ['code', 'КОД'], ['scan', 'СКАНЕР'], ['chat', 'СВЯЗЬ'], ['apps', 'ПРИБОРЫ'], ['photo', 'КАМЕРА'], ['notes', 'ЗАМЕТКИ']];
   /* П16 (Т6-8 Б): нажатие на часть шапки — auto (по месту: имя — досье, глава — окно главы, показатель — сведения о нём),
@@ -11092,6 +11166,9 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
   function normHeader(g) {
     var h = g.header = Object.assign({ title: '', sub: '', chapter: true, infoTitle: '', items: [], info: [], chapters: [], taps: {} }, g.header || {});
     h.chapter = h.chapter !== false;
+    // П19 (замечание 5): размер шапки и «не больше N показателей» (0 — все; остальные — в окне по нажатию)
+    h.size = ['compact', 'large'].indexOf(h.size) >= 0 ? h.size : 'normal';
+    h.maxItems = Math.max(0, Math.min(50, Math.round(+h.maxItems || 0)));
     // П16 (Т6-8 Б): что открывается по нажатию на имя и на главу (у показателя — своё, it.tap)
     h.taps = { who: normTap((h.taps || {}).who), chapter: normTap((h.taps || {}).chapter) };
     h.items = (Array.isArray(h.items) ? h.items : []).map(function (it) {
@@ -11108,6 +11185,7 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
       it.look = it.look === 'bar' ? 'bar' : 'cell';
       it.fit = !!it.fit;
       it.over = !!it.over;
+      it.win = Math.max(0, Math.min(WIN_MAX, +it.win || 0));   // П20 (Т13-5 А): показатель «за N мин» — сумма прибавлений за N минут
       it.tap = normTap(it.tap);
       // П16: слои перезаполнения — 1-й (значения 1…max), 2-й (max+1…2·max)…; предел переменной — max × число слоёв
       it.layers = (Array.isArray(it.layers) ? it.layers : []).slice(0, LAYERS_MAX).map(function (l) {
@@ -11155,20 +11233,23 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
     return !!m.hidden || (state.chapter || 1) < (m.chapter || 1) || !allowed(m.who || [], state.account);
   }
   /* Предел общей переменной (П15): {min, max} или null. */
-  function limitOf(game, name) {
+  function limitOf(game, name, acc) {
     name = String(name || '').replace(/^\$/, '');
     var l = (game.limits || []).filter(function (l) { return l.var === name && (l.min !== '' || l.max !== ''); })[0] || null;
-    var lm = layerMax(game, name);
+    // П20 (Т20-2 Б): у личной переменной свой максимум у персонажа (maxBy) — и для предела, и для шкалы
+    var mb = acc ? maxOf(sharedVar(game, name), acc, 0) : 0;
+    if (l && mb && l.max !== '') l = { var: l.var, min: l.min, max: mb };
+    var lm = layerMax(game, name, acc);
     if (lm === null) return l;
     if (!l) return { var: name, min: '', max: lm, layers: true };
     return { var: name, min: l.min, max: l.max === '' ? lm : Math.min(l.max, lm), layers: l.max === '' || lm < l.max };
   }
   /* П16: предел по слоям шкалы — деления × число слоёв (у нескольких шкал одной переменной — наибольший); нет слоёв — null. */
-  function layerMax(game, name) {
-    var m = null;
+  function layerMax(game, name, acc) {
+    var m = null, sv = acc ? sharedVar(game, name) : null;
     ((game.header || {}).items || []).forEach(function (it) {
-      if (it.var !== name || it.show !== 'cells' || !it.max || !(it.layers || []).length) return;
-      var x = it.max * it.layers.length;
+      if (it.var !== name || it.show !== 'cells' || !it.max || !(it.layers || []).length || it.win) return;
+      var x = maxOf(sv, acc, it.max) * it.layers.length;
       if (m === null || x > m) m = x;
     });
     return m;
@@ -11181,8 +11262,8 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
     return out;
   }
   /* Значение в пределах; side — 'max' / 'min', если упёрлось (для телефона без связи — как считает центр). */
-  function clampVar(game, name, v) {
-    var l = limitOf(game, name);
+  function clampVar(game, name, v, acc) {
+    var l = limitOf(game, name, acc);
     if (!l || typeof v !== 'number') return { value: v, side: '' };
     if (l.max !== '' && v > l.max) return { value: l.max, side: 'max' };
     if (l.min !== '' && v < l.min) return { value: l.min, side: 'min' };
@@ -11201,24 +11282,26 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
     function vis(x) { return n >= (x.chapter || 1) && allowed(x.who || [], state.account); }
     var ch = game.chapters[n - 1];
     function fill(t) {
-      return fillVars(String(t || ''), game, state.vars).replace(/\{name\}/g, a.name || '').replace(/\{prof\}/g, a.profession || '').replace(/\{chapter\}/g, ch ? ch.name : '');
+      return fillVars(String(t || ''), game, state.vars, state.account).replace(/\{name\}/g, a.name || '').replace(/\{prof\}/g, a.profession || '').replace(/\{chapter\}/g, ch ? ch.name : '');
     }
-    var vals = sharedValues(game, state.vars);
+    var vals = sharedValues(game, state.vars, state.account);
     var items = (h.items || []).filter(vis).filter(function (it) { return sharedVar(game, it.var); }).map(function (it) {
-      var v = vals[it.var], sv = sharedVar(game, it.var), cells = it.show === 'cells' ? cellsOf(v, it.max) : null;
+      // П20: личная — своё значение и свой максимум (maxBy); «за N мин» — сумма прибавлений за окно (считает центр)
+      var sv = sharedVar(game, it.var), v = it.win ? winValue(game, state.vars, it.var, state.account, it.win) : vals[it.var];
+      var mx = it.win ? it.max : Math.min(CELLS_MAX, maxOf(sv, state.account, it.max)), cells = it.show === 'cells' ? cellsOf(v, mx) : null;
       var nv = Number(String(v == null ? '' : v).replace(',', '.'));
-      var num = cells && it.max && typeof v !== 'boolean' && isFinite(nv);
+      var num = cells && mx && typeof v !== 'boolean' && isFinite(nv);
       // П16: перегрузка — сбоит столько делений, на сколько превышено; слои — у каждого деления свой слой (-1 — погасло)
-      var ly = num && (it.layers || []).length ? layerCells(nv, it.max, it.layers) : null;
-      var overN = !ly && it.over && num && nv > it.max ? Math.min(it.max, Math.round(nv - it.max)) : 0;
+      var ly = num && (it.layers || []).length ? layerCells(nv, mx, it.layers) : null;
+      var overN = !ly && it.over && num && nv > mx ? Math.min(mx, Math.round(nv - mx)) : 0;
       if (ly) cells = ly.cells.map(function (k) { return k >= 0; });
-      return { id: it.id, var: it.var, label: it.label, show: it.show, max: it.max, unit: it.unit || '', value: v, name: sv.label || it.var,
+      return { id: it.id, var: it.var, label: it.label, show: it.show, max: mx, unit: it.unit || '', value: v, name: sv.label || it.var, win: it.win || 0, personal: !!sv.personal,
         cells: cells, look: it.look || 'cell', fit: !!it.fit, overN: overN, layer: ly ? ly.layer : 0, layerOf: ly ? ly.cells : null,
-        layers: ly ? it.layers : null, glow: ly ? ly.glow : 0, tap: tapFill(it.tap), limit: limitOf(game, it.var), low0: it.low,
+        layers: ly ? it.layers : null, glow: ly ? ly.glow : 0, tap: tapFill(it.tap), limit: it.win ? null : limitOf(game, it.var, state.account), low0: it.low,
         over: overN > 0,
         low: it.low !== '' && it.low != null && typeof v !== 'boolean' && isFinite(nv) && v !== '' && v != null && nv < it.low,
         lowColor: it.lowColor || '',
-        text: v === true ? 'да' : v === false ? 'нет' : v == null ? '' : String(v) + (it.max && it.show === 'num' ? '/' + it.max : '') + (it.unit ? ' ' + it.unit : '') };
+        text: v === true ? 'да' : v === false ? 'нет' : v == null ? '' : String(v) + (mx && it.show === 'num' ? '/' + mx : '') + (it.unit ? ' ' + it.unit : '') };
     });
     // П15 (Т6-3 Б): строки главы (последняя «с главы» не позже нынешней); пустое поле — из общей шапки
     var hc = (h.chapters || []).filter(function (c) { return (c.chapter || 1) <= n; }).sort(function (x, y) { return x.chapter - y.chapter; });
@@ -11227,8 +11310,12 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
     function tapFill(t) { t = t || normTap(); return { kind: t.kind, title: fill(t.title), text: fill(t.text), block: t.block }; }
     var taps = h.taps || {};
     var tt = own.title || h.title, st = own.sub || h.sub, it2 = own.infoTitle || h.infoTitle;
-    return { title: fill(tt) || a.name || '—', sub: tt || st ? fill(st) : (a.profession || ''), chapter: h.chapter !== false ? (ch ? ch.name : '') : '',
-      items: items, infoTitle: fill(it2) || 'СВОДКА', about: fill(own.about), chapterName: ch ? ch.name : '',
+    // П19 (замечание 5): в шапке — не больше N показателей (0 — все), остальные — в окне по нажатию; размер шапки
+    var maxN = Math.max(0, Math.round(+h.maxItems || 0)), shown = maxN ? items.slice(0, maxN) : items;
+    return { size: ['compact', 'large'].indexOf(h.size) >= 0 ? h.size : 'normal', allItems: items, more: items.length - shown.length,
+      title: fill(tt) || a.name || '—', sub: st === '-' ? '' : tt || st ? fill(st) : (a.profession || ''),   // П19: «-» — без второй строки
+      chapter: h.chapter !== false ? (ch ? ch.name : '') : '',
+      items: shown, infoTitle: fill(it2) || 'СВОДКА', about: fill(own.about), chapterName: ch ? ch.name : '',
       taps: { who: tapFill(taps.who), chapter: tapFill(taps.chapter) }, profile: (a.items || []).length > 0,
       info: (h.info || []).filter(vis).map(function (s) { return { title: fill(s.title), text: fill(s.text) }; }) };
   }
@@ -11310,7 +11397,7 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
       var v = pickVariant(code, state);
       var ok = !!v || allowed(code.who, state.account);
       if (!ok && code.deniedAsWrong) return { kind: 'wrong' };
-      if (ok && !whenOk(game, code, state.vars)) return code.whenMode === 'wrong' ? { kind: 'wrong' } : { kind: 'code', code: code, ok: false, cond: false, variant: v };
+      if (ok && !whenOk(game, code, state.vars, state.account)) return code.whenMode === 'wrong' ? { kind: 'wrong' } : { kind: 'code', code: code, ok: false, cond: false, variant: v };
       return { kind: 'code', code: code, ok: ok, variant: v };
     }
     return { kind: 'wrong' };
@@ -11346,7 +11433,7 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
       return ids.map(function (id) { return byId(game.blocks, id); })
         .filter(function (b) { return b && allowed(b.who, state.account); });
     }
-    if (r.cond === false) return { kind: 'denied', title: c.whenMode === 'inactive' ? T.inactive : T.denied, text: c.whenText || whenWhy(game, c, state.vars), blocks: [], fresh: [], actions: [] };
+    if (r.cond === false) return { kind: 'denied', title: c.whenMode === 'inactive' ? T.inactive : T.denied, text: c.whenText || whenWhy(game, c, state.vars, state.account), blocks: [], fresh: [], actions: [] };
     if (!r.ok) {
       var db = pick(c.deniedOpens);
       return { kind: 'denied', title: T.denied, text: c.denied, blocks: db, fresh: db.filter(function (b) { return unlocked.indexOf(b.id) < 0; }), actions: [] };
@@ -11433,6 +11520,7 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
     function plus(ms) { return typeof now === 'number' ? now + ms : '{{now+' + ms + '}}'; }
     function targets(a) {
       // 'self' — тот, кто ввёл код (в правилах центра — все); [] — все; иначе — список аккаунтов
+      if (a.to === 'hit') return ctx.hit ? ['acc:' + ctx.hit] : ctx.self ? 'self' : ['all'];   // П20 (Т12-5 А): «тому, у кого сработало»
       if (a.to === 'self' || a.to == null) return ctx.self ? 'self' : ['all'];
       if (!a.to.length) return ['all'];
       return a.to.map(function (id) { return 'acc:' + id; });
@@ -11446,7 +11534,13 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
       if (a.type === 'open') route(a, 'open', { blocks: a.blocks || [], title: a.title || '' });
       else if (a.type === 'notify') {
         var n = byId(game.notices, a.notice) || {};
-        route(a, 'notify', { title: a.title || n.title || '', text: a.text || n.text || '' });
+        // П20 (основа 4): содержимое события идёт вместе с уведомлением; у действия можно перебить «в строку» (a.ticker)
+        var nb = { title: a.title || n.title || '', text: a.text || n.text || '' };
+        if (n.id) { var ne = normEvent(Object.assign({}, n)); EVENT_KEYS.forEach(function (k) { nb[k] = ne[k]; }); nb.ev = n.id; }
+        if (a.ticker === true || a.ticker === false) nb.ticker = a.ticker;
+        if (a.repeat != null && a.repeat !== '') nb.repeat = Math.max(0, +a.repeat || 0);
+        route(a, 'notify', nb);
+      } else if (a.type === 'unticker') { route(a, 'unticker', { ev: a.notice || '' });   // П20 (Т21-7 А): убрать событие из строки (пусто — все)
       } else if (a.type === 'glitch') route(a, 'glitch', { id: a.glitch });
       else if (a.type === 'fix') { if ((a.to == null || a.to === 'self') && ctx.self) out.local.push({ kind: 'fix', body: { id: a.glitch || '' } }); else route(a, 'fix', { id: a.glitch || '' }); }
       else if (a.type === 'module') route(a, 'module', { id: a.module, on: a.on || 'on' });
@@ -11458,13 +11552,25 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
         var al = byId(game.alarms, a.alarm) || {};
         var v = a.on === false ? { on: false, at: now } : { on: true, id: al.id || a.alarm, title: al.title || game.texts.alarm, text: al.text || '',
           red: al.red !== false, full: al.full !== false, siren: al.siren !== false, vibrate: al.vibrate !== false, torch: al.torch !== false, jam: al.jam !== false, at: now };
-        out.net.push({ t: 'set', key: 'alarm', value: v, local: true });
+        // П20 (Т20-3 А): «только этому телефону» (a.one) — авария у того, кто ввёл код (у кого сработало, у выбранных a.accs)
+        if (a.one) {
+          var ids1 = (a.accs || []).length ? a.accs : ctx.hit ? [ctx.hit] : ctx.self ? [ctx.self] : [];
+          ids1.forEach(function (id) { out.net.push({ t: 'set', key: 'alarm@' + id, value: v, local: id === ctx.self }); });
+        } else out.net.push({ t: 'set', key: 'alarm', value: v, local: true });
       } else if (a.type === 'chapter') out.net.push({ t: 'set', key: 'chapter', value: { n: +a.n || 1, at: now }, local: true });
       else if (a.type === 'term') {
         // П13 (Т4-3): общая переменная — состояние центра «var:имя» (видят телефоны и терминал); иначе — только терминалу
         var vn = String(a.name || '').replace(/^\$/, ''), sv = sharedVar(game, vn), add = a.op === 'add';
         var n = add ? Number(String(a.value).replace(',', '.')) || 0 : termValue(a.value);
-        if (sv) {
+        if (sv && sv.personal) {
+          // П20 (Т12-4 А): личная — у того, кто ввёл код / чей телефон (self), у того, у кого сработало правило (hit),
+          // у выбранных (a.accs; '*' — у всех), в правиле центра без выбора — у всех
+          var ids = (a.accs || []).indexOf('*') >= 0 ? accIds(game) : (a.accs || []).length ? a.accs.slice() : ctx.hit ? [ctx.hit] : ctx.self ? [ctx.self] : accIds(game);
+          ids.forEach(function (id) {
+            var k = 'var:' + vn + '@' + id, cur2 = varValue(game, ctx.vars || {}, vn, id);
+            out.net.push(add ? { t: 'set', key: k, add: n, base: num(initOf(sv, id)), value: clampVar(game, vn, num(cur2) + n, id).value } : { t: 'set', key: k, value: clampVar(game, vn, n, id).value });
+          });
+        } else if (sv) {
           var cur = ctx.vars && ctx.vars.hasOwnProperty(vn) ? ctx.vars[vn] : sv.value;
           out.net.push(add ? { t: 'set', key: 'var:' + vn, add: n, base: num(sv.value), value: clampVar(game, vn, num(cur) + n).value } : { t: 'set', key: 'var:' + vn, value: clampVar(game, vn, n).value });
         } else {
@@ -11482,6 +11588,9 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
         if (vt) out.net = out.net.concat(voteMessages(vt, now));
       }
     });
+    // П20: «{{личная}}» в сообщениях — того, кто ввёл код или у кого сработало правило
+    var pa = ctx.hit || ctx.self;
+    if ((game.shared || []).some(function (v) { return v.personal; })) out.net = out.net.map(function (m) { return m.t === 'msg' && m.body ? Object.assign({}, m, { body: pvBody(game, m.body, pa) }) : m; });
     return out;
   }
 
@@ -11491,21 +11600,77 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
   }
   function num(v) { var n = Number(String(v).replace(',', '.')); return isFinite(n) ? n : 0; }
 
-  /* Значения общих переменных (П13): из центра (vals — {имя: значение}), иначе начальные из пакета. */
-  function sharedValues(game, vals) {
+  /* ---------- П20: личные переменные «у каждого своя» и окно «за N минут» ----------
+     Ключ центра личной — var:имя@id (id аккаунта); на телефоне state.vars['имя@id']. Окно — состояние центра
+     win:имя[@id]:N (сумма прибавлений за N минут; центр считает, если окно есть в правиле, условии или шапке). */
+  var WIN_MAX = 720;
+  function pvKey(name, acc) { return acc ? name + '@' + acc : name; }
+  function accIds(game) { return (game.accounts || []).map(function (a) { return a.id; }); }
+  /* Персонаж по ссылке: id, номер сотрудника («#3» или «3»), имя или профессия (без регистра); нет — ''. */
+  function accRef(game, ref) {
+    ref = String(ref == null ? '' : ref).trim();
+    if (!ref) return '';
+    var l = ref.replace(/^#/, '').toLowerCase(), A = game.accounts || [];
+    var a = A.filter(function (x) { return x.id === ref; })[0] || A.filter(function (x) { return x.num && String(x.num).toLowerCase() === l; })[0] ||
+      A.filter(function (x) { return (x.name || '').toLowerCase() === l; })[0] || A.filter(function (x) { return (x.profession || '').toLowerCase() === l; })[0];
+    return a ? a.id : '';
+  }
+  function initOf(v, acc) {
+    if (v && v.personal && acc && v.byAcc && v.byAcc[acc] !== undefined && v.byAcc[acc] !== '' && v.byAcc[acc] !== null) return termValue(v.byAcc[acc]);
+    return v ? v.value : undefined;
+  }
+  function maxOf(v, acc, def) { var m = v && v.personal && acc && v.maxBy ? +v.maxBy[acc] : 0; return m > 0 ? m : def; }
+  /* Значение переменной: личная — у персонажа acc (нет — начальное этого персонажа), общая — общее. */
+  function varValue(game, vals, name, acc) {
+    var v = sharedVar(game, name);
+    if (!v) return undefined;
+    var k = v.personal ? pvKey(v.name, acc) : v.name;
+    return vals && vals.hasOwnProperty(k) ? vals[k] : initOf(v, v.personal ? acc : '');
+  }
+  /* «За N минут»: сумма прибавлений (у личной — у персонажа acc); центр не прислал — 0. */
+  function winValue(game, vals, name, acc, min) {
+    var v = sharedVar(game, name), k = 'win:' + (v && v.personal ? pvKey(v.name, acc) : name) + ':' + min;
+    return vals && vals.hasOwnProperty(k) ? vals[k] : 0;
+  }
+  /* Значения общих переменных (П13): из центра (vals — {имя: значение}), иначе начальные из пакета.
+     П20: личная — своя (acc), и у каждого персонажа — «имя@id». */
+  function sharedValues(game, vals, acc) {
     var out = {};
-    (game.shared || []).forEach(function (v) { out[v.name] = vals && vals.hasOwnProperty(v.name) ? vals[v.name] : v.value; });
+    (game.shared || []).forEach(function (v) {
+      out[v.name] = varValue(game, vals, v.name, acc);
+      if (v.personal) (game.accounts || []).forEach(function (a) { out[v.name + '@' + a.id] = varValue(game, vals, v.name, a.id); });
+    });
     return out;
   }
-  /* «{{имя}}» в тексте → значение общей переменной; да/нет — «да» / «нет»; неизвестное имя остаётся как есть. */
-  function fillVars(text, game, vals) {
+  /* «{{имя}}» в тексте → значение общей переменной; да/нет — «да» / «нет»; неизвестное имя остаётся как есть.
+     П20: личная — своя (acc); «{{имя@Инженер}}», «{{имя@#3}}» — у выбранного персонажа (Т12-3 А). */
+  function fillVars(text, game, vals, acc) {
     if (!text || String(text).indexOf('{{') < 0 || !game || !(game.shared || []).length) return text;
-    var v = sharedValues(game, vals);
-    return String(text).replace(/\{\{\s*\$?([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g, function (all, name) {
-      if (!v.hasOwnProperty(name)) return all;
-      var x = v[name];
+    return String(text).replace(/\{\{\s*\$?([A-Za-z_][A-Za-z0-9_]*)(?:@([^{}]+?))?\s*\}\}/g, function (all, name, ref) {
+      var sv = sharedVar(game, name);
+      if (!sv) return all;
+      var who = ref ? accRef(game, ref) : acc;
+      if (ref && !who) return all;
+      var x = varValue(game, vals, name, who);
       return x === true ? 'да' : x === false ? 'нет' : x == null ? '' : String(x);
     });
+  }
+  /* П20: в сообщениях центру «{{личная}}» — значение того, кто ввёл код или у кого сработало (центр подставит «имя@id»);
+     «{{личная@ссылка}}» — у выбранного (id). Без персонажа — как есть (телефон подставит своё при показе). */
+  function pvText(game, text, acc) {
+    if (typeof text !== 'string' || text.indexOf('{{') < 0) return text;
+    return text.replace(/\{\{\s*\$?([A-Za-z_][A-Za-z0-9_]*)(?:@([^{}]+?))?\s*\}\}/g, function (all, name, ref) {
+      var sv = sharedVar(game, name);
+      if (!sv || !sv.personal) return all;
+      var who = ref ? accRef(game, ref) : acc;
+      return who ? '{{' + name + '@' + who + '}}' : all;
+    });
+  }
+  function pvBody(game, o, acc) {
+    if (typeof o === 'string') return pvText(game, o, acc);
+    if (Array.isArray(o)) return o.map(function (x) { return pvBody(game, x, acc); });
+    if (o && typeof o === 'object') { var r = {}; Object.keys(o).forEach(function (k) { r[k] = pvBody(game, o[k], acc); }); return r; }
+    return o;
   }
 
   /* Сравнение общей переменной с числом или текстом (как в центре, SgCenter.test): числа — числами,
@@ -11535,19 +11700,22 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
     return false;
   }
   /* Условия кода «когда» (Т4-5): все верны? vals — значения центра ({имя: значение}). */
-  function whenOk(game, code, vals) {
+  function whenOk(game, code, vals, acc) {
     if (!code.when || !code.when.length) return true;
-    var v = sharedValues(game, vals);
-    return code.when.every(function (w) { return varTest(v[w.var], w.op, w.value); });
+    return code.when.every(function (w) { return varTest(whenValue(game, w, vals, acc), w.op, w.value); });
+  }
+  /* П20: значение для условия «когда»: своя или чужая (w.acc) личная, «за N мин» (w.win). */
+  function whenValue(game, w, vals, acc) {
+    var who = w.acc ? accRef(game, w.acc) || w.acc : acc;
+    return w.win ? winValue(game, vals, w.var, who, w.win) : varValue(game, vals, w.var, who);
   }
   /* Почему «когда» не выполнено (ответ по умолчанию, П15): «Энергия: нужно не меньше 8, сейчас 5». */
-  function whenWhy(game, code, vals) {
-    var v = sharedValues(game, vals);
-    var bad = (code.when || []).filter(function (w) { return !varTest(v[w.var], w.op, w.value); });
+  function whenWhy(game, code, vals, acc) {
+    var bad = (code.when || []).filter(function (w) { return !varTest(whenValue(game, w, vals, acc), w.op, w.value); });
     return bad.map(function (w) {
-      var sv = sharedVar(game, w.var), x = v[w.var], op = WHEN_OPS.filter(function (o) { return o[0] === (w.op || '='); })[0];
+      var sv = sharedVar(game, w.var), x = whenValue(game, w, vals, acc), op = WHEN_OPS.filter(function (o) { return o[0] === (w.op || '='); })[0];
       var show = function (y) { return y === true ? 'да' : y === false ? 'нет' : y == null || y === '' ? '—' : String(y); };
-      return (sv && sv.label || w.var) + ': нужно ' + (op ? op[1] : w.op) + ' ' + (w.value === '' ? '—' : w.value) + ', сейчас ' + show(x);
+      return (sv && sv.label || w.var) + (w.win ? ' за ' + w.win + ' мин' : '') + ': нужно ' + (op ? op[1] : w.op) + ' ' + (w.value === '' ? '—' : w.value) + ', сейчас ' + show(x);
     }).join('\n');
   }
   var WHEN_OPS = [['>=', 'не меньше'], ['<=', 'не больше'], ['>', 'больше'], ['<', 'меньше'], ['=', 'равно'], ['!=', 'не равно']];
@@ -11574,9 +11742,9 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
 
   /* Правила для центра: события терминала, таймеры от начала главы, повторы (В6, Е3). */
   function centerRules(game) {
-    var list = [];
-    function emit(actions) {
-      var x = expandActions(game, actions, { self: null, now: '{{now}}' });
+    var list = [], watched = {};
+    function emit(actions, hit) {
+      var x = expandActions(game, actions, { self: null, now: '{{now}}', hit: hit || null });
       return x.net.map(function (m) { var o = Object.assign({}, m); delete o.local; return o; });
     }
     function delayAll(items, ms) { return items.map(function (m) { var o = Object.assign({}, m); o.delay = (o.delay || 0) + ms; return o; }); }
@@ -11587,25 +11755,48 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
       else if (r.on === 'every' && r.minutes > 0) list.push({ id: r.id, on: 'every', every: r.minutes * 60000, chapters: r.chapters, emit: emit(r.actions) });
       else if (r.on === 'var' && r.var) {
         // П13 (Т4-3): общая переменная — когда условие станет верным (было ложным)
+        // П20: личная — правило у каждого персонажа своё (или только у r.acc), действия «тому, у кого сработало» — ему;
+        // «за N мин» — условие по сумме прибавлений за окно (снова — когда стало неверным и опять верным, Т13-4 А)
         var sv = sharedVar(game, r.var);
-        list.push({ id: r.id, on: 'state', key: 'var:' + r.var, test: { op: r.op || '=', value: termValue(r.value) }, init: sv ? sv.value : null,
-          chapters: r.chapters, emit: emit(r.actions) });
+        pvAccs(sv, r.acc).forEach(function (id) {
+          var part = id ? r.var + '@' + id : r.var;
+          if (r.win) watch(part, r.win);
+          list.push({ id: id ? r.id + '@' + id : r.id, on: 'state', key: r.win ? 'win:' + part + ':' + r.win : 'var:' + part, test: { op: r.op || '=', value: termValue(r.value) },
+            init: r.win ? 0 : sv ? initOf(sv, id) : null, chapters: r.chapters, emit: emit(r.actions, id) });
+        });
       }
-      else if (r.on === 'limit' && r.var) list.push({ id: r.id, on: 'limit', key: 'var:' + r.var, side: r.side || 'max', chapters: r.chapters, emit: emit(r.actions) });
+      else if (r.on === 'limit' && r.var) pvAccs(sharedVar(game, r.var), r.acc).forEach(function (id) {
+        list.push({ id: id ? r.id + '@' + id : r.id, on: 'limit', key: 'var:' + r.var + (id ? '@' + id : ''), side: r.side || 'max', chapters: r.chapters, emit: emit(r.actions, id) });
+      });
     });
-    // П15: пределы общих переменных — центр не даёт выйти за них (и сообщает правилам «упёрлась в предел»)
+    // П15: пределы общих переменных — центр не даёт выйти за них (и сообщает правилам «упёрлась в предел»); П20: у личной — у каждого свой
     limitedVars(game).forEach(function (name) {
-      var l = limitOf(game, name);
-      if (!l || (l.min === '' && l.max === '')) return;
-      var o = { id: 'lim-' + l.var, on: 'bounds', key: 'var:' + l.var, emit: [] };
-      if (l.min !== '') o.min = l.min;
-      if (l.max !== '') o.max = l.max;
-      list.push(o);
+      pvAccs(sharedVar(game, name), '').forEach(function (id) {
+        var l = limitOf(game, name, id);
+        if (!l || (l.min === '' && l.max === '')) return;
+        var o = { id: 'lim-' + l.var + (id ? '@' + id : ''), on: 'bounds', key: 'var:' + l.var + (id ? '@' + id : ''), emit: [] };
+        if (l.min !== '') o.min = l.min;
+        if (l.max !== '') o.max = l.max;
+        list.push(o);
+      });
     });
     // П16 (Т7-2): начальные значения общих переменных — центру, чтобы «{{имя}}» в уведомлении было числом и до первой записи
     (game.shared || []).forEach(function (v) {
-      if (v.value !== undefined && v.value !== null && v.value !== '') list.push({ id: 'init-' + v.name, on: 'init', key: 'var:' + v.name, value: termValue(v.value), emit: [] });
+      pvAccs(v, '').forEach(function (id) {
+        var x = initOf(v, id);
+        if (x !== undefined && x !== null && x !== '') list.push({ id: 'init-' + v.name + (id ? '@' + id : ''), on: 'init', key: 'var:' + v.name + (id ? '@' + id : ''), value: termValue(x), emit: [] });
+      });
     });
+    // П20: окна «за N мин» из шапки и условий «когда» — центр считает и шлёт win:…; личные — персонажи (номер для терминала)
+    ((game.header || {}).items || []).forEach(function (it) { if (it.win && sharedVar(game, it.var)) pvAccs(sharedVar(game, it.var), '').forEach(function (id) { watch(it.var + (id ? '@' + id : ''), it.win); }); });
+    (game.codes || []).forEach(function (c) { (c.when || []).forEach(function (w) { if (w.win && sharedVar(game, w.var)) pvAccs(sharedVar(game, w.var), w.acc).forEach(function (id) { watch(w.var + (id ? '@' + id : ''), w.win); }); }); });
+    Object.keys(watched).forEach(function (k) { list.push(watched[k]); });
+    if ((game.shared || []).some(function (v) { return v.personal; })) {
+      list.push({ id: 'accs', on: 'accs', list: (game.accounts || []).map(function (a) { return { id: a.id, num: a.num || '', name: a.name || '' }; }),
+        vars: (game.shared || []).filter(function (v) { return v.personal; }).map(function (v) { return v.name; }), emit: [] });
+    }
+    function pvAccs(sv, only) { return sv && sv.personal ? (only ? [only] : accIds(game)) : ['']; }
+    function watch(part, min) { var k = part + ':' + min; if (!watched[k]) watched[k] = { id: 'win-' + k, on: 'win', key: 'var:' + part, min: min, emit: [] }; }
     game.notices.forEach(function (n) {
       if (!n.chapter) return;
       list.push({ id: 'n-' + n.id, on: 'state', key: 'chapter', n: n.chapter,
@@ -11740,10 +11931,20 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
       else if (r.on === 'limit' && !limitOf(game, r.var)) warn('Правило «' + (r.name || r.var || '?') + '»: у переменной «' + r.var + '» нет предела — правило не сработает');
       if (r.on === 'var' && !sharedVar(game, r.var)) err('Правило «' + (r.name || r.var || '?') + '»: общей переменной «' + (r.var || '') + '» нет');
       if (r.on === 'phone' && !r.actions.length) warn('Правило «' + (r.name || '?') + '» (на телефоне): нет действий');
+      // П20: «у этого персонажа» — персонаж должен быть; «тому, у кого сработало» — только у правила по личной
+      if ((r.on === 'var' || r.on === 'limit') && r.acc && !byId(game.accounts, r.acc)) err('Правило «' + (r.name || r.var || '?') + '»: персонажа нет');
+      var pv = (r.on === 'var' || r.on === 'limit') && sharedVar(game, r.var) && sharedVar(game, r.var).personal;
+      if (!pv && (r.actions || []).some(function (a) { return a.to === 'hit'; })) warn('Правило «' + (r.name || '?') + '»: «тому, у кого сработало» — только у правила по личной переменной; здесь — всем');
     });
+    // П20 (основа 4): картинка и звук события — из медиа пакета
+    (game.notices || []).forEach(function (n) {
+      ['img', 'mp3'].forEach(function (k) { if (n[k] && files && !files[n[k]]) warn('Уведомление «' + (n.name || n.title || '?') + '»: файла «' + n[k] + '» нет в медиа'); });
+    });
+    ((game.ticker || {}).ads || []).forEach(function (id) { if (!byId(game.notices, id)) warn('Бегущая строка: в рекламе уведомления «' + id + '» нет'); });
     function varsIn(text, owner) {
-      String(text || '').replace(/\{\{\s*\$?([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g, function (all, n) {
+      String(text || '').replace(/\{\{\s*\$?([A-Za-z_][A-Za-z0-9_]*)(?:@([^{}]+?))?\s*\}\}/g, function (all, n, ref) {
         if (!sharedVar(game, n)) warn(owner + ': {{' + n + '}} — нет такой общей переменной («Общее» → «Общие переменные»)');
+        else if (ref && !accRef(game, ref)) warn(owner + ': {{' + n + '@' + ref + '}} — нет такого персонажа (имя, номер «#N» или id)');
         return all;
       });
     }
@@ -12044,6 +12245,7 @@ function findAlignmentPattern(matrix, alignmentPatternQuads, topRight, topLeft, 
     expandActions: expandActions,
     termValue: termValue,
     sharedVar: sharedVar,
+    normEvent: normEvent, EVENT_KEYS: EVENT_KEYS, accRef: accRef, varValue: varValue, winValue: winValue, initOf: initOf, maxOf: maxOf, accIds: accIds, pvKey: pvKey, whenValue: whenValue, WIN_MAX: WIN_MAX,
     MENU_TABS: MENU_TABS,
     normHeader: normHeader,
     menuTabs: menuTabs,
@@ -15332,6 +15534,8 @@ var qrcode = function() {
   if (plugin) {
     plugin.addListener('text', function (e) {
       if (e.idx < nativeIdx) return;
+      // П19: пропуск номера (сообщение не дошло до страницы) — забрать пропущенное из буфера службы по порядку
+      if (nativeIdx > 0 && e.idx > nativeIdx) { drain(); return; }
       nativeIdx = e.idx + 1;
       onText(e.text);
     });
@@ -15341,11 +15545,19 @@ var qrcode = function() {
       emit('link');
     });
     // пока страница спала, служба копила сообщения — забираем
+    var draining = false, drainAgain = false;
     var drain = function () {
-      plugin.drain({ from: nativeIdx }).then(function (r) {
-        (r.items || []).forEach(function (t) { onText(t); });
-        nativeIdx = Math.max(nativeIdx, r.next || 0);
-      }).catch(function () { /* служба ещё не готова */ });
+      if (draining) { drainAgain = true; return; }
+      draining = true;
+      var from = nativeIdx;
+      plugin.drain({ from: from }).then(function (r) {
+        draining = false;
+        var items = r.items || [], next = r.next || 0, first = next - items.length;
+        // пока шёл запрос, часть уже пришла событиями — их не повторять
+        items.forEach(function (t, i) { if (first + i >= nativeIdx) { nativeIdx = first + i + 1; onText(t); } });
+        nativeIdx = Math.max(nativeIdx, next);
+        if (drainAgain) { drainAgain = false; drain(); }
+      }).catch(function () { draining = false; /* служба ещё не готова */ });
     };
     document.addEventListener('visibilitychange', function () { if (!document.hidden) drain(); });
   } else {
@@ -15556,8 +15768,18 @@ var qrcode = function() {
       }
       box.appendChild(el);
     });
-    box.hidden = !hd.items.length;
-    var anyInfo = !!(hd.items.length || hd.info.length);
+    if (hd.more > 0) {
+      // П19: показатели сверх «не больше N» — в окне по нажатию; здесь — «+N»
+      var mo = document.createElement('span');
+      mo.className = 'hv hv-more';
+      mo.setAttribute('data-more', hd.more);
+      mo.textContent = '+' + hd.more;
+      box.appendChild(mo);
+    }
+    box.hidden = !hd.items.length && !hd.more;
+    $('bar').classList.toggle('bar-compact', hd.size === 'compact');
+    $('bar').classList.toggle('bar-large', hd.size === 'large');
+    var anyInfo = !!(hd.allItems.length || hd.info.length);
     $('bar').classList.toggle('tap', anyInfo || tapActive(hd, 'who'));
     $('bar-chap').classList.toggle('tap', tapActive(hd, 'chapter'));
     renderNetDot();
@@ -15578,11 +15800,11 @@ var qrcode = function() {
   P.headerInfo = function () {
     if (!acc()) return false;
     var hd = SG.headerFor(game, flatState());
-    if (!hd.items.length && !hd.info.length) return false;
+    if (!hd.allItems.length && !hd.info.length) return false;
     var L = [];
-    hd.items.forEach(function (it) {
+    hd.allItems.forEach(function (it) {
       var cells = it.cells && it.cells.length <= 40 ? ' ' + it.cells.map(function (on) { return on ? '■' : '□'; }).join('') : '';
-      L.push((it.label || it.name) + ': **' + it.text + '**' + cells + (it.over ? ' — ПЕРЕГРУЗКА' : '') + (it.layerOf && it.layer > 0 ? ' — СЛОЙ ' + (it.layer + 1) : '') + (it.low ? ' — НИЖЕ НОРМЫ' : ''));
+      L.push((it.label || it.name) + (it.win && !it.label ? ' за ' + it.win + ' мин' : '') + ': **' + it.text + '**' + cells + (it.over ? ' — ПЕРЕГРУЗКА' : '') + (it.layerOf && it.layer > 0 ? ' — СЛОЙ ' + (it.layer + 1) : '') + (it.low ? ' — НИЖЕ НОРМЫ' : ''));
     });
     hd.info.forEach(function (s) {
       if (L.length) L.push('');
@@ -15598,8 +15820,8 @@ var qrcode = function() {
     var t = hd.taps[zone];
     if (t.kind === 'none') return false;
     if (t.kind !== 'auto') return true;
-    if (zone === 'who') return hd.profile || !!(hd.items.length || hd.info.length);
-    return !!hd.about || !!(hd.items.length || hd.info.length);
+    if (zone === 'who') return true;   // П19: досье (или «досье пусто») есть всегда
+    return !!hd.about || !!(hd.allItems.length || hd.info.length);
   }
   function runTap(t, auto) {
     if (!t || t.kind === 'none') return false;
@@ -15612,7 +15834,7 @@ var qrcode = function() {
     if (!acc()) return false;
     var hd = SG.headerFor(game, flatState()), a = acc();
     if (zone === 'item') {
-      var it = hd.items.filter(function (x) { return x.id === varId; })[0];
+      var it = hd.allItems.filter(function (x) { return x.id === varId; })[0];
       if (!it) return P.headerInfo();
       return runTap(it.tap, function () {
         var L = ['Сейчас: **' + it.text + '**' + (it.cells && it.max ? ' из ' + it.max + (it.layers ? ' · слой ' + (it.layer + 1) + ' из ' + it.layers.length : '') : '')];
@@ -15632,21 +15854,27 @@ var qrcode = function() {
       return true;
     });
     return runTap(hd.taps.who, function () {
-      if (!hd.profile) return P.headerInfo();
+      // П19 (замечание 4): нажатие на имя — всегда досье; профиля нет — «досье пусто», а не общая сводка
       P.sound('key');
       var box = document.createElement('div');
       box.className = 'profile';
-      box.appendChild(renderItems(a.items));
+      if (hd.profile) box.appendChild(renderItems(a.items));
+      else { var em = document.createElement('p'); em.className = 'hint profile-empty'; em.textContent = 'Досье пусто.'; box.appendChild(em); }
       dialog({ title: 'ДОСЬЕ: ' + (a.name || ''), cls: 'hinfo', html: box });
       return true;
     });
   };
   $('bar').addEventListener('click', function (e) {
     if (e.target.closest && e.target.closest('#bar-net, #bar-voice, #bar-color, button')) return;
-    var hv = e.target.closest && e.target.closest('#bar-vars .hv');
+    var hv = e.target.closest && e.target.closest('#bar-vars .hv:not(.hv-more)');
     if (hv) { P.headerTap('item', hv.getAttribute('data-id')); return; }
     if (e.target.closest && e.target.closest('#bar-chap')) { P.headerTap('chapter'); return; }
     if (e.target.closest && e.target.closest('.who')) { P.headerTap('who'); return; }
+    if (e.target.closest && e.target.closest('#bar-vars')) { P.headerInfo(); return; }   // «+N» и промежутки между показателями — сводка
+    // П19: место имени — весь левый верхний угол шапки (первая строка до главы, с отступами шапки)
+    var vb = $('bar-vars'), top = vb.hidden ? Infinity : vb.getBoundingClientRect().top;
+    var br = $('bar').querySelector('.bar-r').getBoundingClientRect();
+    if (e.clientY < top && e.clientX < br.left) { P.headerTap('who'); return; }
     P.headerInfo();
   });
   function renderNetDot() {
@@ -15687,6 +15915,7 @@ var qrcode = function() {
     }
     // П17 (Т8-5 А): скрытые блоки в списке не видны — их показывает только код
     var list = SG.visibleBlocks(game, flatState()).filter(function (b) { return !b.hidden; });
+    if (P.evBlocks) list = list.concat(P.evBlocks());   // П20 (Т21-8 А): открытые события — папка «События» (или своя)
     var seen = mine().seen;
     // папка, в которой стоит игрок; если её больше нет (блоки закрыли) — поднимаемся выше
     while (folder.length && !SG.folderLevel(list, folder).length) folder.pop();
@@ -15833,6 +16062,7 @@ var qrcode = function() {
     if (!top) return;
     $(top.id).classList.remove('on');
     if (top.onClose) top.onClose();
+    hook('closed', top.id);   // П20 (Т18-2 А): очередь показа — следующее событие после закрытия окна
   }
   window.addEventListener('popstate', function () {
     armed = false;
@@ -15970,9 +16200,11 @@ var qrcode = function() {
   function setChapter(n, at) {
     var ch = game.chapters[n - 1];
     if (!ch) return;
+    var was = state.chapter;
     state.chapter = n;
     state.chapterAt = at || Net.now();
     save();
+    if (was !== n) hook('chapter', n);
     glitch();
     P.sound('glitch');
     setTimeout(function () {
@@ -16012,7 +16244,7 @@ var qrcode = function() {
       if (!SG.pickVariant(code, flatState()) && code.who.length && code.who.indexOf(state.account) < 0) { hook('voiceCode', code); return true; }
     }
     var r = { kind: 'code', code: code, ok: true, variant: SG.pickVariant(code, flatState()), voice: true, noNet: !!netDone };
-    if (!SG.whenOk(game, code, state.vars)) {
+    if (!SG.whenOk(game, code, state.vars, state.account)) {
       if (code.whenMode === 'wrong') { hook('voiceCode', code); return true; }   // П15: «как неверный код» — голосом молча
       r.ok = false; r.cond = false;
     }
@@ -16025,6 +16257,7 @@ var qrcode = function() {
     return true;
   }
 
+  var finishing = null;   // П19: код выполняется — скрытый прибор ждёт решения про окно ответа
   function finish(r, n, claim, ap) {
     var o = SG.codeOutcome(game, flatState(), r, n, claim);
     var m = mine();
@@ -16033,15 +16266,40 @@ var qrcode = function() {
     renderData();
     var bad = ['denied', 'empty', 'mine', 'offline', 'wait'].indexOf(o.kind) >= 0;
     var hadDlg = $('dlg').classList.contains('on');
-    if (o.kind === 'open' || o.kind === 'already') doActions(o.actions, r.noNet);
+    var was = finishing;
+    finishing = { app: null };
+    try { if (o.kind === 'open' || o.kind === 'already') doActions(o.actions, r.noNet); }
+    finally { var hid = finishing.app; finishing = was; }
     // терминалу Twine: «на телефоне ввели код» (условие «пришло с телефона», сессия П9)
     if (o.kind === 'open' && Net.url && r.code && !(r.voice && r.code.term)) {
       var tm = SG.termCodeMsg(game, r.code, state.account, !!r.voice);
       Net.msg(tm.to, tm.kind, tm.body);
     }
     var text = o.text || '';
+    // П20 (Т15): «После ввода» у кода — 'now' — сразу открыть то, что открыл код (первое по порядку: прибор, блок), без окна;
+    // отказ — всегда окном (Т15-2 А); голос — по тому же полю (Т15-3 А). 'window' — всегда окно ответа (и прибор после OK).
+    var after = r.code && r.code.after || '';
+    if (after === 'now' && !bad) {
+      P.sound('ok');
+      if (hid) { if (P.openApp) P.openApp(hid); return; }
+      if (o.blocks.length) { if (o.fresh.length) glitch(); openBlock(o.blocks[0]); return; }
+      return;
+    }
+    if (after === 'window' && hid && !bad) {
+      P.sound('ok');
+      dialog({ title: o.title, text: text, blocks: o.blocks, buttons: [{ label: 'OK', fn: function () { if (P.openApp) P.openApp(hid); } }] });
+      return;
+    }
+    // П19 (замечание 2): код открыл скрытый прибор — без своего ответа прибор сразу на экране, окна «ДОСТУП ОТКРЫТ» нет;
+    // со своим ответом — сначала окно, прибор — после его закрытия (одно нажатие не путает порядок окон)
+    if (hid && !bad) {
+      if (!text && !o.blocks.length) { P.sound('ok'); if (P.openApp) P.openApp(hid); return; }
+      P.sound('ok');
+      dialog({ title: o.title, text: text, blocks: o.blocks, buttons: [{ label: 'OK', fn: function () { if (P.openApp) P.openApp(hid); } }] });
+      return;
+    }
     // голосом, без ответа и блоков: окно показывает только само действие (сбой, уведомление); иначе — тихо
-    if (r.voice && !bad && !text && !o.blocks.length) { if (!hadDlg && !$('dlg').classList.contains('on')) P.sound('ok'); return; }
+    if (r.voice && !bad && !text && !o.blocks.length && after !== 'window') { if (!hadDlg && !$('dlg').classList.contains('on')) P.sound('ok'); return; }
     // код без своего ответа, но с действием, которое само показало окно (прибор, данные) — окно действия главнее
     if (!bad && !text && !o.blocks.length && !hadDlg && $('dlg').classList.contains('on')) { P.sound('ok'); return; }
     if (o.left != null) text += (text ? '\n\n' : '') + '**ОСТАЛОСЬ: ' + o.left + '**';
@@ -16104,7 +16362,8 @@ var qrcode = function() {
     if (!o.local && !toMe(o.to)) return;          // мастерский телефон видит всё, но выполняет только своё
     var b = byName(o.kind, o.body || {});
     var m = state.account ? mine() : null;
-    if (o.kind === 'notify') { P.notice(b.title, b.text, o); return; }
+    if (o.kind === 'notify') { if (P.event) P.event(b, o); else P.notice(b.title, b.text, o); return; }
+    if (o.kind === 'unticker') { if (P.untick) P.untick(b.ev || ''); return; }
     if (o.kind === 'torch' || o.kind === 'beep') { if (P.phoneFx) P.phoneFx(o.kind, b); return; }   // П16: вспышка, короткий сигнал
     if (!m) return;
     if (o.kind === 'open') {
@@ -16124,7 +16383,12 @@ var qrcode = function() {
       save();
       renderModules();
       var ap = SG.byId(game.apps, b.id);
-      if (ap && ap.hidden && SG.allowed(ap.who, state.account)) { setTimeout(function () { if (P.openApp) P.openApp(ap); }, 350); return; }   // П17: скрытый прибор — сразу на экране
+      if (ap && ap.hidden && SG.allowed(ap.who, state.account)) {
+        // П17: скрытый прибор — сразу на экране. П19: открыт кодом — без окна ответа (или после него), см. finish()
+        if (finishing) { finishing.app = ap; return; }
+        setTimeout(function () { if (P.openApp) P.openApp(ap); }, 350);
+        return;
+      }
       if (ap && SG.allowed(ap.who, state.account)) { P.sound('note'); dialog({ title: 'ДОСТУПЕН ПРИБОР', text: '**' + ap.name + '**\n\nВкладка «ПРИБОРЫ».' }); }
     } else if (o.kind === 'signed') {
       var p = m.pendingSign[b.key];
@@ -16138,13 +16402,14 @@ var qrcode = function() {
   }
 
   /* П13 (Т4-3): общие переменные — состояние центра «var:имя»; на телефоне — копия state.vars, «{{имя}}» в текстах. */
-  function fillVars(text) { return game ? SG.fillVars(text, game, state && state.vars) : text; }
+  function fillVars(text) { return game ? SG.fillVars(text, game, state && state.vars, state && state.account) : text; }
   P.fillVars = fillVars;
   var varsPaint = 0;
   function onState(key, value) {
     if (!game) return;
-    if (/^var:/.test(key)) {
-      var vn = key.slice(4);
+    // П20: личные (var:имя@id) — так же, «за N мин» (win:имя[@id]:N) — в state.vars под ключом «win:…»
+    if (/^var:|^win:/.test(key)) {
+      var vn = /^var:/.test(key) ? key.slice(4) : key;
       state.vars = state.vars || {};
       if (value === null || value === undefined) delete state.vars[vn]; else state.vars[vn] = value;
       saveSoon();
@@ -16714,6 +16979,7 @@ var qrcode = function() {
     renderBar: renderBar, applyTheme: applyTheme, dialog: dialog, closeTop: closeTop, pushLayer: pushLayer, stack: stack, glitch: glitch, zoom: zoom, setTab: setTab,
     enter: enter, voiceCode: voiceCode, doActions: doActions, toMe: toMe, onMsg: onMsg, onState: onState, helloNet: helloNet, startNet: startNet, setChapter: setChapter,
     hasModule: hasModule, modState: modState, scanCb: function () { return scan.cb; }, makePad: makePad, scanOverlay: scanOverlay, startCam: startCam, stopCam: stopCam,
+    mediaUrl: function (name) { return urls[name] || ''; },   // П20: картинка и mp3 события
     renderItems: renderItems, openBlock: openBlock, itemButton: itemButton, fresh: fresh, master: master, sstvCode: null
   });
   // для проверок
@@ -17205,7 +17471,7 @@ var qrcode = function() {
   };
 
   /* ---------- аварийный режим (Ж) ---------- */
-  var alarm = null, siren = null;
+  var alarm = null, siren = null, alarmAll = null, alarmMine = null;
   function alarmApply(v) {
     var was = alarm && alarm.on;
     alarm = v && v.on ? v : null;
@@ -17333,7 +17599,9 @@ var qrcode = function() {
   /* ---------- состояние сети: авария, отсчёт, голосование ---------- */
   var countdown = null, vote = null;
   P.on('state', function (key, v) {
-    if (key === 'alarm') alarmApply(v);
+    if (key === 'alarm') { alarmAll = v; alarmApply(alarmMine && alarmMine.on ? alarmMine : v); }
+    // П20 (Т20-3 А): авария одному телефону — «alarm@<персонаж>»; своя перебивает общую, снимается только на этом телефоне
+    else if (P.state && P.state.account && key === 'alarm@' + P.state.account) { alarmMine = v; alarmApply(v && v.on ? v : alarmAll); }
     else if (key === 'countdown') { countdown = v && v.on ? v : null; banners(); }
     else if (key === 'vote') voteState(v);
   });
@@ -17531,6 +17799,175 @@ var qrcode = function() {
     box.appendChild(p);
     P.dialog({ title: 'ПЕРЕДАТЬ: ' + (b.title || ''), html: box });
   };
+})();
+
+</script>
+<script>
+/* СИГНАЛЫ — П20, основа 4: содержимое событий, очередь показа, бегущая строка, архив событий.
+   Событие = уведомление с полями из SG.normEvent: картинка (img), mp3, «играть сразу», «в строку» (ticker),
+   открывается ли (open), проходов (repeat), когда уходит (leaveMin / leaveOpen / leaveChapter), архив (save, folder). */
+(function () {
+  'use strict';
+  var P = window.SGP, SG = window.SG, Net = window.SGNet;
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ---------- очередь показа (Т18-2 А): новое ждёт закрытия открытого окна; авария и сбой — поверх (свои слои) ---------- */
+  var queue = [];
+  function busy() { return $('dlg').classList.contains('on'); }
+  function later(fn) { if (busy()) queue.push(fn); else fn(); }
+  P.later = later;
+  P.on('closed', function () {
+    setTimeout(function () { if (!busy() && queue.length) queue.shift()(); }, 60);
+  });
+
+  /* ---------- звук события (Т21-5 А): при приходе — короткий сигнал, mp3 — по нажатию; «играть сразу» — mp3 при приходе ---------- */
+  var playing = null;
+  function urlOf(name) { return name && P.mediaUrl ? P.mediaUrl(name) : ''; }
+  function play(name) {
+    var u = urlOf(name);
+    if (!u) return;
+    try { if (playing) playing.pause(); playing = new Audio(u); playing.play().catch(function () {}); } catch (e) { /* без звука */ }
+  }
+
+  /* Содержимое события как блок: текст, картинка, звук (для окна и архива). */
+  function items(b) {
+    var out = [];
+    if (b.text) out.push({ type: 'text', text: b.text });
+    if (b.img) out.push({ type: 'image', file: b.img });
+    if (b.mp3) out.push({ type: 'audio', file: b.mp3, title: 'ЗВУК' });
+    return out;
+  }
+  function showFull(b, o) {
+    var jam = P.jamLevel ? P.jamLevel() : 0, seed = o && o.seq ? o.seq : Date.now();
+    var html = P.renderItems(items(Object.assign({}, b, { text: SG.jam(P.fillVars(b.text || ''), jam, seed) })));
+    P.dialog({ title: SG.jam(P.fillVars(b.title) || 'СООБЩЕНИЕ', jam, seed + 't'), cls: 'notice', html: html });
+    archive(b);
+  }
+
+  /* ---------- событие пришло ---------- */
+  P.event = function (b, o) {
+    b = b || {};
+    var rich = b.img || b.mp3 || b.ticker;
+    if (!rich) { later(function () { P.notice(b.title, b.text, o); }); return; }
+    if (navigator.vibrate) navigator.vibrate([120, 60, 120]);
+    if (b.playNow && b.mp3) play(b.mp3); else P.sound('note');
+    if (b.ticker) { tickAdd(b, o); return; }
+    later(function () { showFull(b, o); });
+  };
+
+  /* ---------- архив событий (Т21-8 А): открытые — в «Данных», папка «События» или своя; «не сохранять» — нет ---------- */
+  function archive(b) {
+    if (!P.acc() || b.save === false) return;
+    var m = P.mine();
+    m.events = m.events || [];
+    var id = 'ev-' + (b.ev || '') + '-' + (b.title || '').slice(0, 20) + '-' + (b.text || '').length;
+    if (m.events.some(function (x) { return x.id === id; })) return;
+    m.events.push({ id: id, at: Date.now(), title: P.fillVars(b.title || 'СОБЫТИЕ'), text: P.fillVars(b.text || ''), img: b.img || '', mp3: b.mp3 || '', folder: b.folder || '' });
+    if (m.events.length > 200) m.events.shift();
+    P.save();
+    P.renderData();
+  }
+  P.evBlocks = function () {
+    if (!P.acc()) return [];
+    return (P.mine().events || []).map(function (e) {
+      return { id: e.id, title: e.title, section: e.folder || 'События', items: items(e), who: [], chapter: 1, event: true };
+    });
+  };
+
+  /* ---------- бегущая строка (Т18-3 А, Т21-2 А): лента последних K событий по кругу ---------- */
+  var list = [], cur = -1, runEl = null, anim = 0, adsT = 0, adsN = 0;
+  function cfg() { return (P.game && P.game.ticker) || { speed: 60, k: 5, chapter: 1, who: [] }; }
+  function visible() {
+    var c = cfg(), st = P.state;
+    if (!st || !st.account) return false;
+    if ((st.chapter || 1) < (c.chapter || 1)) return false;
+    return !(c.who || []).length || c.who.indexOf(st.account) >= 0;
+  }
+  function tickAdd(b, o) {
+    var it = { b: b, at: Date.now(), left: b.repeat > 0 ? b.repeat : -1, ch: P.state && P.state.chapter || 1, seq: o && o.seq };
+    // одно и то же событие не дублируется — новое занимает его место
+    list = list.filter(function (x) { return !(b.ev && x.b.ev === b.ev); });
+    list.push(it);
+    while (list.length > cfg().k) list.shift();   // без настроек «когда уходит» — вытесняется новыми
+    if (b.leaveMin > 0) setTimeout(function () { drop(it); }, b.leaveMin * 60000);
+    if (cur < 0 || !runEl) next(list.length - 1);
+  }
+  function drop(it) {
+    var i = list.indexOf(it);
+    if (i < 0) return;
+    list.splice(i, 1);
+    if (i < cur) cur--;
+    if (i === cur) next(cur);
+  }
+  P.untick = function (ev) {
+    list = list.filter(function (x) { return ev && x.b.ev !== ev; });
+    cur = -1;
+    next(0);
+  };
+  P.tickerList = function () { return list.map(function (x) { return { title: x.b.title, text: x.b.text, ev: x.b.ev || '', left: x.left }; }); };
+  function next(i) {
+    var box = $('ticker');
+    cancelAnimationFrame(anim);
+    if (!list.length || !visible()) { box.hidden = true; cur = -1; runEl = null; return; }
+    cur = ((i % list.length) + list.length) % list.length;
+    var it = list[cur], c = cfg();
+    box.hidden = false;
+    box.style.color = c.color || '';
+    box.style.borderColor = c.color || '';
+    runEl = box.querySelector('.tk-run');
+    runEl.textContent = P.fillVars([it.b.title, it.b.text].filter(Boolean).join(' · ').replace(/\s*\n+\s*/g, ' · '));
+    runEl.dataset.ev = it.b.ev || '';
+    var w = box.clientWidth || 360, tw = runEl.scrollWidth || 200, x = w, t0 = 0;
+    function step(t) {
+      if (!t0) t0 = t;
+      x = w - (t - t0) / 1000 * c.speed;
+      runEl.style.transform = 'translateX(' + Math.round(x) + 'px)';
+      if (x < -tw) {
+        if (it.left > 0) it.left--;
+        if (it.left === 0) { drop(it); return; }
+        next(cur + 1);
+        return;
+      }
+      anim = requestAnimationFrame(step);
+    }
+    anim = requestAnimationFrame(step);
+  }
+  $('ticker').addEventListener('click', function () {
+    var it = list[cur];
+    if (!it || it.b.open === false) return;
+    if (it.b.mp3 && !it.b.playNow) play(it.b.mp3);
+    showFull(it.b, { seq: it.seq });
+    if (it.b.leaveOpen) drop(it);
+  });
+  P.on('chapter', function () {
+    list = list.filter(function (x) { return !x.b.leaveChapter; });
+    next(cur < 0 ? 0 : cur);
+  });
+  P.on('route', function () { if (cur < 0 || !list.length) next(0); else if (!visible()) next(0); });
+
+  /* ---------- реклама по расписанию (Т21-4 А): каждые N мин — следующее событие из списка (по порядку или случайно) ---------- */
+  function adsTick() {
+    clearTimeout(adsT);
+    var c = cfg();
+    if (!c.adsEvery || !(c.ads || []).length || !P.game) return;
+    adsT = setTimeout(function () {
+      if (visible()) {
+        var ids = c.ads, id = c.adsOrder === 'random' ? ids[Math.floor(Math.random() * ids.length)] : ids[adsN++ % ids.length];
+        var n = SG.byId(P.game.notices, id);
+        if (n) {
+          var b = { title: n.title, text: n.text, ev: n.id };
+          SG.EVENT_KEYS.forEach(function (k) { b[k] = n[k]; });
+          b.ticker = true;
+          b.playNow = false;
+          tickAdd(b, null);
+        }
+      }
+      adsTick();
+    }, c.adsEvery * 60000);
+  }
+  P.on('login', adsTick);
+  P.on('pack', adsTick);
+  setTimeout(adsTick, 1000);
 })();
 
 </script>
@@ -18066,9 +18503,44 @@ var qrcode = function() {
     var v = document.createElement('div');
     v.className = 'note-view';
     v.textContent = n.text;
-    P.dialog({ title: (n.text.split('\n')[0] || 'ЗАМЕТКА').slice(0, 40), html: v, buttons: [
-      { label: 'Готово', fn: renderNotes }, { label: 'Править', cls: 'dim', fn: function () { setTimeout(function () { editNote(n); }, 0); } }] });
+    var bt = [{ label: 'Готово', fn: renderNotes }, { label: 'Править', cls: 'dim', fn: function () { setTimeout(function () { editNote(n); }, 0); } }];
+    // П20 (Т9-6 Б, Т11-5 А, Т16): у тестировщика — «Отправить мастеру»: весь текст + сборка, персонаж, время → «ПЕРЕПИСКА» пульта
+    var a = P.acc();
+    if (a && a.tester) {
+      var st = document.createElement('p');
+      st.className = 'hint rep-state';
+      st.textContent = repText(n);
+      v.appendChild(st);
+      bt.splice(1, 0, { label: 'Отправить мастеру', cls: 'dim', fn: function () { sendReport(n); setTimeout(function () { viewNote(n); }, 0); } });
+    }
+    P.dialog({ title: (n.text.split('\n')[0] || 'ЗАМЕТКА').slice(0, 40), html: v, buttons: bt });
   }
+  function repText(n) {
+    var r = n.rep;
+    if (!r) return 'Мастеру ещё не отправлялась.';
+    return (r.ok ? 'Отправлено мастеру ✓ ' : 'Ждёт связи… (отправится сама) ') + hhmm(r.at);
+  }
+  function sendReport(n) {
+    var a = P.acc();
+    var body = { text: n.text, report: { build: window.SG_APP_VERSION || '', title: (n.text.split('\n')[0] || '').slice(0, 80), acc: P.state.account, name: a ? a.name : '', at: Date.now() } };
+    n.rep = { at: Date.now(), ok: false, body: body };
+    if (Net.url) n.rep.id = Net.msg(['role:master'], 'report', body);
+    P.save();
+  }
+  Net.on('welcome', function () {
+    // без связи кнопку нажали — отправить, как только центр на связи
+    if (!P.acc()) return;
+    (P.mine().notes || []).forEach(function (n) { if (n.rep && !n.rep.ok && !n.rep.id && n.rep.body) { n.rep.id = Net.msg(['role:master'], 'report', n.rep.body); P.saveSoon(); } });
+  });
+  Net.on('ack', function (ak) {
+    if (!P.acc()) return;
+    (P.mine().notes || []).forEach(function (n) {
+      if (!n.rep || n.rep.id !== ak.id) return;
+      n.rep.ok = true; n.rep.at = Date.now(); P.saveSoon();
+      var st = document.querySelector('#dlg.on .rep-state');
+      if (st) st.textContent = repText(n);
+    });
+  });
   function editNote(n) {
     var ta = document.createElement('textarea');
     ta.className = 'note-ed';
@@ -18175,8 +18647,70 @@ var qrcode = function() {
   }
   function varsNow() {
     var o = {};
-    Object.keys(Net.state || {}).forEach(function (k) { if (/^var:/.test(k)) o[k.slice(4)] = Net.state[k]; });
+    Object.keys(Net.state || {}).forEach(function (k) { if (/^var:/.test(k)) o[k.slice(4)] = Net.state[k]; else if (/^win:/.test(k)) o[k] = Net.state[k]; });
     return o;
+  }
+  /* ---------- П20: личные переменные на пульте ---------- */
+  var pvSel = {}, pvForm = { v: '', val: '' }, pvLog = [];
+  try { pvLog = JSON.parse(localStorage.getItem('sg-pvlog') || '[]') || []; } catch (e) { pvLog = []; }
+  function winsOf(g, name) {
+    var out = [];
+    ((g.header || {}).items || []).forEach(function (it) { if (it.var === name && it.win && out.indexOf(it.win) < 0) out.push(it.win); });
+    (g.rules || []).forEach(function (r) { if (r.on === 'var' && r.var === name && r.win && out.indexOf(r.win) < 0) out.push(r.win); });
+    (g.codes || []).forEach(function (c) { (c.when || []).forEach(function (w) { if (w.var === name && w.win && out.indexOf(w.win) < 0) out.push(w.win); }); });
+    return out.sort(function (a, b) { return a - b; });
+  }
+  Net.on('state', function (key, value) {
+    var g = P.game;
+    if (!g || !/^var:[^@]+@/.test(key)) return;
+    var m = key.slice(4).split('@'), a = SG.byId(g.accounts, m[1]), sv = SG.sharedVar(g, m[0]);
+    if (!a || !sv || !sv.personal) return;
+    var last = pvLog[0];
+    if (last && last.k === key && last.v === value) return;
+    pvLog.unshift({ k: key, t: Date.now(), who: a.name || a.id, n: sv.label || sv.name, v: value });
+    if (pvLog.length > 50) pvLog.length = 50;
+    try { localStorage.setItem('sg-pvlog', JSON.stringify(pvLog)); } catch (e) {}
+  });
+  function personalCard(g, pvs) {
+    var vals = varsNow();
+    if (!pvForm.v || !SG.sharedVar(g, pvForm.v)) pvForm.v = pvs[0].name;
+    var head = h('tr', {}, h('th', { text: '' }), h('th', { text: 'Персонаж' }), pvs.map(function (v) {
+      var w = winsOf(g, v.name);
+      return h('th', { text: (v.label || v.name) + (w.length ? ' (за ' + w.join('/') + ' мин)' : '') });
+    }));
+    var rows = g.accounts.map(function (a) {
+      var cb = h('input', { type: 'checkbox', 'data-acc': a.id });
+      cb.checked = !!pvSel[a.id];
+      cb.addEventListener('change', function () { pvSel[a.id] = cb.checked; });
+      return h('tr', {}, h('td', {}, cb), h('td', { text: a.name || a.id }), pvs.map(function (v) {
+        var x = SG.varValue(g, vals, v.name, a.id), mx = SG.maxOf(v, a.id, 0);
+        var w = winsOf(g, v.name).map(function (n) { return fmtVar(SG.winValue(g, vals, v.name, a.id, n)); });
+        return h('td', { class: 'pv-cell', 'data-var': v.name, 'data-acc': a.id, text: fmtVar(x) + (mx ? '/' + mx : '') + (w.length ? ' · ' + w.join('/') : '') });
+      }));
+    });
+    var vs = sel(pvs.map(function (v) { return [v.name, v.label || v.name]; }), pvForm.v);
+    vs.addEventListener('change', function () { pvForm.v = vs.value; });
+    var inp = h('input', { type: 'text', class: 'cin pv-val', value: pvForm.val, placeholder: 'значение' });
+    inp.addEventListener('input', function () { pvForm.val = inp.value; });
+    function chosen() {
+      var ids = g.accounts.filter(function (a) { return pvSel[a.id]; }).map(function (a) { return a.id; });
+      if (!ids.length) { P.dialog({ title: 'НИКТО НЕ ВЫБРАН', warn: true, text: 'Отметьте персонажей галочками.' }); return null; }
+      return ids;
+    }
+    function act(o) { if (!need()) return; var ids = chosen(); if (!ids) return; P.doActions([Object.assign({ type: 'term', name: pvForm.v, accs: ids }, o)]); done(); }
+    var log = pvLog.slice(0, 50).map(function (e) {
+      var d = new Date(e.t);
+      return h('div', { class: 'pv-log', text: ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ':' + ('0' + d.getSeconds()).slice(-2) + ' · ' + e.who + ' · ' + e.n + ' = ' + fmtVar(e.v) });
+    });
+    return card('ЛИЧНЫЕ ПЕРЕМЕННЫЕ',
+      h('div', { class: 'pv-wrap' }, h('table', { class: 'pv-table' }, head, rows)),
+      h('div', { class: 'row2' }, btn('Выбрать всех', function () { g.accounts.forEach(function (a) { pvSel[a.id] = true; }); render(); }, 'dim'),
+        btn('Снять выбор', function () { pvSel = {}; render(); }, 'dim')),
+      h('label', { class: 'field' }, 'Переменная', vs),
+      h('div', { class: 'row2' }, btn('−1 выбранным', function () { act({ op: 'add', value: -1 }); }, 'dim'), btn('+1 выбранным', function () { act({ op: 'add', value: 1 }); }, 'dim')),
+      h('div', { class: 'row2' }, inp, btn('Записать выбранным', function () { act({ value: SG.termValue(pvForm.val) }); }, 'dim')),
+      h('p', { class: 'hint', text: 'У каждого персонажа своё значение (видят центр, пульт и терминал). Через «·» — сумма прибавлений за окно «за N мин». В текстах: {{имя}} — своё, {{имя@Имя персонажа}} или {{имя@#номер}} — чужое.' }),
+      h('div', { class: 'ct2', text: 'ИЗМЕНЕНИЯ (последние ' + log.length + ')' }), log.length ? log : h('p', { class: 'hint', text: 'Пока нет.' }));
   }
   function fmtVar(x) { return x === true ? 'да' : x === false ? 'нет' : x == null ? '—' : String(x); }
   function card(title) { return h('div', { class: 'ccard' }, h('div', { class: 'ct', text: title }), Array.prototype.slice.call(arguments, 1)); }
@@ -18225,7 +18759,7 @@ var qrcode = function() {
     b.style.display = P.state && P.state.masterDev ? '' : 'none';
   });
   P.on('msg', function (o) {
-    if (o.kind === 'chat' || o.kind === 'notify' || o.kind === 'vote-close' || o.kind === 'event') {
+    if (o.kind === 'chat' || o.kind === 'notify' || o.kind === 'vote-close' || o.kind === 'event' || o.kind === 'report') {
       log.push(o);
       if (log.length > 500) log.shift();
       if (tab === 'log' && $('console').classList.contains('on')) render();
@@ -18331,15 +18865,15 @@ var qrcode = function() {
       plugin ? btn('Разрешить работу в фоне (батарея)', function () { plugin.battery({ ask: true }); }, 'dim') : null));
 
     // телефоны
-    var peers = (Net.peers || []).slice().sort(function (a, b) { return (b.online ? 1 : 0) - (a.online ? 1 : 0); });
+    var peers = peerList();
     var terms = peers.filter(function (p) { return p.role === 'terminal'; });
     var termOn = terms.some(function (p) { return p.online; });
-    box.appendChild(card('ТЕЛЕФОНЫ В СЕТИ (' + peers.filter(function (p) { return p.online; }).length + ' из ' + peers.length + ')',
+    box.appendChild(card('В СЕТИ · ' + netCount(peers),
       st.masterDev ? h('div', { class: 'row2' }, h('span', { class: 'term-line', text: 'Терминал: ' + (termOn ? '● в сети' : terms.length ? '○ нет связи' : '○ не подключался') }),
         btn('Записать в терминал', function () { tab = 'game'; render(); setTimeout(function () { var x = document.querySelector('#console .term-name'); if (x) { x.scrollIntoView(); x.focus(); } }, 50); }, 'dim')) : null,
       st.masterDev ? (peers.length ? h('div', { class: 'peers' }, peers.map(function (p) {
         var ago = p.online ? '' : ' · ' + Math.round((Net.now() - p.last) / 60000) + ' мин назад';
-        return h('div', { class: 'peer' + (p.online ? ' on' : '') }, h('span', { text: (p.online ? '● ' : '○ ') + (p.role === 'terminal' ? 'ТЕРМИНАЛ' : p.role === 'master' ? 'МАСТЕР' : accName(p.acc)) }),
+        return h('div', { class: 'peer' + (p.online ? ' on' : '') }, h('span', { text: (p.online ? '● ' : '○ ') + (p.dev === st.dev ? 'ЭТОТ ТЕЛЕФОН · ' : '') + (p.role === 'terminal' ? 'ТЕРМИНАЛ' : p.role === 'master' ? 'МАСТЕР' + (p.acc ? ' · ' + accName(p.acc) : '') : accName(p.acc)) }),
           h('span', { class: 'sm', text: (p.name && p.role !== 'phone' ? p.name : '') + ago }));
       })) : h('p', { class: 'hint', text: 'Пока никого.' })) : h('p', { class: 'hint', text: 'Список виден на мастерском телефоне (галочка выше).' })));
   }
@@ -18452,22 +18986,35 @@ var qrcode = function() {
     return +pk.v < +g.version ? 'old' : +pk.v > +g.version ? 'new' : '';
   };
   var heardFilter = '';
-  function pPhones(box) {
-    var st = P.state, g = P.game;
-    if (!st.masterDev) { box.appendChild(card('ТЕЛЕФОНЫ', h('p', { class: 'hint', text: 'Список виден на мастерском телефоне (вкладка «СЕТЬ» → галочка «Этот телефон — мастерский»).' }))); return; }
-    var all = (Net.peers || []).filter(function (p) { return p.role !== 'master' || p.dev !== st.dev; });
-    // не в сети: только персонажи, которых нет на другом телефоне, и один терминал (старые записи центра не мешают)
+  /* П19 (замечание 3): один список для «СЕТИ» и «ТЕЛЕФОНОВ» — с этим (мастерским) телефоном; из старых записей центра
+     без связи — только персонажи, которых нет на другом телефоне, и один терминал. */
+  function peerList() {
     var seen = {};
-    var peers = all.slice().sort(function (a, b) { return (b.online ? 1 : 0) - (a.online ? 1 : 0) || (b.last || 0) - (a.last || 0); }).filter(function (p) {
-      var key = p.role === 'terminal' ? 'term' : p.acc ? 'acc:' + p.acc : '';
+    return (Net.peers || []).slice().sort(function (a, b) { return (b.online ? 1 : 0) - (a.online ? 1 : 0) || (b.last || 0) - (a.last || 0); }).filter(function (p) {
+      var key = p.role === 'terminal' ? 'term' : p.acc ? 'acc:' + p.acc : p.role === 'master' ? 'dev:' + p.dev : '';
       if (p.online) { if (key) seen[key] = true; return true; }
       if (!key || seen[key]) return false;
       seen[key] = true;
       return true;
     }).sort(function (a, b) {
-      return (b.online ? 1 : 0) - (a.online ? 1 : 0) || String(accName(a.acc)).localeCompare(String(accName(b.acc)));
+      return (b.dev === P.state.dev ? 1 : 0) - (a.dev === P.state.dev ? 1 : 0) || (b.online ? 1 : 0) - (a.online ? 1 : 0) || String(accName(a.acc)).localeCompare(String(accName(b.acc)));
     });
-    var phones = peers.filter(function (p) { return p.role !== 'terminal'; });
+  }
+  P.peerList = peerList;
+  /* «телефонов в сети: 1 из 1 (с этим) · персонажей: 0 из 0 · терминал: нет» */
+  function netCount(peers) {
+    var ph = peers.filter(function (p) { return p.role !== 'terminal'; }), ac = ph.filter(function (p) { return p.acc; });
+    var on = function (l) { return l.filter(function (p) { return p.online; }).length; };
+    var tm = peers.filter(function (p) { return p.role === 'terminal'; });
+    var me = ph.some(function (p) { return p.dev === P.state.dev; });
+    return 'телефонов в сети: ' + on(ph) + ' из ' + ph.length + (me ? ' (с этим)' : '') + ' · персонажей: ' + on(ac) + ' из ' + ac.length +
+      ' · терминал: ' + (on(tm) ? 'в сети' : tm.length ? 'нет связи' : 'нет');
+  }
+  P.netCount = netCount;
+  function pPhones(box) {
+    var st = P.state, g = P.game;
+    if (!st.masterDev) { box.appendChild(card('ТЕЛЕФОНЫ', h('p', { class: 'hint', text: 'Список виден на мастерском телефоне (вкладка «СЕТЬ» → галочка «Этот телефон — мастерский»).' }))); return; }
+    var peers = peerList(), phones = peers.filter(function (p) { return p.role !== 'terminal'; });
     var bad = phones.filter(function (p) { var c = P.packCmp(p.pack); return c === 'old' || c === 'other'; });
     var low = phones.filter(function (p) { return p.online && p.bat && p.bat.l >= 0 && p.bat.l < 20 && !p.bat.c; });
     var warn = [];
@@ -18475,11 +19022,11 @@ var qrcode = function() {
     if (low.length) warn.push('⚠ Заряд меньше 20 %: ' + low.map(function (p) { return accName(p.acc); }).join(', ') + '.');
     var off = phones.filter(function (p) { return !p.online && p.acc; });
     if (off.length) warn.push('○ Нет связи: ' + off.map(function (p) { return accName(p.acc) + ' (' + ago(p.last) + ')'; }).join(', ') + '.');
-    box.appendChild(card('ТЕЛЕФОНЫ (' + phones.filter(function (p) { return p.online; }).length + ' из ' + phones.length + ' в сети) · пакет мастера: «' + (g.title || '') + '» v' + g.version,
+    box.appendChild(card('ТЕЛЕФОНЫ · ' + netCount(peers) + ' · пакет мастера: «' + (g.title || '') + '» v' + g.version,
       warn.length ? h('div', { class: 'ph-warn' }, warn.map(function (t) { return h('p', { class: 'warn', text: t }); })) : h('p', { class: 'hint', text: phones.length ? 'Все телефоны с этим пакетом.' : 'Пока никого.' }),
       h('div', { class: 'phones' }, peers.map(function (p) {
         var cmp = P.packCmp(p.pack), v = p.voice || {}, hd = p.heard || (v.at ? { text: v.last, what: v.what, at: v.at } : null);
-        var who = p.role === 'terminal' ? 'ТЕРМИНАЛ' : p.role === 'master' ? 'МАСТЕР' + (p.name ? ' · ' + p.name : '') : accName(p.acc) || 'без персонажа';
+        var who = (p.dev === st.dev ? 'ЭТОТ ТЕЛЕФОН · ' : '') + (p.role === 'terminal' ? 'ТЕРМИНАЛ' : p.role === 'master' ? 'МАСТЕР' + (p.acc ? ' · ' + accName(p.acc) : p.name ? ' · ' + p.name : '') : accName(p.acc) || 'без персонажа');
         var pack = p.role === 'terminal' ? '' : p.pack ? 'пакет v' + p.pack.v + (cmp === 'old' ? ' — СТАРЫЙ' : cmp === 'other' ? ' — ДРУГОЙ («' + p.pack.t + '»)' : cmp === 'new' ? ' — новее, чем у мастера' : '') : 'пакет: не сообщил (старое приложение)';
         var bat = p.bat && p.bat.l >= 0 ? '🔋 ' + p.bat.l + ' %' + (p.bat.c ? ' ⚡' : '') : '';
         var vm = p.vmode || v.mode;
@@ -18558,12 +19105,24 @@ var qrcode = function() {
     ns.addEventListener('change', function () { form.notice = ns.value; var n = SG.byId(g.notices, ns.value); if (n) { ti.value = form.title = n.title; tx.value = form.text = n.text; } });
     ti.addEventListener('input', function () { form.title = ti.value; });
     tx.addEventListener('input', function () { form.text = tx.value; });
+    // П20 (основа 4, Т18-3 А): «в бегущую строку» — N проходов (0 — пока не уберут); шаблон несёт картинку, звук и настройки события
+    var tkc = h('input', { type: 'checkbox', id: 'cn-ticker' });
+    tkc.checked = !!form.tk;
+    tkc.addEventListener('change', function () { form.tk = tkc.checked; });
+    var tkn = h('input', { type: 'number', class: 'cin', id: 'cn-repeat', min: 0, max: 99, value: form.tkn || '', placeholder: '0 — пока не уберут' });
+    tkn.addEventListener('input', function () { form.tkn = Math.max(0, Math.min(99, Math.round(+tkn.value) || 0)); });
     box.appendChild(card('УВЕДОМЛЕНИЕ', h('label', { class: 'field' }, 'Шаблон', ns), ti, tx, h('div', { class: 'field', text: 'Кому' }), whoPicker(form.to),
-      btn('Отправить', function () {
-        if (!need() || !(form.title || form.text)) return;
-        Net.msg(to(form.to), 'notify', { title: form.title, text: form.text });
-        done();
-      })));
+      h('label', { class: 'field chk' }, tkc, ' В бегущую строку'), h('label', { class: 'field' }, 'Проходов строки', tkn),
+      h('div', { class: 'row2' },
+        btn('Отправить', function () {
+          if (!need() || !(form.title || form.text)) return;
+          var body = { title: form.title, text: form.text }, n = SG.byId(g.notices, form.notice);
+          if (n) { SG.EVENT_KEYS.forEach(function (k) { body[k] = n[k]; }); body.ev = n.id; }
+          if (form.tk) { body.ticker = true; body.repeat = form.tkn || 0; if (!body.ev) body.ev = 'p' + Date.now().toString(36); }
+          Net.msg(to(form.to), 'notify', body);
+          done();
+        }),
+        btn('Убрать строку', function () { if (!need()) return; Net.msg(to(form.to), 'unticker', { ev: '' }); done('УБРАНО'); }, 'dim'))));
 
     // сбой
     if (g.glitches.length) {
@@ -18597,9 +19156,9 @@ var qrcode = function() {
       h('p', { class: 'hint', text: 'Голосования задаются в редакторе (вкладка «Сеть и события»).' }), res));
 
     // П13 (Т4-3): общие переменные терминала и телефонов
-    if ((g.shared || []).length) {
+    if ((g.shared || []).some(function (v) { return !v.personal; })) {
       var vals = SG.sharedValues(g, varsNow());
-      box.appendChild(card('ОБЩИЕ ПЕРЕМЕННЫЕ', g.shared.map(function (v) {
+      box.appendChild(card('ОБЩИЕ ПЕРЕМЕННЫЕ', g.shared.filter(function (v) { return !v.personal; }).map(function (v) {
         var inp = h('input', { type: 'text', class: 'cin', value: String(vals[v.name]), 'data-var': v.name });
         var isNum = typeof v.value === 'number';
         return h('div', { class: 'shared-var' },
@@ -18611,6 +19170,11 @@ var qrcode = function() {
             btn('+1', function () { if (!need()) return; P.doActions([{ type: 'term', name: v.name, op: 'add', value: 1 }]); done(); }, 'dim')) : null);
       }), h('p', { class: 'hint', text: 'Видят и меняют терминал, коды телефонов и пульт. В текстах блоков, ответов и уведомлений — {{имя}}. Правила «общая переменная» — в редакторе («Сеть и события» → «Правила»).' })));
     }
+
+    // П20 (Т17-1 А): личные переменные — таблица «персонаж × переменная» (значение у центра, Т17-2 А: и у тех, кто не в сети),
+    // окна «за N мин» — в той же ячейке; «выбранным» −1 / +1 / записать; журнал последних 50 изменений (Т17-3 Б)
+    var pvs = (g.shared || []).filter(function (v) { return v.personal; });
+    if (pvs.length) box.appendChild(personalCard(g, pvs));
 
     // автоматика и терминал
     var auto = Net.state.auto !== false;
@@ -18694,7 +19258,8 @@ var qrcode = function() {
         f.role === 'master' && b.as ? b.as.name + ' (мастер)' : accName(f.acc) + (b.anon ? ' (анонимно)' : '');
       var d = new Date((o.at || Date.now()) - Net.offset);
       var text = o.kind === 'chat' ? (b.photo ? '[снимок] ' : '') + (b.text || '') : o.kind === 'notify' ? '[уведомление] ' + [b.title, b.text].filter(Boolean).join(': ') :
-        o.kind === 'event' ? '[событие] ' + b.name : '[итог голосования] ' + (b.id || '');
+        o.kind === 'event' ? '[событие] ' + b.name : o.kind === 'report' ? '[ЗАМЕТКА ТЕСТИРОВЩИКА] ' + ((b.report || {}).name || '') + ' · ' + ((b.report || {}).build || '') + '\n' + (b.text || '') :
+        '[итог голосования] ' + (b.id || '');
       list.appendChild(h('div', { class: 'cl' }, h('div', { class: 'sm', text: ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ' · ' + who + ' → ' + dest(o.to) }),
         h('div', { text: text })));
     });

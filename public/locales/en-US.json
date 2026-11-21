@@ -1533,7 +1533,10 @@
 			"personalInit": "Initial — {{who}}",
 			"personalMax": "Maximum — {{who}}",
 			"personalTableHint": "Empty «Initial» — the common initial value ({{value}}); empty «Maximum» — as set for the header scale and the limit.",
-			"personalShort": "personal"
+			"personalShort": "personal",
+			"personalWho": "Character",
+			"personalInitCol": "Initial",
+			"personalMaxCol": "Maximum"
 		},
 		"actions": {
 			"button": "Action",

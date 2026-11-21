@@ -1532,7 +1532,10 @@
 			"personalInit": "Начальное — {{who}}",
 			"personalMax": "Максимум — {{who}}",
 			"personalTableHint": "Пусто в «Начальное» — общее начальное ({{value}}); пусто в «Максимум» — как у шкалы в шапке и у предела. Максимум у персонажа — и шкала, и предел.",
-			"personalShort": "у каждого своя"
+			"personalShort": "у каждого своя",
+			"personalWho": "Персонаж",
+			"personalInitCol": "Начальное",
+			"personalMaxCol": "Максимум"
 		},
 		"actions": {
 			"button": "Действие",

@@ -19,7 +19,7 @@ import {
 import {codesPassageName, codesTag} from '../signaly-codes';
 import {parseAction, writeAction} from '../signaly-actions';
 import {parseExpr, writeExpr} from '../signaly-logic';
-import {readVariables, sharedVariables, withShared, withVariables} from '../signaly-variables';
+import {readVariables, sharedVariables, Variable, withShared, withVariables} from '../signaly-variables';
 import {signalyEngineBlock, signalyEngineVersion} from '../signaly-engine';
 import {signalyNetModule} from '../signaly-net-module';
 
@@ -46,7 +46,7 @@ function apply(passages: StoryPassage[], game: AppGame, files: string[]) {
 }
 
 describe('личные переменные в окне «Переменные» (Т31-1 А)', () => {
-	const vars = [
+	const vars: Variable[] = [
 		{name: 'power', label: 'Энергия', value: 5, shared: true},
 		{name: 'hacks', label: 'Взломы', value: 0, shared: true, personal: true, byAcc: {aT: 1}, maxBy: {aT: 5}},
 		{name: 'note', label: '', value: "a'b <<c>> [[d]]", shared: true, personal: true, byAcc: {aA: "x'y [z]"}, maxBy: {}}
