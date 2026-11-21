@@ -398,7 +398,7 @@
 - Проверки: `signaly-session38.test.ts` (3), `signaly/tests/electron-app-t7.mjs` (12).
 
 **Сессия 39 (= П17: движок 34 — модуль сети с запасным центром; скрытые блоки, приборы, программы; «не в приложении» и «когда работает»):**
-- **Сессия 41 (движок 36) — исключение:** в `signaly-net-module.ts` две правки сделаны прямо в движке (`withAcc`, `force` у главы; решение 167) — пока их нет в `sg-term-net.js` `signaly-app` (`app/05` П-81), `sync-net-module.py` не запускать: затрёт.
+- **Сессия 41 (движок 36):** две правки модуля сделаны прямо в движке (`withAcc`, `force` у главы; решение 167); **сессия 42 (= П23):** перенесены в `sg-term-net.js` `signaly-app` — `sync-net-module.py` снова даёт тот же модуль (проверено), исключения больше нет. Комментарий в `sg-term-net.js` — тоже правка модуля (и движка).
 - Модуль сети в движке меняется только скриптом `sync-net-module.py` из клона `signaly-app` → это правка движка: `signalyEngineVersion` +1, «движок N» / «Версия движка: N» / `engine === N` в `signaly/tests/*.mjs` и `toBe(N)` в `__tests__/signaly-session35/36/37`, `signaly-net.test.ts`; затем `npx tsc -p signaly/tools/tsconfig.json` и `migrate-twee` шаблона (вход и выход — шаблон).
 - Новые поля пакета внутри списков (`blocks[].hidden`, `apps[].hidden`, `accounts[].notes/secret`, правило `screen`) — в `diffDefaults`; `withDefaults` не менять (с ним сравнивает `signaly-app.test`).
 - Подсказки в `public/locales` — слиянием JSON (поиск словаря по ключам-соседям: `sensors` + `phoneWho`, `share` + `garble` + `startHint` и т. п.).
