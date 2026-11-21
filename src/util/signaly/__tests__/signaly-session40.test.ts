@@ -157,8 +157,8 @@ describe('терминал: личная переменная, бегущая с
 		expect(twee).toContain(':: Т1 Личные');
 	});
 
-	it('движок 35: личные, модуль сети П20', () => {
-		expect(signalyEngineVersion).toBe(35);
+	it('движок 36: личные, модуль сети П20', () => {
+		expect(signalyEngineVersion).toBe(36);
 		['sg-personal-add', 'sg-personal-set', "Macro.add('sg-personal'", 'window.sgPersonalWin', 'ticker: true'].forEach(s => expect(signalyEngineBlock()).toContain(s));
 		['N.personalAdd', 'N.win', 'sg-net-padd'].forEach(s => expect(signalyNetModule).toContain(s));
 	});

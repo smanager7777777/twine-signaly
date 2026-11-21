@@ -1,4 +1,4 @@
-// Проверка сессии 40 (Т30-1 А, Т31-4 А) в Chromium: тестовая история «Тест терминала» (signaly/tests/test-terminal/test-terminal.twee)
+// Проверка сессии 40 (Т30-1 А, Т31-4 А; сессия 41 — Т32-2 А: новое наверху, экран «Т11 Номер») в Chromium: тестовая история «Тест терминала» (signaly/tests/test-terminal/test-terminal.twee)
 // с настоящим центром сети (Java из signaly-app): все экраны без ошибок SugarCube, личные с терминала, код «+1 у вводящего»,
 // события sgPersonal / sgPersonalWin, бегущая строка, счёт кодов с телефона. Перед запуском: npx tsc -p signaly/tools/tsconfig.json
 // node test-terminal-play.mjs <playwright> <клон signaly-app>
@@ -85,9 +85,9 @@ try {
 	await page.waitForSelector('.passage');
 	await page.evaluate(() => document.fullscreenElement && document.exitFullscreen());
 	await page.waitForFunction(() => window.SgTermNet && window.SgTermNet.on, null, {timeout: 6000});
-	check('«Тест терминала»: движок 35, связь с центром', await page.evaluate(() => SugarCube.setup.signaly.engine === 35 && SgTermNet.on));
+	check('«Тест терминала»: движок 36, связь с центром', await page.evaluate(() => SugarCube.setup.signaly.engine === 36 && SgTermNet.on));
 	const list = await page.evaluate(() => document.querySelector('.passage').innerText);
-	check('список проверок: сначала новое, потом старое', list.indexOf('НОВОЕ В СБОРКЕ') < list.indexOf('1. Личные') && list.indexOf('1. Личные') < list.indexOf('РАНЬШЕ') && list.includes('10. С телефона'));
+	check('список проверок: сначала новое, потом старое', list.indexOf('НОВОЕ В СБОРКЕ') < list.indexOf('1. Команды «кому: №7»') && list.indexOf('1. Команды «кому: №7»') < list.indexOf('СБОРКА 40') && list.indexOf('СБОРКА 40') < list.indexOf('2. Личные') && list.indexOf('2. Личные') < list.indexOf('РАНЬШЕ') && list.includes('11. С телефона'));
 	const screens = await page.evaluate(() => [...document.querySelectorAll('.passage a')].map(a => a.dataset.passage).filter(Boolean));
 	let bad = [];
 	for (const s of screens) {
@@ -95,7 +95,7 @@ try {
 		await page.waitForTimeout(250);
 		if (await page.evaluate(() => !!document.querySelector('.passage .error, .passage .error-view'))) bad.push(s);
 	}
-	check(`все ${screens.length} экранов проверок — без ошибок SugarCube`, screens.length === 10 && bad.length === 0, bad.join(', '));
+	check(`все ${screens.length} экранов проверок — без ошибок SugarCube`, screens.length === 11 && bad.length === 0, bad.join(', '));
 
 	await page.evaluate(() => SugarCube.Engine.play('Т1 Личные'));
 	await page.waitForTimeout(300);

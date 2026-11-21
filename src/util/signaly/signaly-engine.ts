@@ -68,6 +68,8 @@
 //   (не синхронизируются как общие); действия <<sg-personal-add "имя" N ["3" | "all"]>>, <<sg-personal-set …>> (без номера —
 //   у того, кто ввёл код); в условиях sgPersonal("имя", "3") и sgPersonalWin("имя", "3", минут); без связи прибавка ждёт
 //   в очереди модуля и сразу видна на терминале; <<sg-net notify … ticker [repeat N]>> — в бегущую строку телефонов.
+// - сессия 41 (движок 36, замечания автора к build-44): команды «кому: №N» доходят до настоящего телефона — к адресу num:N
+//   модуль сети добавляет acc:<id> (телефон П20 узнаёт только свой acc); <<sg-net chapter N>> — с force (и назад).
 //
 // Код написан без обратных кавычек и без «${», потому что хранится в шаблонной
 // строке.
@@ -83,7 +85,7 @@ import {tipBase} from './signaly-tip';
 const glitchBase = [...glitchRules(defaultGlitch, ':where(.glitchy)'), glitchKeyframes].join('\n');
 
 /** Версия движка. Увеличивать при каждом изменении кода ниже. */
-export const signalyEngineVersion = 35;
+export const signalyEngineVersion = 36;
 
 export const signalyEngineStart =
 	'/* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */';
@@ -9061,6 +9063,17 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		}
 		return N && N.accOf ? N.accOf(w) : '';
 	}
+
+	// Сессия 41 (движок 36): номер сотрудника → id персонажа телефона по таблице кодов истории (<<sg-person … phone>>) —
+	// модулю сети, чтобы к адресу «num:N» добавить «acc:<id>» (телефон узнаёт только свой id). Без таблицы — по «accs» центра.
+	window.SgAccHint = function (num) {
+		var n = String(num === undefined || num === null ? '' : num).trim().replace(/^#/, '');
+		var p = codes().people.filter(function (x) {
+			return x.id === n && x.app;
+		})[0];
+
+		return p ? p.app : '';
+	};
 
 	function pvKey(name, who) {
 		var n = String(name).replace(/^\$/, '');

@@ -23,7 +23,7 @@ describe('событие «окно-сообщение» (popup)', () => {
 	});
 
 	it('движок 33 знает слово popup и показывает окно', () => {
-		expect(signalyEngineVersion).toBe(35);
+		expect(signalyEngineVersion).toBe(36);
 		const engine = signalyEngineBlock();
 
 		expect(engine).toContain('(repeat|stay|popup|ack|delay|priority)');

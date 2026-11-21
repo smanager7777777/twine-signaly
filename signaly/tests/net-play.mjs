@@ -160,7 +160,7 @@ try {
 	await page.waitForSelector('.passage');
 	await page.evaluate(() => document.fullscreenElement && document.exitFullscreen());
 	await page.waitForFunction(() => window.SgTermNet && window.SgTermNet.on, null, {timeout: 6000});
-	check('движок 35: терминал подключился к центру', await page.evaluate(() => SugarCube.setup.signaly.engine === 35 && SgTermNet.on));
+	check('движок 36: терминал подключился к центру', await page.evaluate(() => SugarCube.setup.signaly.engine === 36 && SgTermNet.on));
 	check('мастер видит терминал в сети', !!(await master.wait(o => o.t === 'peers' && o.peers.some(p => p.role === 'terminal' && p.online))));
 	check('огонёк в углу виден (в истории есть сеть)', await page.evaluate(() => [...document.body.children].some(e => e.title && /^Сеть/.test(e.title))));
 
@@ -257,7 +257,7 @@ try {
 	await page.click('.passage a:text-is("Назад")');
 	await page.waitForTimeout(300);
 
-	// Сессия 40 (движок 35, Т31-2 А, Т31-3 А, Т31-5 А): личные «у каждого своя» и бегущая строка с терминала
+	// Сессия 40 (движок 36, Т31-2 А, Т31-3 А, Т31-5 А): личные «у каждого своя» и бегущая строка с терминала
 	check('личная: начальное у персонажа (by) и общее', await page.evaluate(() => sgPersonal('hacks', '3') === 2 && sgPersonal('hacks', '5') === 0 && sgPersonal('hacks', '#3') === 2));
 	await page.evaluate(() => SugarCube.Engine.play('NetHome'));
 	await page.waitForTimeout(300);

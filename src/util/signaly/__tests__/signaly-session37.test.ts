@@ -32,7 +32,7 @@ describe('окно-сообщение: заголовок и «Принято»'
 	});
 
 	it('движок 33: свой заголовок и закрытие только «Принято»', () => {
-		expect(signalyEngineVersion).toBe(35);
+		expect(signalyEngineVersion).toBe(36);
 		const engine = signalyEngineBlock();
 
 		expect(engine).toContain("close: pop.ack ? 'ok' : ''");

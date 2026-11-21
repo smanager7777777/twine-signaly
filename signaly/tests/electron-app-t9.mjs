@@ -1,6 +1,6 @@
 // Проверка программы (Electron), сессия 40 (= П21): формы новых полей приложения П20 (app/05 П-79) — «у каждого своя»
 // в окне «Переменные» (Т31-1 А), шапка (размер, «не больше N», долги П19), события у уведомлений и бегущая строка,
-// правило по личной «за N мин» и «тому, у кого сработало», «После ввода» и тестировщик; движок 35.
+// правило по личной «за N мин» и «тому, у кого сработало», «После ввода» и тестировщик; движок 36.
 // Запуск: TWEE=<шаблон> PACKS=<папка с app-test-net-pack-p20.sgpack> SHOT=<снимок.png>
 //   xvfb-run -a -s "-screen 0 1600x1000x24" node signaly/tests/electron-app-t9.mjs <playwright>
 import {createRequire} from 'module';
@@ -93,7 +93,7 @@ await appWin().locator('.signaly-app-pending').waitFor({timeout: 15000});
 await appWin().getByRole('button', {name: 'Загрузить в историю'}).click();
 await win.waitForFunction(() => document.querySelector('.signaly-app-message')?.textContent.includes('Загружено'), null, {timeout: 15000});
 await win.waitForTimeout(2500);
-check('пакет загружен, движок 35', passageText('Приложение').includes('<<app-general>>') && storyFile().includes('Версия движка: 35'));
+check('пакет загружен, движок 36', passageText('Приложение').includes('<<app-general>>') && storyFile().includes('Версия движка: 36'));
 check('StoryInit: <<sg-personal "hacks" by …>> (у каждого своя)', passageText('StoryInit').includes(`<<sg-personal "hacks" by '{"aT":1}' max '{"aT":5}'>>`), passageText('StoryInit').slice(0, 800));
 
 // 2. «Шапка и меню»: размер и «не больше N показателей» (долги П19), «-» во второй строке — в подсказке.

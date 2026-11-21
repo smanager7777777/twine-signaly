@@ -103,7 +103,26 @@ export const signalyNetModule = String.raw`/* СИГНАЛЫ — сетевой 
       open();
     }, N.searchList());
   }
-  function raw(o) { if (ws && ws.readyState === 1 && N.on) { ws.send(JSON.stringify(o)); return true; } return false; }
+  /* Сессия 41 (замечание автора к build-44): телефон приложения (П20) сам решает, что сообщение ему, и узнаёт только
+     «all», «acc:<свой id>» и «dev:…» — адрес «num:7» центр ему доставляет, а телефон молча пропускает. Поэтому к каждому
+     «num:N» терминал добавляет «acc:<id>» персонажа с этим номером: по таблице кодов истории (W.SgAccHint, движок 36),
+     иначе — по персонажам центра (состояние «accs»).
+     Добавляет в момент отправки — так и сообщения из очереди (без связи) уходят с id. */
+  function withAcc(o) {
+    if (!o || o.t !== 'msg' || !Array.isArray(o.to)) return o;
+    var to = o.to.slice();
+    o.to.forEach(function (t) {
+      var m = /^num:(.+)$/.exec(String(t));
+      var id = '';
+      if (m) { try { id = typeof W.SgAccHint === 'function' ? W.SgAccHint(m[1]) : ''; } catch (e) { id = ''; } }
+      if (m && !id) id = N.accOf(m[1]);
+      if (id && to.indexOf('acc:' + id) < 0) to.push('acc:' + id);
+    });
+    o.to = to;
+    return o;
+  }
+  N.withAcc = withAcc;
+  function raw(o) { if (ws && ws.readyState === 1 && N.on) { ws.send(JSON.stringify(withAcc(o))); return true; } return false; }
   N.send = function (o) { if (!raw(o)) { queue.push(o); saveQueue(); paint(); } return o; };
 
   function got(o) {
@@ -213,7 +232,8 @@ export const signalyNetModule = String.raw`/* СИГНАЛЫ — сетевой 
   N.alarm = function (on, title, text) {
     return N.set('alarm', on === false ? { on: false, at: N.now() } : { on: true, id: 'terminal', title: String(title || ''), text: String(text || ''), at: N.now() });
   };
-  N.chapter = function (n) { return N.set('chapter', { n: Math.max(1, Math.round(+n || 1)), at: N.now() }); };
+  // Сессия 41: «force» — как у пульта мастера (П-50): телефон принимает и главу назад («Глава 1» после «Глава 2»)
+  N.chapter = function (n) { return N.set('chapter', { n: Math.max(1, Math.round(+n || 1)), at: N.now(), force: true }); };
   N.countdown = function (seconds, title) {
     return N.set('countdown', seconds === false ? { on: false } : { on: true, title: String(title || ''), until: N.now() + Math.max(1, +seconds || 60) * 1000, at: N.now() });
   };

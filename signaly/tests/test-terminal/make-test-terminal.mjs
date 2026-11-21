@@ -17,7 +17,7 @@ const {readSgpack, gameToStory} = require(path.join(tools, 'signaly-app.js'));
 const {readCodes, writeCodes} = require(path.join(tools, 'signaly-codes.js'));
 const {signalyEngineVersion} = require(path.join(tools, 'signaly-engine.js'));
 
-const BUILD = 'сессия 40 (движок ' + signalyEngineVersion + ')';
+const BUILD = 'сессия 41 (движок ' + signalyEngineVersion + ')';
 const packPath = process.argv[2] || path.join(root, 'src/util/signaly/__tests__/fixtures/app-test-net-pack-p20.sgpack');
 const out = path.join(here, 'test-terminal.twee');
 const pack = readSgpack(new Uint8Array(fs.readFileSync(packPath)));
@@ -47,6 +47,13 @@ const personalRows = people
 /* Проверки: [пассаж, заголовок в списке, текст экрана]. Сначала — новое в сборке. */
 const CHECKS = [
 	['new'],
+	['Т11 Номер', 'Команды «кому: №7» и «Глава 1» (исправлено)',
+		'Замечания к build-44: всё, что адресовано номеру сотрудника («to "7"»), до телефона не доходило — телефон узнаёт только свой id персонажа, а не номер. Теперь терминал добавляет к номеру id (персонажей знает центр). «Глава 1» после «Глава 2» телефоны пропускали — теперь глава с терминала, как с пульта, меняется и назад.\n\n' +
+		'<<link "Только №7">><<sg-net notify "ТЕРМИНАЛ" "Только Психологу" to "7">><</link>> · <<link "№7 — в строку, 1 проход">><<sg-net notify "ТЕРМИНАЛ" "Один проход — только №7" ticker repeat 1 to "7">><</link>>\n' +
+		'<<link "Сбой экрана у №7">><<sg-net glitch "Сбой экрана" to "7">><</link>> · <<link "Снять сбои">><<sg-net fix "">><</link>>\n' +
+		'<<link "Глава 2">><<sg-net chapter 2>><</link>> · <<link "Глава 1">><<sg-net chapter 1>><</link>>\n\n' +
+		'Должно быть: уведомление, строка и сбой — только на 555555 (Психолог, №7), на 111111 — нет; «Глава 2», потом «Глава 1» — у всех телефонов снова глава 1.'],
+	['prev'],
 	['Т1 Личные', '1. Личные переменные «у каждого своя» с терминала',
 		`Личная $hacks («Взломы»): у каждого персонажа своё значение (центр — «var:hacks@id»). Начальное у №7 — 1, максимум у №7 — 5 (окно «Переменные»).\n\n${personalRows}\n\n` +
 		'<<link "+1 у №7 (Психолог)">><<sg-personal-add "hacks" 1 "7">><</link>> · <<link "−1 у №7">><<sg-personal-add "hacks" -1 "7">><</link>> · ' +
@@ -99,14 +106,19 @@ const CHECKS = [
 let list = `ТЕСТ ТЕРМИНАЛА — сборка: ${BUILD}\nПакет телефонов: test-net-pack из релиза signaly-app (П20). Центр — мастерский телефон; терминал: Ctrl+Shift+N → адрес центра или «QR камерой».\n\n`;
 const screens = [];
 let x = 200;
+let num = 0;
 
 CHECKS.forEach(c => {
 	if (c[0] === 'new') {
 		list += 'НОВОЕ В СБОРКЕ:\n';
+	} else if (c[0] === 'prev') {
+		list += '\nСБОРКА 40 (подтвердить):\n';
 	} else if (c[0] === 'old') {
 		list += '\nРАНЬШЕ (подтвердить):\n';
 	} else {
-		list += `[[${c[1]}|${c[0]}]]\n`;
+		// номера — по порядку в списке (Т32-2 А: новое наверху, старое ниже)
+		const title = ++num + '. ' + c[1].replace(/^\d+\. /, '');
+		list += `[[${title}|${c[0]}]]\n`;
 		screens.push(`:: ${c[0]} {"position":"${x},200","size":"100,100"}\n${c[1].replace(/^\d+\. /, '').toUpperCase()}\n\n${c[2]}${back}\n`);
 		x += 125;
 	}
