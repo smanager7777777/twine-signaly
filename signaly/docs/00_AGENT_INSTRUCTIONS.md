@@ -398,6 +398,7 @@
 - Проверки: `signaly-session38.test.ts` (3), `signaly/tests/electron-app-t7.mjs` (12).
 
 **Сессия 39 (= П17: движок 34 — модуль сети с запасным центром; скрытые блоки, приборы, программы; «не в приложении» и «когда работает»):**
+- **Сессия 41 (движок 36) — исключение:** в `signaly-net-module.ts` две правки сделаны прямо в движке (`withAcc`, `force` у главы; решение 167) — пока их нет в `sg-term-net.js` `signaly-app` (`app/05` П-81), `sync-net-module.py` не запускать: затрёт.
 - Модуль сети в движке меняется только скриптом `sync-net-module.py` из клона `signaly-app` → это правка движка: `signalyEngineVersion` +1, «движок N» / «Версия движка: N» / `engine === N` в `signaly/tests/*.mjs` и `toBe(N)` в `__tests__/signaly-session35/36/37`, `signaly-net.test.ts`; затем `npx tsc -p signaly/tools/tsconfig.json` и `migrate-twee` шаблона (вход и выход — шаблон).
 - Новые поля пакета внутри списков (`blocks[].hidden`, `apps[].hidden`, `accounts[].notes/secret`, правило `screen`) — в `diffDefaults`; `withDefaults` не менять (с ним сравнивает `signaly-app.test`).
 - Подсказки в `public/locales` — слиянием JSON (поиск словаря по ключам-соседям: `sensors` + `phoneWho`, `share` + `garble` + `startHint` и т. п.).
@@ -409,6 +410,7 @@
 - Личные в движке: `pvKey` (id из `phone` сотрудника — `codes().people[].app`), `pvPending` (своё изменение до ответа центра — список `[время, прибавка, записать]`; ответ центра на своё (`o.by === N.dev`) снимает первое; при связи — не дольше 30 с), `pvHist` (окна «за N мин», если центр их не считает). Оба — в `localStorage` (`sg-pv-pending`, `sg-pv-hist`).
 - Поле с `undefined` в патче действия / шапки — убрать ключ (`set` в `ActionBody`, `setHeader`): значение по умолчанию не пишется.
 - `signaly/tools/tsconfig.json` собирает и `signaly-app.ts` (нужно генератору «Теста терминала»).
+- **Настоящие телефоны** (сессия 41, `real-phone-play.mjs`): проверки с «телефонами»-заглушками не видят, что телефон сам отбрасывает чужие адреса — команды телефонам проверять и этим набором. Нужно: клон `signaly-app` на ветке `main` (по умолчанию в нём старая `session-01`: `git fetch --depth 1 origin main:refs/remotes/origin/main && git checkout -b main origin/main`), `npm ci --ignore-scripts`, `node tools/build.mjs` (→ `dist/www`).
 - «Тест терминала»: после правки движка — `node signaly/tests/test-terminal/make-test-terminal.mjs` (после `npx tsc -p signaly/tools/tsconfig.json`); список проверок — `CHECKS` в нём (сначала новое в сборке); `signaly-session40.test` сверяет версию движка в `.twee`. Релиз: `test-terminal.twee` и `test-terminal.html` (`publish-twee.mjs` в `build-windows.yml`).
 - Проверки: `signaly-session40.test.ts` (9), `signaly/tests/electron-app-t9.mjs` (16, в `runall.sh`), `net-play` (+9), `test-terminal-play.mjs` (15, в `runall.sh`).
 
