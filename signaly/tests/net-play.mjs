@@ -59,14 +59,18 @@ const story = fs.readFileSync(storyPath, 'utf8').replace(/\r\n/g, '\n');
 const entry = (code, label, actions) => ({code, label, who: [], once: '', title: '', answer: '', goto: '', denied: '', used: '', actions, multiline: false, extra: []});
 const codesText = writeCodes('', {
 	texts: defaultTexts,
-	people: [{id: '3', pin: '333', variable: '', extra: []}],
+	people: [
+		{id: '3', pin: '333', variable: '', phone: '{"id":"a3","name":"Капитан"}', extra: []},
+		{id: '5', pin: '555', variable: '', phone: '{"id":"a5","name":"Медик"}', extra: []}
+	],
 	codes: [
 		entry('777', 'Лично', [{type: 'code', code: '<<sg-net notify "КОД" "Вы ввели 777" to self>>'}]),
-		entry('778', 'Сбой вводящему', [{type: 'code', code: '<<sg-net glitch "Тьма" to self>>'}])
+		entry('778', 'Сбой вводящему', [{type: 'code', code: '<<sg-net glitch "Тьма" to self>>'}]),
+		entry('779', 'Взлом', [{type: 'code', code: '<<sg-personal-add "hacks" 1>>'}])
 	]
 });
 const test =
-	story.replace(/(:: StoryInit[^\n]*\n)/, '$1<<set $netVar to 0>>\n<<set $netAlbum to "">>\n<<set $power to 5>>\n<<sg-shared "power">>\n').replace(/\s*$/, '\n') +
+	story.replace(/(:: StoryInit[^\n]*\n)/, '$1<<set $netVar to 0>>\n<<set $netAlbum to "">>\n<<set $power to 5>>\n<<sg-shared "power">>\n<<set $hacks to 0>>\n<<sg-personal "hacks" by \'{"a3":2}\'>>\n').replace(/\s*$/, '\n') +
 	`
 :: Коды [sg-codes] {"position":"0,0","size":"100,100"}
 ${codesText}
@@ -83,6 +87,8 @@ ${codesText}
 <<link "Событие">><<sg-net event "breach">><</link>>
 <<link "Самому">><<sg-net notify "А" "Б" to self>><</link>>
 <<link "Энергия +1">><<set $power += 1>><</link>>
+<<link "Взлом №5">><<sg-personal-add "hacks" 2 "5">><</link>>
+<<link "Новости">><<sg-net notify "НОВОСТИ" "Строка" ticker repeat 2>><</link>>
 <<sg-code button "OK" table>>
 <</sg-code>>
 
@@ -103,6 +109,11 @@ ${codesText}
 <<sg-event $power gte 10>>
 <<sg-event-do>><<sg-net notify "ЭНЕРГИЯ" "Полный заряд">><</sg-event-do>>
 ПОЛНЫЙ ЗАРЯД <<link "Назад">><<sg-back>><</link>>
+
+:: NetHack [sg-event] {"position":"700,0","size":"100,100"}
+<<sg-event stay sgPersonal("hacks", "3") gte 3>>
+<<sg-event-do>><<sg-net notify "ВЗЛОМ" "Три взлома" to "3">><</sg-event-do>>
+НЕ ПОКАЗЫВАЕТСЯ
 
 :: NetEvent [sg-event] {"position":"400,0","size":"100,100"}
 <<sg-event setup.phone("event", "Шлюз") gt 0>>
@@ -246,6 +257,25 @@ try {
 	await page.click('.passage a:text-is("Назад")');
 	await page.waitForTimeout(300);
 
+	// Сессия 40 (движок 35, Т31-2 А, Т31-3 А, Т31-5 А): личные «у каждого своя» и бегущая строка с терминала
+	check('личная: начальное у персонажа (by) и общее', await page.evaluate(() => sgPersonal('hacks', '3') === 2 && sgPersonal('hacks', '5') === 0 && sgPersonal('hacks', '#3') === 2));
+	await page.evaluate(() => SugarCube.Engine.play('NetHome'));
+	await page.waitForTimeout(300);
+	await field('779');
+	await field('333');
+	check('код «+1 у вводящего» сотрудником №3 → центр: var:hacks@a3 = 3 (от начального 2)', !!(await master.wait(o => o.t === 'state' && o.key === 'var:hacks@a3' && o.value === 3)));
+	check('условие sgPersonal("hacks", "3") gte 3 → событие stay: уведомление №3', !!(await p3.wait(o => o.kind === 'notify' && o.body.text === 'Три взлома')));
+	check('sgPersonalWin за 5 мин — 1 (своя прибавка), без окна — 0', await page.evaluate(() => sgPersonalWin('hacks', '3', 5) === 1 && sgPersonalWin('hacks', '3', 0) === 0));
+	await page.evaluate(() => SugarCube.Dialog.isOpen() && SugarCube.Dialog.close());
+	await link('Взлом №5');
+	check('«+2 у сотрудника №5» — у телефона №5 своё значение 2', !!(await p5.wait(o => o.t === 'state' && o.key === 'var:hacks@a5' && o.value === 2)));
+	master.ws.send(JSON.stringify({t: 'set', key: 'var:hacks@a3', add: 4, base: 2}));
+	await page.waitForFunction(() => sgPersonal('hacks', '3') === 7, null, {timeout: 4000}).catch(() => {});
+	check('прибавка с пульта (+4) → терминал видит 7 и «за 5 мин» = 5', await page.evaluate(() => sgPersonal('hacks', '3') === 7 && sgPersonalWin('hacks', '3', 5) === 5));
+	await link('Новости');
+	const tk = await p5.wait(o => o.kind === 'notify' && o.body.title === 'НОВОСТИ');
+	check('уведомление с терминала «в бегущую строку», 2 прохода', !!tk && tk.body.ticker === true && tk.body.repeat === 2);
+
 	// перезагрузка: старое не повторяется, счёт — в автокопии
 	await page.reload();
 	await page.waitForSelector('#sg-start');
@@ -266,11 +296,14 @@ try {
 	await link('Всем');
 	check('без связи: сообщение ждёт, огонёк красный', await page.evaluate(() => SgTermNet.queued() === 1 && [...document.body.children].some(e => e.title && /ждут отправки: 1/.test(e.title) && e.style.background.includes('255, 51, 51'))));
 	await link('Энергия +1');
+	await link('Взлом №5');
+	check('без связи: личная +2 ждёт и сразу видна на терминале (2 + 2)', await page.evaluate(() => SgTermNet.queued() === 2 && sgPersonal('hacks', '5') === 4));
 	center = await startCenter();
 	const p7 = phone({role: 'phone', dev: 'ph7', acc: 'a7', num: '7', name: 'Пилот'});
 	await p7.ready;
 	check('связь вернулась — ушло', !!(await p7.wait(o => o.kind === 'notify' && o.body.text === 'Шлюз открыт', 10000)));
 	check('изменение общей переменной без связи ($power 9) ушло центру при новой связи', !!(await p7.wait(o => o.t === 'state' && o.key === 'var:power' && o.value === 9, 6000)));
+	check('личная без связи ушла центру при связи (новый центр: 0 + 2), запас на терминале снят', !!(await p7.wait(o => o.t === 'state' && o.key === 'var:hacks@a5' && o.value === 2, 6000)) && (await page.evaluate(() => sgPersonal('hacks', '5'))) === 2);
 
 	await page.keyboard.press('Control+Shift+KeyN');
 	await sleep(200);
