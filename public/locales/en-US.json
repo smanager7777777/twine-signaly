@@ -2677,7 +2677,8 @@
 				"glitches": "glitches",
 				"rules": "rules",
 				"votes": "votes",
-				"shared": "shared variables"
+				"shared": "shared variables",
+				"termWins": "terminal “in N min” windows"
 			},
 			"publish": "Publish package (.sgpack)",
 			"publishHint": "Checks the story first, then builds the package into the game folder.",

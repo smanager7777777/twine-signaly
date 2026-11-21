@@ -70,6 +70,8 @@ const ownKeys = [
 	'codes',
 	// Сессия 35 (Т4-3): общие переменные — из StoryInit (галочка в окне «Переменные»).
 	'shared',
+	// Сессия 42 (= П23, Т32-1 А): окна «за N мин» из условий терминала — из пассажей (sgPersonalWin).
+	'termWins',
 	...appLists.map(([key]) => key)
 ];
 
@@ -590,6 +592,22 @@ export function storyToGame(
 	const idOf = (num: string) =>
 		people.find(x => x.person.id === num)?.data.id ||
 		(people.some(x => x.person.id === num) ? `n${num}` : num);
+	const termWins = terminalWindows(passages, who => {
+		const w = who.trim().replace(/^#/, '');
+
+		if (!w) {
+			return '';
+		}
+		return people.some(x => x.person.id === w)
+			? idOf(w)
+			: game.accounts.find((a: AppGame) => a.id === w || a.name === w)?.id ?? w;
+	});
+
+	if (termWins.length) {
+		game.termWins = termWins;
+	} else {
+		delete game.termWins;
+	}
 
 	game.blocks = passages
 		.filter(p => p.tags.includes(appBlockTag))
@@ -637,6 +655,50 @@ export function storyToGame(
 		files: [...files].map(([name, path]) => ({name, path})),
 		problems
 	};
+}
+
+/**
+ * Сессия 42 (= П23, Т32-1 А, `app/05` П-81): окна «за N мин» из условий терминала — вызовы
+ * sgPersonalWin("имя", "кто", N) во всех пассажах (их пишет форма «Условие», можно и руками).
+ * В пакет — [{var, min, acc}] (acc — id персонажа; '' — у каждого), центр считает их, как окна шапки.
+ */
+export function terminalWindows(
+	passages: StoryPassage[],
+	accOf: (who: string) => string
+): Array<{var: string; min: number; acc: string}> {
+	const out = new Map<string, {var: string; min: number; acc: string}>();
+	const str = String.raw`(?:"((?:\\.|[^"\\])*)"|'((?:\\.|[^'\\])*)')`;
+	const re = new RegExp(
+		String.raw`\bsgPersonalWin\s*\(\s*` +
+			str +
+			String.raw`\s*,\s*(?:` +
+			str +
+			String.raw`|(\d+))\s*,\s*(\d+(?:\.\d+)?)\s*\)`,
+		'g'
+	);
+	const unq = (s: string) => s.replace(/\\(.)/g, '$1');
+
+	passages.forEach(p => {
+		for (const m of p.text.matchAll(re)) {
+			const name = unq(m[1] ?? m[2] ?? '').replace(/^\$/, '').trim();
+			const who = m[5] ?? unq(m[3] ?? m[4] ?? '');
+			const min = Number(m[6]);
+
+			if (!name || !(min > 0)) {
+				continue;
+			}
+
+			const acc = accOf(who);
+			const key = `${name}@${acc}:${min}`;
+
+			if (!out.has(key)) {
+				out.set(key, {var: name, min, acc});
+			}
+		}
+	});
+	return [...out.values()].sort(
+		(a, b) => a.var.localeCompare(b.var) || a.acc.localeCompare(b.acc) || a.min - b.min
+	);
 }
 
 /* ----- пакет → история ----- */
@@ -947,7 +1009,9 @@ export const appSections: Array<[string, string, (x: AppGame) => string]> = [
 	['glitches', 'Сбои', x => x.name || x.id],
 	['rules', 'Правила', x => x.name || x.id],
 	['votes', 'Голосования', x => x.name || x.id],
-	['shared', 'Общие переменные', x => `$${x.name}`]
+	['shared', 'Общие переменные', x => `$${x.name}`],
+	// Сессия 42 (Т32-1 А): окна «за N мин» из условий терминала — центр считает их точно.
+	['termWins', 'Окна терминала «за N мин»', x => `$${x.var}${x.acc ? ` у ${x.acc}` : ''} — ${x.min} мин`]
 ];
 
 export interface AppDiff {
@@ -1099,7 +1163,8 @@ export function diffGames(
 		const a: AppGame[] = Array.isArray(was[key]) ? was[key] : [];
 		const b: AppGame[] = Array.isArray(now[key]) ? now[key] : [];
 		// Общие переменные — по имени (у них нет id).
-		const idOf = (x: AppGame) => (key === 'shared' ? x.name : x.id);
+		const idOf = (x: AppGame) =>
+			key === 'shared' ? x.name : key === 'termWins' ? `${x.var}@${x.acc}:${x.min}` : x.id;
 		const byId = (list: AppGame[], id: unknown) => list.find(x => idOf(x) === id);
 		const d: AppDiff = {
 			section,

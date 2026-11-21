@@ -2,6 +2,8 @@
 // и НАСТОЯЩИМИ телефонами — приложение игрока signaly-app (dist/www) с пакетом test-net-pack П20, вход 555555 (№7 Психолог)
 // и 111111 (№1 Инженер). Номер сотрудника проверка не задаёт: телефон сам говорит центру то, что есть в пакете, и сам решает,
 // что сообщение ему (как на APK). Ловит то, что пропускали «телефоны»-заглушки: команды «кому: №7» и «Глава 1» после «Глава 2».
+// Сессия 42 (= П23): телефон с APK П23 сам узнаёт «num:<свой номер>» (без «acc:»); окно «за N мин» из условий терминала
+// (termWins пакета, «Опубликовать пакет») — центр считает, терминал читает (sgPersonalWin).
 // Перед запуском: npx tsc -p signaly/tools/tsconfig.json; в клоне signaly-app — npm ci --ignore-scripts и node tools/build.mjs.
 // node real-phone-play.mjs <playwright> <клон signaly-app>
 import {createRequire} from 'module';
@@ -157,6 +159,19 @@ try {
 		SgTermNet.notify('ТЕРМИНАЛ', 'По персонажам центра — №7', ['7']);
 	});
 	check('без таблицы кодов: по «accs» центра «кому: №7» — у Психолога, не у Инженера', accs && (await waitFor(() => shown(p7, 'По персонажам центра'))) && !(await shown(p1, 'По персонажам центра')));
+	// Сессия 42 (= П23): адрес только «num:7», без «acc:» (как сообщение терминала старее движка 36) — телефон узнаёт свой номер сам
+	master.send(JSON.stringify({t: 'msg', id: 'num-only-' + Date.now(), to: ['num:7'], kind: 'notify', body: {title: 'НОМЕР', text: 'Только num:7 — без acc'}}));
+	check('П23: «num:7» без «acc:» — у Психолога (телефон узнал свой номер)', await waitFor(() => shown(p7, 'Только num:7')));
+	check('П23: «num:7» — у Инженера нет', !(await shown(p1, 'Только num:7')));
+	// Т32-1 А: окно «за 7 мин» из условий терминала — в правила центра (termWins пакета), центр шлёт win:…, терминал читает
+	const rulesW = await p7.evaluate(() => window.SG.centerRules(Object.assign({}, window.sgPlayer.game(), {termWins: [{var: 'hacks', min: 7, acc: ''}]})));
+	const id7 = await page.evaluate(() => (SgTermNet.state.accs || []).find(a => a.num === '7').id);
+	check('Т32-1: в правилах центра окно терминала «hacks за 7 мин» у №7', rulesW.some(r => r.on === 'win' && r.key === 'var:hacks@' + id7 && r.min === 7));
+	master.send(JSON.stringify({t: 'rules', ver: 'real-phone-w-' + Date.now(), list: rulesW}));
+	await sleep(400);
+	await page.evaluate(() => SgTermNet.personalAdd('hacks', '7', 2));
+	const w7 = await page.waitForFunction(k => SgTermNet.state[k] === 2, 'win:hacks@' + id7 + ':7', {timeout: 6000}).then(() => true, () => false);
+	check('Т32-1: центр посчитал «за 7 мин» = 2, терминал: sgPersonalWin("hacks", "7", 7) = 2', w7 && (await page.evaluate(() => window.sgPersonalWin('hacks', '7', 7))) === 2);
 	master.close();
 	check('ошибок на страницах нет', errors.length === 0, errors.join('; '));
 } finally {
