@@ -8990,9 +8990,10 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	/* Сессия 40 (движок 35, Т31-1…Т31-3): личные переменные «у каждого своя». Значение у каждого персонажа
 	   своё — состояние центра «var:имя@id» (id персонажа приложения — из phone '{…}' сотрудника «Кодов»,
 	   иначе «@#номер» — id найдёт центр). Строка <<sg-personal "имя" by '{…}' max '{…}'>> в StoryInit: начальное
-	   у персонажа (by), иначе $имя из StoryInit. Без связи прибавка ждёт в очереди модуля и сразу видна здесь
-	   (pvPending); «за N мин» — состояние центра «win:…», а если центр это окно не считает — по прибавкам, которые
-	   видел терминал (pvHist). */
+	   у персонажа (by), иначе $имя из StoryInit. Своё изменение видно здесь сразу, до ответа центра, и без связи
+	   (pvPending — по ключу список [время, прибавка, записать]; ответ центра на своё изменение снимает первое);
+	   «за N мин» — состояние центра «win:…», а если центр это окно не считает — по прибавкам, которые видел
+	   терминал (pvHist). */
 	var pvNames = {};
 	var pvPending = {};
 	var pvHist = {};
@@ -9098,6 +9099,25 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		}
 	}
 
+	// Свои изменения, на которые центр ещё не ответил: при связи — не дольше 30 с (центр мог не принять).
+	function pvWaiting(key) {
+		var N = window.SgTermNet;
+		var list = Array.isArray(pvPending[key]) ? pvPending[key] : [];
+		var t = Date.now();
+
+		if (N && N.on) {
+			list = list.filter(function (e) {
+				return e[0] >= t - 30000;
+			});
+		}
+		if (list.length) {
+			pvPending[key] = list;
+		} else {
+			delete pvPending[key];
+		}
+		return list;
+	}
+
 	window.sgPersonal = setup.signaly.sgPersonal = function (name, who) {
 		var N = window.SgTermNet;
 		var n = String(name).replace(/^\$/, '');
@@ -9107,9 +9127,9 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		if (v === undefined || v === null) {
 			v = pvInit(n, key.slice(key.indexOf('@') + 1));
 		}
-		if (pvPending[key]) {
-			v = (Number(v) || 0) + pvPending[key];
-		}
+		pvWaiting(key).forEach(function (e) {
+			v = e[2] !== undefined ? e[2] : (Number(v) || 0) + e[1];
+		});
 		return v;
 	};
 
@@ -9125,7 +9145,9 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			return 0;
 		}
 		if (N && N.state && typeof N.state[wk] === 'number') {
-			return N.state[wk] + (pvPending[key] > 0 ? pvPending[key] : 0);
+			return pvWaiting(key).reduce(function (s, e) {
+				return e[1] > 0 && e[0] >= t - m * 60000 ? s + e[1] : s;
+			}, N.state[wk]);
 		}
 		return (pvHist[key] || []).reduce(function (s, e) {
 			return e[0] >= t - m * 60000 ? s + e[1] : s;
@@ -9174,19 +9196,20 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 		list.forEach(function (who) {
 			var key = pvKey(n, who);
 
+			var list = pvWaiting(key);
+
 			if (set) {
 				N.send({t: 'set', key: key, value: args[1] === undefined ? null : args[1]});
-				delete pvPending[key];
+				list.push([Date.now(), 0, args[1] === undefined ? null : args[1]]);
 			} else {
 				var d = Number(args[1]);
 
 				d = isFinite(d) ? d : 1;
 				N.send({t: 'set', key: key, add: d, base: Number(pvInit(n, key.slice(key.indexOf('@') + 1))) || 0});
 				pvRecord(key, d);
-				if (!N.on) {
-					pvPending[key] = (pvPending[key] || 0) + d;
-				}
+				list.push([Date.now(), d]);
 			}
+			pvPending[key] = list;
 		});
 		pvSave();
 		setTimeout(checkEvents, 0);
@@ -9208,8 +9231,16 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			var N = window.SgTermNet;
 
 			if (type === 'status' && o && o.t === 'welcome') {
-				// очередь модуля ушла центру — запас больше не нужен; что уже есть у центра — не прибавки
-				pvPending = {};
+				// очередь модуля ушла центру — её изменения ждут ответа (время — с этой минуты); что уже есть у центра — не прибавки
+				Object.keys(pvPending).forEach(function (k) {
+					if (!Array.isArray(pvPending[k])) {
+						delete pvPending[k];
+						return;
+					}
+					pvPending[k].forEach(function (e) {
+						e[0] = Date.now();
+					});
+				});
 				Object.keys(N.state || {}).forEach(function (k) {
 					if (/^var:[^@]+@/.test(k)) {
 						pvSeen[k] = N.state[k];
@@ -9221,6 +9252,14 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 
 				if (o.by !== N.dev && typeof was === 'number' && typeof o.value === 'number' && o.value > was) {
 					pvRecord(o.key, o.value - was);
+					pvSave();
+				}
+				// ответ центра на своё изменение — снять первое ожидающее
+				if (o.by === N.dev && Array.isArray(pvPending[o.key])) {
+					pvPending[o.key].shift();
+					if (!pvPending[o.key].length) {
+						delete pvPending[o.key];
+					}
 					pvSave();
 				}
 				pvSeen[o.key] = o.value;

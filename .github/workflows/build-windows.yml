@@ -86,7 +86,8 @@ jobs:
         run: |
           mkdir -p release
           cp dist/electron/*.zip release/
-          cp signaly/template/27_03_2025.twee release/
+          cp signaly/tests/test-terminal/test-terminal.twee release/
+          node signaly/tests/publish-twee.mjs signaly/tests/test-terminal/test-terminal.twee release/test-terminal.html
           cp signaly/template/MEDIA.md release/
           ls -la release
       - name: Сохранить как артефакт
@@ -103,7 +104,7 @@ jobs:
           body: |
             Программа «Twine СИГНАЛЫ» для Windows (основа — Twine 2.12.1).
             Скачайте архив Twine-SIGNALY-…-Windows.zip, распакуйте и запустите «Twine СИГНАЛЫ.exe».
-            Исправленный шаблон — 27_03_2025.twee (в нём радио, «Атмосфера» и музыка на общем плеере), список медиафайлов — MEDIA.md.
+            Тестовая история «Тест терминала»: test-terminal.twee — импорт в Twine СИГНАЛЫ, test-terminal.html — сразу открыть в Chrome (вместе с пакетом test-net-pack приложения). Список медиафайлов шаблона — MEDIA.md.
             Коммит: ${{ github.sha }}
           files: release/*
           make_latest: true

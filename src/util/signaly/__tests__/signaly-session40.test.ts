@@ -149,6 +149,14 @@ describe('терминал: личная переменная, бегущая с
 		expect(parseExpr('sgPersonalWin("hacks", "3") gte 2')).toBeUndefined();
 	});
 
+	it('«Тест терминала» (Т30-1 А, Т31-4 А): движок в истории — нынешний', () => {
+		const twee = readFileSync(join(__dirname, '../../../../signaly/tests/test-terminal/test-terminal.twee'), 'utf8');
+
+		expect(twee).toContain(`Версия движка: ${signalyEngineVersion}.`);
+		expect(twee).toContain('<<sg-personal "hacks"');
+		expect(twee).toContain(':: Т1 Личные');
+	});
+
 	it('движок 35: личные, модуль сети П20', () => {
 		expect(signalyEngineVersion).toBe(35);
 		['sg-personal-add', 'sg-personal-set', "Macro.add('sg-personal'", 'window.sgPersonalWin', 'ticker: true'].forEach(s => expect(signalyEngineBlock()).toContain(s));

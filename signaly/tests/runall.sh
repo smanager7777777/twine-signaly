@@ -47,6 +47,7 @@ game air-play $T $M $PW /tmp/run/shots
 game reverse-play $T $M $PW /tmp/run/shots
 game sstv-play $T $M $PW $SH /tmp/run/shots
 game net-play $T $M $PW /home/claude/signaly-app
+game test-terminal-play $PW /home/claude/signaly-app
 echo "--- программа" >> $S
 el() { local name=$1 tw=$2
   for try in 1 2; do
