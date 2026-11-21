@@ -668,7 +668,7 @@ setup.signalySounds = {
 
 
 /* ===== СИГНАЛЫ: движок терминала — не редактировать вручную ===== */
-/* Версия движка: 35. Обновляется программой «Twine СИГНАЛЫ».
+/* Версия движка: 36. Обновляется программой «Twine СИГНАЛЫ».
    Настройки — в окне «Оформление терминала» (они лежат в таблице стилей).
    Свой код пишите ниже конца этого блока. */
 (function () {
@@ -713,7 +713,7 @@ setup.signalySounds = {
 	// Предпросмотр в программе: без стартового экрана, автокопии и защиты.
 	var preview = window.SIGNALY_PREVIEW;
 
-	setup.signaly = {engine: 35, preview: !!preview};
+	setup.signaly = {engine: 36, preview: !!preview};
 
 	// Русские служебные надписи SugarCube (этап 6, ответ 4А). Код автора стоит
 	// ниже движка, поэтому его надписи главнее.
@@ -6110,7 +6110,7 @@ setup.signalySounds = {
 			return;
 		}
 		if (p.drawn > 0) {
-			dec.buf.getContext('2d').drawImage(img, 0, 0, p.e.w, p.drawn, 0, 0, p.e.w, p.drawn);
+			sstvRows(dec.buf.getContext('2d'), img, p.e, 0, p.drawn);
 		}
 		dec.drawn = p.drawn;
 		dec.ver++;
@@ -6119,7 +6119,7 @@ setup.signalySounds = {
 	Macro.add('sg-sstv', {
 		handler: function () {
 			if (sstvCollect) {
-				sstvCollect.push(blockArgs(this, ['src'], ['stamp', 'img', 'mode', 'at', 'line', 'rows', 'per', 'width', 'height'], ['none']));
+				sstvCollect.push(blockArgs(this, ['src'], ['stamp', 'img', 'mode', 'at', 'line', 'rows', 'per', 'width', 'height', 'show'], ['none']));
 			}
 		}
 	});
@@ -6160,6 +6160,8 @@ setup.signalySounds = {
 			}
 			(sstvTableCache[key] = sstvTableCache[key] || []).push({
 				img: String(a.img),
+				// Сессия 41 (движок 36, Т32-3 А, П-28): своя картинка для окна декодера вместо расшифрованной.
+				show: a.show ? String(a.show) : '',
 				mode: String(a.mode || 'SSTV'),
 				at: musNum(a.at, 0),
 				line: line,
@@ -6186,9 +6188,23 @@ setup.signalySounds = {
 	function sstvImage(e) {
 		if (!e.el) {
 			e.el = new Image();
-			e.el.src = e.img;
+			// своя картинка не загрузилась — расшифрованная из звука
+			e.el.onerror = function () {
+				if (e.show && e.el.getAttribute('src') !== e.img) {
+					e.el.src = e.img;
+				}
+			};
+			e.el.src = e.show || e.img;
 		}
 		return e.el.complete && e.el.naturalWidth > 0 ? e.el : null;
+	}
+
+	// Строки y…y+n картинки e в окно декодера: своя картинка другого размера — в размер передачи.
+	function sstvRows(ctx, img, e, y, n) {
+		var kx = img.naturalWidth / e.w;
+		var ky = img.naturalHeight / e.h;
+
+		ctx.drawImage(img, 0, y * ky, e.w * kx, n * ky, 0, y, e.w, n);
 	}
 
 	// Что сейчас слышно для декодера: {src, imgs, pos, noise}, {sound: true} (звучит не SSTV) или null.
@@ -6362,7 +6378,7 @@ setup.signalySounds = {
 
 		var ctx = dec.buf.getContext('2d');
 
-		ctx.drawImage(img, 0, dec.drawn, e.w, target - dec.drawn, 0, dec.drawn, e.w, target - dec.drawn);
+		sstvRows(ctx, img, e, dec.drawn, target - dec.drawn);
 		if (src.noise > 0.01) {
 			for (var y = dec.drawn; y < target; y++) {
 				decNoiseRow(y, src.noise, false);
@@ -9364,6 +9380,20 @@ setup.signalySounds = {
 	};
 
 	if (preview) {
+		// Сессия 41 (движок 36, замечание автора: «Радио» → «Добавить вид» — «macro <<sg-shared>> does not exist»):
+		// сеть и личные переменные — только в игре (ниже), а StoryInit и экраны их уже содержат. В предпросмотре —
+		// заглушки: макросы ничего не делают, функции условий — личное значение 0 (за N мин — 0).
+		['sg-shared', 'sg-personal', 'sg-personal-add', 'sg-personal-set'].forEach(function (name) {
+			if (!Macro.has(name)) {
+				Macro.add(name, {handler: function () {}});
+			}
+		});
+		window.sgPersonal = setup.signaly.sgPersonal = function () {
+			return 0;
+		};
+		window.sgPersonalWin = setup.signaly.sgPersonalWin = function () {
+			return 0;
+		};
 		// Всегда с выбранного экрана, а не с того, что был в прошлый раз.
 		State.reset();
 		if (preview === 'start') {
@@ -9490,7 +9520,26 @@ setup.signalySounds = {
       open();
     }, N.searchList());
   }
-  function raw(o) { if (ws && ws.readyState === 1 && N.on) { ws.send(JSON.stringify(o)); return true; } return false; }
+  /* Сессия 41 (замечание автора к build-44): телефон приложения (П20) сам решает, что сообщение ему, и узнаёт только
+     «all», «acc:<свой id>» и «dev:…» — адрес «num:7» центр ему доставляет, а телефон молча пропускает. Поэтому к каждому
+     «num:N» терминал добавляет «acc:<id>» персонажа с этим номером: по таблице кодов истории (W.SgAccHint, движок 36),
+     иначе — по персонажам центра (состояние «accs»).
+     Добавляет в момент отправки — так и сообщения из очереди (без связи) уходят с id. */
+  function withAcc(o) {
+    if (!o || o.t !== 'msg' || !Array.isArray(o.to)) return o;
+    var to = o.to.slice();
+    o.to.forEach(function (t) {
+      var m = /^num:(.+)$/.exec(String(t));
+      var id = '';
+      if (m) { try { id = typeof W.SgAccHint === 'function' ? W.SgAccHint(m[1]) : ''; } catch (e) { id = ''; } }
+      if (m && !id) id = N.accOf(m[1]);
+      if (id && to.indexOf('acc:' + id) < 0) to.push('acc:' + id);
+    });
+    o.to = to;
+    return o;
+  }
+  N.withAcc = withAcc;
+  function raw(o) { if (ws && ws.readyState === 1 && N.on) { ws.send(JSON.stringify(withAcc(o))); return true; } return false; }
   N.send = function (o) { if (!raw(o)) { queue.push(o); saveQueue(); paint(); } return o; };
 
   function got(o) {
@@ -9600,7 +9649,8 @@ setup.signalySounds = {
   N.alarm = function (on, title, text) {
     return N.set('alarm', on === false ? { on: false, at: N.now() } : { on: true, id: 'terminal', title: String(title || ''), text: String(text || ''), at: N.now() });
   };
-  N.chapter = function (n) { return N.set('chapter', { n: Math.max(1, Math.round(+n || 1)), at: N.now() }); };
+  // Сессия 41: «force» — как у пульта мастера (П-50): телефон принимает и главу назад («Глава 1» после «Глава 2»)
+  N.chapter = function (n) { return N.set('chapter', { n: Math.max(1, Math.round(+n || 1)), at: N.now(), force: true }); };
   N.countdown = function (seconds, title) {
     return N.set('countdown', seconds === false ? { on: false } : { on: true, title: String(title || ''), until: N.now() + Math.max(1, +seconds || 60) * 1000, at: N.now() });
   };
@@ -9971,6 +10021,17 @@ setup.signalySounds = {
 		}
 		return N && N.accOf ? N.accOf(w) : '';
 	}
+
+	// Сессия 41 (движок 36): номер сотрудника → id персонажа телефона по таблице кодов истории (<<sg-person … phone>>) —
+	// модулю сети, чтобы к адресу «num:N» добавить «acc:<id>» (телефон узнаёт только свой id). Без таблицы — по «accs» центра.
+	window.SgAccHint = function (num) {
+		var n = String(num === undefined || num === null ? '' : num).trim().replace(/^#/, '');
+		var p = codes().people.filter(function (x) {
+			return x.id === n && x.app;
+		})[0];
+
+		return p ? p.app : '';
+	};
 
 	function pvKey(name, who) {
 		var n = String(name).replace(/^\$/, '');

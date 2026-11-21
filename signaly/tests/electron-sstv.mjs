@@ -1,7 +1,7 @@
 // Проверка программы (Electron), сессия 30: окно «Радио» — порядок видов, тип «С декодером» (Д2),
 // свои цвета лампочки и декодера, помехи — ссылкой на «Музыку»; окно «Музыка» — раздел «Помехи»
 // (папки по видам радио, перенос старых помех вида), «Сохранить» разбирает помехи и передачи на
-// картинки SSTV (настоящий разбор WAV и MP3 в Chromium программы), пассаж «SSTV»; переименование
+// картинки SSTV (настоящий разбор WAV и MP3 в Chromium программы), пассаж «SSTV» (сессия 41 — своя картинка декодера); переименование
 // вида переименовывает папку помех; «Проверить историю» — треки без копии и «Сделать копии».
 // TWEE=signaly/template/27_03_2025.twee MEDIA=… SHOT=… xvfb-run … node signaly/tests/electron-sstv.mjs <playwright>
 import {createRequire} from 'module';
@@ -146,6 +146,9 @@ const waitFor = async (test, ms = 15000) => {
 const S = path.join(game, 'media/audio/stest');
 
 fs.mkdirSync(S, {recursive: true});
+// Сессия 41 (Т32-3 А): своя картинка для окна декодера — media/img/stest/clean.png (жёлтая, 160×120).
+fs.mkdirSync(path.join(game, 'media/img/stest'), {recursive: true});
+await sharp({create: {width: 160, height: 120, channels: 4, background: {r: 240, g: 220, b: 20, alpha: 1}}}).png().toFile(path.join(game, 'media/img/stest/clean.png'));
 function sstvWav(file, color) {
 	const rgba = new Uint8ClampedArray(320 * 240 * 4);
 
@@ -314,6 +317,22 @@ await mw.getByLabel('Название трека', {exact: true}).last().fill('�
 await mw.getByRole('button', {name: 'Сохранить'}).click();
 await win.waitForTimeout(4000);
 check('файл не менялся — картинка не переделана', fs.statSync(red).mtimeMs === redTime);
+// Сессия 41 (Т32-3 А, П-28): у трека с картинкой SSTV — какую картинку набирает окно декодера.
+const showBox = mw.locator('.signaly-sstv-show[data-src="media/audio/stest/tx-blue.mp3"]');
+check('у передачи «Синяя» — «Окно декодера: какую картинку набирать», картинка из звука видна', await waitFor(async () => (await showBox.count()) === 1 && (await showBox.locator('img').count()) === 1, 8000));
+const showSel = showBox.getByLabel(/^Картинка 1 \(Robot 36/);
+check('в списке — «расшифрованная из звука» и clean.png из media/img/ (без sstv/)', await waitFor(async () => (await showSel.locator('option').allTextContents()).includes('stest/clean.png'), 8000) &&
+	!(await showSel.locator('option').allTextContents()).some(o => o.includes('sstv/')), (await showSel.locator('option').allTextContents()).join(' | '));
+await showSel.selectOption('media/img/stest/clean.png');
+check('выбрали своя: в пассаже «SSTV» — show "media/img/stest/clean.png"', await waitFor(async () => /tx-blue-1\.png"[^\n]*height 240 show "media\/img\/stest\/clean\.png">>/.test(text('SSTV')), 8000), text('SSTV'));
+check('предпросмотр: из звука и своя', await waitFor(async () => (await showBox.locator('img').count()) === 2, 5000));
+await win.screenshot({path: shot('sstv-show')});
+// своя картинка пишется сразу; «Сохранить» (после правки трека) переписывает пассаж «SSTV» — show остаётся
+await mw.getByLabel('Название трека', {exact: true}).last().fill('Синяя передача.');
+await mw.getByLabel('Название трека', {exact: true}).last().fill('Синяя передача');
+await mw.getByRole('button', {name: 'Сохранить'}).click();
+await win.waitForTimeout(3000);
+check('после «Сохранить» своя картинка осталась', /height 240 show "media\/img\/stest\/clean\.png">>/.test(text('SSTV')), text('SSTV'));
 await win.screenshot({path: shot('music')});
 await mw.getByRole('button', {name: 'Закрыть', exact: true}).click();
 await win.waitForTimeout(500);

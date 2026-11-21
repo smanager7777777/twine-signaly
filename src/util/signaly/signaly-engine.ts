@@ -70,6 +70,8 @@
 //   в очереди модуля и сразу видна на терминале; <<sg-net notify … ticker [repeat N]>> — в бегущую строку телефонов.
 // - сессия 41 (движок 36, замечания автора к build-44): команды «кому: №N» доходят до настоящего телефона — к адресу num:N
 //   модуль сети добавляет acc:<id> (телефон П20 узнаёт только свой acc); <<sg-net chapter N>> — с force (и назад).
+//   Ответ Т32-3 А (П-28): у <<sg-sstv …>> — show "media/img/….png": окно декодера набирает свою картинку вместо расшифрованной.
+//   Предпросмотр программы: заглушки <<sg-shared>>, <<sg-personal…>>, sgPersonal(), sgPersonalWin() (раньше — ошибка StoryInit).
 //
 // Код написан без обратных кавычек и без «${», потому что хранится в шаблонной
 // строке.
@@ -5534,7 +5536,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			return;
 		}
 		if (p.drawn > 0) {
-			dec.buf.getContext('2d').drawImage(img, 0, 0, p.e.w, p.drawn, 0, 0, p.e.w, p.drawn);
+			sstvRows(dec.buf.getContext('2d'), img, p.e, 0, p.drawn);
 		}
 		dec.drawn = p.drawn;
 		dec.ver++;
@@ -5543,7 +5545,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	Macro.add('sg-sstv', {
 		handler: function () {
 			if (sstvCollect) {
-				sstvCollect.push(blockArgs(this, ['src'], ['stamp', 'img', 'mode', 'at', 'line', 'rows', 'per', 'width', 'height'], ['none']));
+				sstvCollect.push(blockArgs(this, ['src'], ['stamp', 'img', 'mode', 'at', 'line', 'rows', 'per', 'width', 'height', 'show'], ['none']));
 			}
 		}
 	});
@@ -5584,6 +5586,8 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 			}
 			(sstvTableCache[key] = sstvTableCache[key] || []).push({
 				img: String(a.img),
+				// Сессия 41 (движок 36, Т32-3 А, П-28): своя картинка для окна декодера вместо расшифрованной.
+				show: a.show ? String(a.show) : '',
 				mode: String(a.mode || 'SSTV'),
 				at: musNum(a.at, 0),
 				line: line,
@@ -5610,9 +5614,23 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	function sstvImage(e) {
 		if (!e.el) {
 			e.el = new Image();
-			e.el.src = e.img;
+			// своя картинка не загрузилась — расшифрованная из звука
+			e.el.onerror = function () {
+				if (e.show && e.el.getAttribute('src') !== e.img) {
+					e.el.src = e.img;
+				}
+			};
+			e.el.src = e.show || e.img;
 		}
 		return e.el.complete && e.el.naturalWidth > 0 ? e.el : null;
+	}
+
+	// Строки y…y+n картинки e в окно декодера: своя картинка другого размера — в размер передачи.
+	function sstvRows(ctx, img, e, y, n) {
+		var kx = img.naturalWidth / e.w;
+		var ky = img.naturalHeight / e.h;
+
+		ctx.drawImage(img, 0, y * ky, e.w * kx, n * ky, 0, y, e.w, n);
 	}
 
 	// Что сейчас слышно для декодера: {src, imgs, pos, noise}, {sound: true} (звучит не SSTV) или null.
@@ -5786,7 +5804,7 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 
 		var ctx = dec.buf.getContext('2d');
 
-		ctx.drawImage(img, 0, dec.drawn, e.w, target - dec.drawn, 0, dec.drawn, e.w, target - dec.drawn);
+		sstvRows(ctx, img, e, dec.drawn, target - dec.drawn);
 		if (src.noise > 0.01) {
 			for (var y = dec.drawn; y < target; y++) {
 				decNoiseRow(y, src.noise, false);
@@ -8788,6 +8806,20 @@ const engineBody = String.raw`/* Версия движка: ${signalyEngineVersi
 	};
 
 	if (preview) {
+		// Сессия 41 (движок 36, замечание автора: «Радио» → «Добавить вид» — «macro <<sg-shared>> does not exist»):
+		// сеть и личные переменные — только в игре (ниже), а StoryInit и экраны их уже содержат. В предпросмотре —
+		// заглушки: макросы ничего не делают, функции условий — личное значение 0 (за N мин — 0).
+		['sg-shared', 'sg-personal', 'sg-personal-add', 'sg-personal-set'].forEach(function (name) {
+			if (!Macro.has(name)) {
+				Macro.add(name, {handler: function () {}});
+			}
+		});
+		window.sgPersonal = setup.signaly.sgPersonal = function () {
+			return 0;
+		};
+		window.sgPersonalWin = setup.signaly.sgPersonalWin = function () {
+			return 0;
+		};
 		// Всегда с выбранного экрана, а не с того, что был в прошлый раз.
 		State.reset();
 		if (preview === 'start') {

@@ -28,6 +28,8 @@ import {
 import {CodeTable, newEntry, TableCode} from '../../util/signaly/signaly-codes';
 import {CheckField, ChoiceField, TextField} from '../signaly-appearance/signaly-appearance-fields';
 import {withVoiceMode, voiceModeOf} from '../signaly-codes/signaly-phone-person-form';
+import {Story} from '../../store/stories';
+import {AppMediaPick} from './signaly-app-media-pick';
 import {
 	accountLabel,
 	AccountsField,
@@ -571,8 +573,8 @@ export function ruleLabel(x: AppGame, l: (k: string, o?: Record<string, unknown>
 	return eventLabel('rules', x, l);
 }
 
-export const EventsTab: React.FC<TabProps & {sub: EventsSub; setSub: (s: EventsSub) => void}> = props => {
-	const {game, sel, setGame, setSel, setSub, setTable, sub, table} = props;
+export const EventsTab: React.FC<TabProps & {sub: EventsSub; setSub: (s: EventsSub) => void; story?: Story}> = props => {
+	const {game, sel, setGame, setSel, setSub, setTable, story, sub, table} = props;
 	const l = usePhoneL();
 	const items = list(game, sub);
 	const i = Math.min(sel[sub] ?? 0, Math.max(0, items.length - 1));
@@ -599,8 +601,18 @@ export const EventsTab: React.FC<TabProps & {sub: EventsSub; setSub: (s: EventsS
 						<div className="signaly-field-hint">{l('notices.hint')}</div>
 						{/* Сессия 40 (П-79, основа 4): событие — картинка, mp3, бегущая строка, когда уходит, архив. */}
 						<h3>{l('notices.event')}</h3>
-						<TextField hint={l('notices.imgHint')} label={l('notices.img')} onChange={img => set({img: img.trim()})} value={str('img')} />
-						<TextField hint={l('notices.mp3Hint')} label={l('notices.mp3')} onChange={mp3 => set({mp3: mp3.trim()})} value={str('mp3')} />
+						{/* Сессия 41 (Т32-4 А): выбор из файлов media/app/ с предпросмотром, как у блока. */}
+						{story ? (
+							<>
+								<AppMediaPick hint={l('notices.imgHint')} label={l('notices.img')} onChange={img => set({img})} story={story} type="image" value={str('img')} />
+								<AppMediaPick hint={l('notices.mp3Hint')} label={l('notices.mp3')} onChange={mp3 => set({mp3})} story={story} type="audio" value={str('mp3')} />
+							</>
+						) : (
+							<>
+								<TextField hint={l('notices.imgHint')} label={l('notices.img')} onChange={img => set({img: img.trim()})} value={str('img')} />
+								<TextField hint={l('notices.mp3Hint')} label={l('notices.mp3')} onChange={mp3 => set({mp3: mp3.trim()})} value={str('mp3')} />
+							</>
+						)}
 						{str('mp3') !== '' && <CheckField hint={l('notices.playNowHint')} label={l('notices.playNow')} onChange={playNow => set({playNow})} value={!!x.playNow} />}
 						<CheckField hint={l('notices.tickerHint')} label={l('notices.ticker')} onChange={ticker => set({ticker})} value={!!x.ticker} />
 						{!!x.ticker && (

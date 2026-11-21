@@ -1,6 +1,7 @@
 // Проверка программы (Electron), сессия 40 (= П21): формы новых полей приложения П20 (app/05 П-79) — «у каждого своя»
 // в окне «Переменные» (Т31-1 А), шапка (размер, «не больше N», долги П19), события у уведомлений и бегущая строка,
 // правило по личной «за N мин» и «тому, у кого сработало», «После ввода» и тестировщик; движок 36.
+// Сессия 41 (Т32-4 А): картинка и mp3 события — выбор из media/app/ с предпросмотром.
 // Запуск: TWEE=<шаблон> PACKS=<папка с app-test-net-pack-p20.sgpack> SHOT=<снимок.png>
 //   xvfb-run -a -s "-screen 0 1600x1000x24" node signaly/tests/electron-app-t9.mjs <playwright>
 import {createRequire} from 'module';
@@ -32,7 +33,11 @@ await app.evaluate(({BrowserWindow}) => BrowserWindow.getAllWindows()[0].setBoun
 await app.evaluate(({dialog}, dir) => {
 	dialog.showOpenDialog = async () => ({canceled: false, filePaths: [dir]});
 }, game);
-win.on('dialog', d => d.accept());
+const alerts = [];
+win.on('dialog', d => {
+	alerts.push(d.message());
+	d.accept();
+});
 await win.waitForTimeout(3000);
 
 const btn = re => win.getByRole('button', {name: re});
@@ -110,6 +115,15 @@ await appTab('Сеть и события');
 await appWin().getByRole('button', {name: /^Новости/}).first().click();
 await win.waitForTimeout(300);
 check('у «Новости»: в бегущую строку, картинка ev.png', (await field('В бегущую строку').isChecked()) && (await field('Картинка').inputValue()) === 'ev.png');
+// Сессия 41 (Т32-4 А): картинка и mp3 события — выбор из файлов media/app/ с предпросмотром.
+const imgSel = appWin().locator('.signaly-app-media-pick[data-type=image] select');
+check('картинка события — список файлов media/app/ (ev.png), «не выбран»', (await imgSel.count()) === 1 && (await imgSel.locator('option').allTextContents()).join('|').includes('ev.png') &&
+	(await imgSel.locator('option').allTextContents())[0].includes('не выбран'), (await imgSel.locator('option').allTextContents()).join('|'));
+check('предпросмотр картинки события', await appWin().locator('.signaly-app-media-pick[data-type=image] img.signaly-app-media-preview').waitFor({timeout: 5000}).then(() => true, () => false));
+const mp3Sel = appWin().locator('.signaly-app-media-pick[data-type=audio] select');
+check('mp3 события — список: ev.mp3, без картинок', (await mp3Sel.locator('option').allTextContents()).includes('ev.mp3') && !(await mp3Sel.locator('option').allTextContents()).includes('ev.png'));
+await mp3Sel.selectOption('ev.mp3');
+check('выбрали ev.mp3 — плеер для прослушивания', await appWin().locator('.signaly-app-media-pick[data-type=audio] audio.signaly-app-media-preview').waitFor({timeout: 5000}).then(() => true, () => false));
 await field('Проходов строки').fill('3');
 await field('Проходов строки').blur();
 check('настройки бегущей строки: реклама «Реклама 1», «Реклама 2» отмечены', (await field('Реклама 1').isChecked()) && (await field('Реклама 2').isChecked()));
@@ -122,7 +136,7 @@ const g = general();
 check('шапка: size compact, maxItems 2', g.header?.size === 'compact' && g.header?.maxItems === 2, JSON.stringify(g.header).slice(0, 400));
 check('бегущая строка: k 4, реклама та же', g.ticker?.k === 4 && JSON.stringify(g.ticker?.ads) === '["n4","n5"]', JSON.stringify(g.ticker));
 const notices = [...passageText('Приложение').matchAll(/<<app-notice>>(.*?)<<\/app-notice>>/g)].map(m => JSON.parse(m[1].replace(/&lt;/g, '<')));
-check('«Новости»: проходов 3', (notices.find(n => n.id === 'n2') || {}).repeat === 3, JSON.stringify(notices.find(n => n.id === 'n2')));
+check('«Новости»: проходов 3, mp3 ev.mp3 (выбран из списка)', (notices.find(n => n.id === 'n2') || {}).repeat === 3 && (notices.find(n => n.id === 'n2') || {}).mp3 === 'ev.mp3', JSON.stringify(notices.find(n => n.id === 'n2')));
 await appWin().getByRole('button', {name: 'Закрыть'}).click();
 await win.waitForTimeout(600);
 
@@ -175,6 +189,30 @@ await win.waitForTimeout(500);
 // 6. «Коды»: «После ввода» у кода NOWB — «сразу»; тестировщик у №7.
 check('код NOWB: после ввода — сразу (now) сохранено из пакета', phoneOf(passageText('Коды'), 'NOWB')?.after === 'now');
 check('персонаж №7: тестировщик', /<<sg-person "7"[^\n]*"tester":true/.test(passageText('Коды')));
+
+// 7. Сессия 41 (замечание автора): «Радио» → «Добавить вид» и любой тип — предпросмотр без ошибки StoryInit
+// (в StoryInit — <<sg-shared>> и <<sg-personal>> из пакета; в предпросмотре этих макросов раньше не было).
+check('StoryInit: есть <<sg-shared>> и <<sg-personal>>', /<<sg-shared[\s>]/.test(passageText('StoryInit')) && passageText('StoryInit').includes('<<sg-personal '), passageText('StoryInit').slice(0, 600));
+alerts.length = 0;
+await win.getByRole('tab', {name: 'История'}).click();
+await win.locator('.route-toolbar').getByRole('button', {name: /^Радио$/}).click();
+await win.waitForTimeout(1500);
+const rw = win.locator('[role=dialog][aria-label="Радио"]');
+await rw.getByRole('button', {name: 'Добавить вид'}).click();
+await win.waitForTimeout(2500);
+const radioFrame = win.frameLocator('.signaly-ticker-preview iframe');
+const types = await rw.getByRole('radiogroup', {name: 'Тип радио'}).getByRole('radio').all();
+let drawn = 0;
+for (const r of types) {
+	await r.check();
+	await win.waitForTimeout(2000);
+	if ((await radioFrame.locator('.sg-radio').count()) === 1) drawn++;
+}
+const errText = await radioFrame.locator('.error, .error-view').allTextContents().catch(() => []);
+check(`«Добавить вид» и все ${types.length} типа — предпросмотр без ошибки (нет «macro <<sg-shared>> does not exist»)`, types.length >= 3 && drawn === types.length && alerts.length === 0 && errText.length === 0, JSON.stringify({drawn, alerts, errText}).slice(0, 800));
+await win.screenshot({path: shot('radio')});
+await rw.getByRole('button', {name: 'Закрыть', exact: true}).click();
+await win.waitForTimeout(500);
 
 await app.close();
 console.log(results.every(Boolean) ? `ВСЁ ХОРОШО (${results.length})` : `ОШИБКИ: ${results.filter(r => !r).length} из ${results.length}`);

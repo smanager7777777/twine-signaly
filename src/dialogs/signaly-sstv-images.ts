@@ -109,7 +109,9 @@ export async function makeSstvImages(
 					rows: image.rows,
 					per: image.per,
 					width: image.width,
-					height: image.height
+					height: image.height,
+					// Сессия 41 (Т32-3 А): своя картинка для декодера переживает новый разбор (по номеру картинки).
+					...(old.get(src)?.images[n]?.show ? {show: old.get(src)!.images[n].show} : {})
 				});
 			}
 			next.set(src, file);

@@ -3,7 +3,7 @@
 // НЕДОСТУПЕН», приглушение общего плеера звуком-сигналом, радио с декодером (Д2): ДЕКОД, набор
 // картинки SSTV в такт звуку, шум при неточной настройке, строки помех, новая картинка при повторе,
 // окно на весь терминал, набранное живёт между экранами, после сбоя декодер выключен; сессия 33 (3Б) —
-// набранная картинка переживает сбой (автокопия).
+// набранная картинка переживает сбой (автокопия); сессия 41 (Т32-3 А) — своя картинка окна декодера (show).
 // node sstv-play.mjs <история.twee (шаблон)> <папка с media> <playwright> <sharp> <снимки или ""> [ещё игра.html …]
 import {createRequire} from 'module';
 import {execFileSync} from 'child_process';
@@ -149,6 +149,17 @@ const test =
 
 fs.writeFileSync(path.join(gameDir, 'sstv-test.twee'), test);
 execFileSync('node', [path.join(here, 'publish-twee.mjs'), path.join(gameDir, 'sstv-test.twee'), path.join(gameDir, 'sstv-test.html'), 'start=SHome']);
+
+// Сессия 41 (Т32-3 А, П-28): своя картинка окна декодера — сплошная жёлтая другого размера (160×120) вместо расшифрованной.
+const showPath = 'media/img/stest/clean.png';
+
+fs.mkdirSync(path.join(gameDir, 'media/img/stest'), {recursive: true});
+await sharp({create: {width: 160, height: 120, channels: 4, background: {r: 240, g: 220, b: 20, alpha: 1}}}).png().toFile(path.join(gameDir, showPath));
+fs.writeFileSync(path.join(gameDir, 'sstv-show.twee'), test.replace(/(<<sg-sstv [^\n]*?height \d+)>>/, `$1 show "${showPath}">>`));
+if (!fs.readFileSync(path.join(gameDir, 'sstv-show.twee'), 'utf8').includes(`show "${showPath}"`)) {
+	throw new Error('нет show в sstv-show.twee');
+}
+execFileSync('node', [path.join(here, 'publish-twee.mjs'), path.join(gameDir, 'sstv-show.twee'), path.join(gameDir, 'sstv-show.html'), 'start=SHome']);
 
 const types = {html: 'text/html; charset=utf-8', jpg: 'image/jpeg', png: 'image/png', wav: 'audio/wav', mp3: 'audio/mpeg', mp4: 'video/mp4', woff2: 'font/woff2'};
 const server = http
@@ -553,6 +564,26 @@ for (const [url, prefix] of [[base + 'sstv-test.html', ''], ...extra.map(f => [b
 	await shuffleChecks(page, say);
 	await duckChecks(page, say);
 	await decoderChecks(page, say);
+	await page.context().close();
+}
+
+{
+	// Сессия 41 (Т32-3 А): окно декодера набирает свою картинку (жёлтую), в такт той же передаче.
+	const page = await start(await open(base + 'sstv-show.html'));
+
+	await go(page, 'SDec', 700);
+	await page.locator('.sg-radio .sg-r-decbtn').click();
+	await page.locator('.sg-radio .sg-r-scanbtn').click();
+	await page.waitForTimeout(200);
+	await page.evaluate(() => SugarCube.setup.signaly.airPlace('Эфир/Картинка', 1000));
+	await tune(page, 1000, 100);
+	await page.waitForTimeout(5000);
+
+	const d = await dec(page);
+	const yellow = p => p && p[0] > 170 && p[1] > 150 && p[2] < 90;
+
+	check('своя картинка (show): декодер набирает её, а не расшифрованную — слева и справа жёлтое', d.state === 'image' && d.drawn > 10 && yellow(d.red) && yellow(d.blue), JSON.stringify([d.state, d.drawn, d.red, d.blue]));
+	check('своя картинка другого размера — в размер передачи (320×240)', d.w === 320 && d.h === 240, JSON.stringify([d.w, d.h]));
 	await page.context().close();
 }
 

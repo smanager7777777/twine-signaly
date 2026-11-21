@@ -591,7 +591,7 @@ export const SignalyAppWindow: React.FC<SignalyAppWindowProps> = props => {
 					{tab === 'header' && <HeaderTab {...tabProps} />}
 					{tab === 'chapters' && <ChaptersTab {...tabProps} />}
 					{tab === 'apps' && <DevicesTab {...tabProps} />}
-					{tab === 'events' && <EventsTab {...tabProps} setSub={setEvSub} sub={evSub} />}
+					{tab === 'events' && <EventsTab {...tabProps} setSub={setEvSub} story={story} sub={evSub} />}
 					{tab === 'voice' && <VoiceTab {...tabProps} />}
 					{tab === 'blocks' && <BlocksTab onOpen={openPassage} story={story} />}
 					{tab === 'qr' && <QrTab folder={folder} game={work.game} table={work.table} />}

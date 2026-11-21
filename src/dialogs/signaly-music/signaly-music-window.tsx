@@ -49,6 +49,7 @@ import {CondListsContext, CondRows, useCondLists} from '../passage-edit/signaly-
 import {useLists} from '../passage-edit/signaly-block-panel';
 import {useReverseCopies} from '../signaly-reverse-copies';
 import {useSstvImages} from '../signaly-sstv-images';
+import {SstvShowPick} from './signaly-sstv-show';
 import {pendingTemplateMusic, saveStoryWithUpgrade} from '../signaly-upgrade';
 import '../signaly-appearance/signaly-appearance.css';
 import '../signaly-kinds/signaly-kinds.css';
@@ -305,6 +306,8 @@ export const SignalyMusicWindow: React.FC<{onClose: () => void; story: Story}> =
 				</legend>
 				<TextField label={l('trackName')} onChange={name => setTrack(index, {name})} value={track.name} />
 				{audioChoice(l('file'), track.src, src => setTrack(index, {src}), l('chooseFile'))}
+				{/* Сессия 41 (Т32-3 А): своя картинка в окне декодера вместо расшифрованной. */}
+				{track.src !== '' && <SstvShowPick src={track.src} story={story} />}
 				<RangeField hint={l('gainHint')} label={l('gain')} max={100} min={1} onChange={gain => setTrack(index, {gain})} unit="%" value={track.gain} />
 				{jam && (
 					<RangeField

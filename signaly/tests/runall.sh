@@ -1,5 +1,5 @@
 #!/bin/bash
-# Все проверки подряд (сессия 27; сессия 30 — sstv-play, electron-sstv; сессия 32 — electron-app; сессия 33 — electron-app-forms; сессия 34 — electron-app-t3b; сессия 35 — electron-app-t4; сессия 36 — electron-app-t5; сессия 37 — electron-app-t6; сессия 38 — electron-app-t7; сессия 39 — electron-app-t8; сессия 40 — electron-app-t9, test-terminal-play). Итог — /tmp/run/summary.txt
+# Все проверки подряд (сессия 27; сессия 30 — sstv-play, electron-sstv; сессия 32 — electron-app; сессия 33 — electron-app-forms; сессия 34 — electron-app-t3b; сессия 35 — electron-app-t4; сессия 36 — electron-app-t5; сессия 37 — electron-app-t6; сессия 38 — electron-app-t7; сессия 39 — electron-app-t8; сессия 40 — electron-app-t9, test-terminal-play; сессия 41 — real-phone-play; electron-app-t9 и electron-sstv дополнены). Итог — /tmp/run/summary.txt
 # Старые шаблоны: for c in a8b24b6~2 64321cf 5e0afed 30462fa 60c483a fa0a506 b6203c6 2e57ad0 b633a9d 8b80f1a c6bc328 4b9ae32;
 #   do git show $c:signaly/template/27_03_2025.twee > /tmp/run/t-${c/\~/_}.twee; done
 # Перед запуском: npx tsc -p signaly/tools/tsconfig.json (.signaly-tools — нужен наборам игры), сборка программы в electron-build.
@@ -48,6 +48,8 @@ game reverse-play $T $M $PW /tmp/run/shots
 game sstv-play $T $M $PW $SH /tmp/run/shots
 game net-play $T $M $PW /home/claude/signaly-app
 game test-terminal-play $PW /home/claude/signaly-app
+# Сессия 41: настоящие телефоны (приложение игрока signaly-app, dist/www — node tools/build.mjs в клоне)
+game real-phone-play $PW /home/claude/signaly-app
 echo "--- программа" >> $S
 el() { local name=$1 tw=$2
   for try in 1 2; do

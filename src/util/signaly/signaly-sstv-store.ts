@@ -9,6 +9,8 @@
 //   <<sg-sstv "media/audio/jam/a.wav" stamp "…" none>>       — картинок нет
 // stamp — «время изменения-размер» файла: изменился файл — программа разбирает его заново.
 // Движок набирает картинку в такт звуку: строка r видна с at + (⌊r / per⌋ + 1) · line секунд.
+// Сессия 41 (ответ Т32-3 А, П-28): у картинки можно задать свою — show "media/img/….png" (окно «Музыка», у трека):
+// окно декодера набирает её (в такт той же передаче) вместо расшифрованной из звука; телефоны расшифровывают честно.
 
 import {arg} from './signaly-link-form';
 import {commentRanges, MusicCatalog} from './signaly-music';
@@ -31,6 +33,8 @@ export interface SstvRecord {
 	per: number;
 	width: number;
 	height: number;
+	/** Сессия 41 (Т32-3 А): своя картинка для окна декодера (путь в папке игры); нет — расшифрованная img. */
+	show?: string;
 }
 
 export interface SstvFile {
@@ -133,7 +137,8 @@ export function readSstv(text: string): Map<string, SstvFile> {
 				rows: Math.round(num(values.rows)),
 				per: Math.max(1, Math.round(num(values.per))),
 				width: Math.round(num(values.width)),
-				height: Math.round(num(values.height))
+				height: Math.round(num(values.height)),
+				...(values.show ? {show: values.show} : {})
 			});
 		}
 		out.set(src, file);
@@ -151,7 +156,7 @@ export function writeSstvFile(file: SstvFile) {
 	return file.images.map(
 		r =>
 			`<<sg-sstv ${arg(file.src)} stamp ${arg(file.stamp)} img ${arg(r.img)} mode ${arg(r.mode)} at ${fixed(r.at, 4)} line ${fixed(r.line, 6)} ` +
-			`rows ${r.rows} per ${r.per} width ${r.width} height ${r.height}>>`
+			`rows ${r.rows} per ${r.per} width ${r.width} height ${r.height}${r.show ? ` show ${arg(r.show)}` : ''}>>`
 	);
 }
 

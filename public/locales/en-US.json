@@ -2490,7 +2490,17 @@
 			"jamFolderHint": "Named after the radio view: rename the view in the Radio window, the folder follows.",
 			"jamOrphan": "There is no radio view with this name. This interference is not used — the folder can be deleted.",
 			"whenJam": "When this interference can land on the dial",
-			"jamWidthHint": "How many MHz on each side of its spot it can be heard."
+			"jamWidthHint": "How many MHz on each side of its spot it can be heard.",
+			"sstvShow": {
+				"title": "Decoder window: which picture to draw",
+				"hint": "Pictures the program found in this sound (“Save”). The terminal decoder window draws, in time with the transmission, the one decoded from the sound or your own picture from the game folder media/img/ (another size is stretched to the transmission size). Phones decode the sound honestly.",
+				"picture": "Picture {{n}} ({{mode}}, from {{at}} s)",
+				"decoded": "— decoded from the sound —",
+				"missing": "{{file}} (not in the folder)",
+				"fromSound": "from the sound",
+				"own": "in the decoder",
+				"noFolder": "No game folder: the picture list and preview appear once the folder is chosen (story “Details”)."
+			}
 		},
 		"screenMusic": {
 			"button": "Screen music",
@@ -3229,9 +3239,9 @@
 				"hint": "The network centre runs the timer from the moment the chapter reached the centre.",
 				"event": "Event (picture, sound, ticker)",
 				"img": "Picture",
-				"imgHint": "A file from the game folder media/app/ (e.g. ev.png); empty — no picture.",
+				"imgHint": "A file from the game folder media/app/ — pick from the list (preview below); “not chosen” — no picture.",
 				"mp3": "Sound (mp3)",
-				"mp3Hint": "A file from media/app/; on arrival — a short beep, the mp3 — on tap.",
+				"mp3Hint": "A file from media/app/ — pick from the list (player below); on arrival — a short beep, the mp3 — on tap.",
 				"playNow": "Play at once",
 				"playNowHint": "The mp3 plays on arrival (announcements).",
 				"ticker": "To the news ticker",
@@ -3248,7 +3258,9 @@
 				"save": "Keep in «Data»",
 				"saveHint": "An opened event stays in the archive («Data» tab).",
 				"folder": "Archive folder",
-				"folderHint": "Empty — «События»."
+				"folderHint": "Empty — «События».",
+				"refreshFiles": "Refresh file list",
+				"fileMissing": "No file {{file}} in the game folder media/app/."
 			},
 			"alarms": {
 				"title": "Title on the screen",
